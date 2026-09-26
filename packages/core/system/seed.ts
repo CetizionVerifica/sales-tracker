@@ -69,6 +69,35 @@ export async function bootstrapSystemUser(): Promise<string> {
   return id;
 }
 
+/** Creates the CompanySettings row with defaults if missing (never overwrites edits). */
+export async function ensureCompanySettings(): Promise<boolean> {
+  const existing = await getDb().companySettings.count({ where: { id: 1 } });
+  if (existing) return false;
+  await withTx(await systemCtx(), (tx) =>
+    tx.companySettings.create({ data: { id: 1, companyName: 'Sales Tracker' } }),
+  );
+  return true;
+}
+
+/** Dev-only sample masters, so forms have something to pick from. */
+export const SAMPLE_SECTORS = ['Manufacturing', 'Pharma', 'Infrastructure', 'Energy'];
+export const SAMPLE_SERVICES = ['Inspection', 'Certification', 'Audit', 'Training'];
+
+async function ensureSampleMasters(log: (message: string) => void) {
+  const ctx = await systemCtx();
+  await withTx(ctx, async (tx) => {
+    for (const name of SAMPLE_SECTORS) {
+      const exists = await tx.sector.count({ where: { name, deletedAt: undefined } });
+      if (!exists) await tx.sector.create({ data: { name } });
+    }
+    for (const name of SAMPLE_SERVICES) {
+      const exists = await tx.service.count({ where: { name, deletedAt: undefined } });
+      if (!exists) await tx.service.create({ data: { name } });
+    }
+  });
+  log('sample sectors and services ensured');
+}
+
 /** Idempotent: creates what is missing and never changes existing users or passwords. */
 export async function seed(options: SeedOptions): Promise<void> {
   const { adminEmail, adminPassword, devUsers, log = () => {} } = options;
@@ -89,7 +118,10 @@ export async function seed(options: SeedOptions): Promise<void> {
   );
   log(createdAdmin ? `created admin ${adminEmail}` : `admin ${adminEmail} already exists`);
 
+  if (await ensureCompanySettings()) log('created company settings');
+
   if (devUsers) {
+    await ensureSampleMasters(log);
     for (const user of DEV_USERS) {
       if (await ensureCredentialUser(user.email, user.password, user.name, user.role)) {
         log(`created dev user ${user.email}`);

@@ -13,3 +13,10 @@ export interface Page<T> {
   page: number;
   pageSize: number;
 }
+
+/** Transport shape for actions that target one record: `{ id, data }`. */
+export function withId<S extends z.ZodType>(data: S) {
+  return z.object({ id: z.string().min(1), data });
+}
+
+export const idOnlySchema = z.object({ id: z.string().min(1) });

@@ -20,7 +20,10 @@ type RuntimeDataModel = {
   models: Record<string, { fields: { name: string; kind: string }[] }>;
 };
 
-let meta: Record<string, ModelFields> | undefined;
+// On globalThis for the same reason as the audit store: module copies must share it.
+const globalForMeta = globalThis as unknown as {
+  salesTrackerModelMeta?: Record<string, ModelFields>;
+};
 
 /**
  * Captures per-model field metadata from the client. Prisma does not export it publicly, so
@@ -30,7 +33,7 @@ let meta: Record<string, ModelFields> | undefined;
 export function registerModelMeta(client: unknown): void {
   const runtime = (client as { _runtimeDataModel?: RuntimeDataModel })._runtimeDataModel;
   if (!runtime) throw new Error('Prisma client has no _runtimeDataModel; update model-meta.ts');
-  meta = Object.fromEntries(
+  globalForMeta.salesTrackerModelMeta = Object.fromEntries(
     Object.entries(runtime.models).map(([name, model]) => [
       name,
       {
@@ -42,6 +45,7 @@ export function registerModelMeta(client: unknown): void {
 }
 
 export function modelFields(): Record<string, ModelFields> {
+  const meta = globalForMeta.salesTrackerModelMeta;
   if (!meta) throw new Error('Model metadata not registered; call getDb() first');
   return meta;
 }

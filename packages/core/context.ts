@@ -17,6 +17,8 @@ export type Source = 'web' | 'mcp' | 'import' | 'system';
 export interface Ctx {
   user: Actor;
   source: Source;
+  /** The current web session, when there is one (e.g. to keep it on password change). */
+  sessionId?: string;
 }
 
 /** Every service calls this first. Throws ForbiddenError when can() says no. */
@@ -40,7 +42,11 @@ export async function getCtxFromHeaders(headers: Headers, source: Source): Promi
   });
   if (!user || !user.active || user.isSystem) throw new UnauthenticatedError();
 
-  return { user: { id: user.id, role: user.role, active: user.active }, source };
+  return {
+    user: { id: user.id, role: user.role, active: user.active },
+    source,
+    sessionId: session.session.id,
+  };
 }
 
 /**

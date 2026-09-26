@@ -186,14 +186,18 @@ Every function takes `ctx`, calls `assertCan` first, writes inside `withTx`, and
 
 ## Dependencies
 
-| Package                                                                                                                                         | Where | Why                                                                                      |
-| ----------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------------------- |
-| `@tanstack/react-table`                                                                                                                         | web   | Server-side data tables, already in the CLAUDE.md stack.                                 |
-| shadcn/ui components (`table`, `dialog`, `alert-dialog`, `select`, `badge`, `dropdown-menu`, `sheet`, `textarea`, `checkbox`, `tabs`, `sonner`) | web   | Admin UI. `sonner` is shadcn's toast component, used for save and restore confirmations. |
+| Package                                                                                                                                 | Where | Why                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@tanstack/react-table` **8.21.3**                                                                                                      | web   | Server-side data tables (CLAUDE.md stack). Pinned to 8.x: 9.x is a new major version with a redesigned options API (features, reactivity bindings). Upgrading is a separate change. |
+| `sonner`                                                                                                                                | web   | Toasts for save, delete and restore results (shadcn's toast component).                                                                                                             |
+| `lucide-react`                                                                                                                          | web   | Icons used by the shadcn components (select, dialog, sort arrows).                                                                                                                  |
+| shadcn/ui components (`table`, `dialog`, `alert-dialog`, `select`, `badge`, `dropdown-menu`, `sheet`, `textarea`, `checkbox`, `sonner`) | web   | Admin UI. Copied into `components/ui`, and use `radix-ui`, which is already installed.                                                                                              |
+
+The shadcn CLI again added its own `cn` package, plus `next-themes` for the toast theme. Both were removed: the components use the existing `@/lib/utils` `cn()`, and the toaster uses a fixed light theme.
 
 Time-zone display uses `Intl.DateTimeFormat` with `timeZone: 'Asia/Kolkata'`, so no date library is needed.
 
-## Risks to check during planning
+## Risks (resolved during planning and build)
 
 - **Order of the soft-delete and audit extensions:**
   - The audit extension re-reads rows by `id` after a write. With the soft-delete filter applied, the re-read after a _soft delete_ would find nothing, and `findUniqueOrThrow` would fail.
@@ -201,6 +205,28 @@ Time-zone display uses `Intl.DateTimeFormat` with `timeZone: 'Asia/Kolkata'`, so
 - **Better Auth server APIs inside `withTx`:** confirm that `setUserPassword` (reset) and a password check against the stored hash (for `changeOwnPassword`) run on the transaction client, as `createUser` did in M2. Fallback: hash with Better Auth's password hasher and update `Account` directly inside `withTx`.
 - **Partial unique indexes and Prisma errors:** a duplicate-name violation surfaces as a Prisma `P2002` error without the field names Prisma usually gives. The services should check for an existing name first (inside the transaction) for friendly field errors, with the index as the final guard.
 - **Server-side TanStack Table with the App Router:** the table state has to live in URL search params, read by a server component that calls core services. Confirm this pattern early, since M4–M12 will reuse it.
+
+## Implementation notes (decided during the build)
+
+- **Passwords:** the admin plugin's `setUserPassword` requires an admin _session_, so it cannot be called from the server. `auth/passwords.ts` uses Better Auth's internal `password.hash`, `password.verify` and `internalAdapter.updatePassword` instead. The planning spike showed they run on the `withTx` transaction: a rollback undoes them, and a commit writes an audited `Account` update with the hash redacted.
+- **Soft delete lives in the same query hook as auditing.** The audit extension's own reads add `deletedAt: undefined`. Prisma ignores it, but it counts as "mentions `deletedAt`", so audit before/after reads see soft-deleted rows. Relations loaded with `include` are not filtered; services filter them explicitly (tested).
+- **`changeOwnPassword` keeps the current session.** `Ctx` gained an optional `sessionId`, set by `getCtxFromHeaders`.
+- **Creating a client from the admin UI** saves the client first, then opens its page to add contacts. The service still accepts initial contacts, which the M4 enquiry form will use.
+- **`AUTH_SIGNIN_RATE_LIMIT`** (default 5 per minute) makes the sign-in limit configurable. Only the E2E server raises it, because every test signs in from `127.0.0.1`.
+
+## Bugs found while building M3 (fixed)
+
+- **M2's audit extension stored `entityId` as the raw id.** `CompanySettings.id` is an `Int`, so the audit insert failed. Ids are now stored as text.
+- **`packages/core` is loaded twice inside Next.js** (server actions and server components are separate bundle layers).
+  - The Prisma client, cached on `globalThis`, read one module copy's `AsyncLocalStorage` while `withTx` wrote to the other's, so every audited write from a server action failed with `AuditContextError`.
+  - The async storage and the model metadata are now process-wide singletons on `globalThis`.
+  - A regression test loads the store module twice. It fails with the old code.
+- **Table cells remounted on every refresh,** because TanStack's `flexRender` treats inline cell renderers as components, which closed open dialogs (e.g. the reset-password result). Column definitions are now memoised.
+
+## For M14 (hardening)
+
+- **Client IP trust:** without `TRUSTED_PROXY_CIDRS`, Better Auth trusts a _single-value_ `x-forwarded-for`. If the app were reachable without a proxy that overwrites that header, a client could fake it and dodge the sign-in rate limit. Production must sit behind a proxy that sets `x-forwarded-for`, with `TRUSTED_PROXY_CIDRS` configured.
+- **TanStack Table 9 upgrade**, if its API has settled.
 
 ## Open questions
 

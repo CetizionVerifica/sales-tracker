@@ -2,7 +2,7 @@ import { policy } from './policy.ts';
 import type { Action, Actor, InstanceOf, Resource, ResourceType } from './types.ts';
 
 // Resources without ownership fields: the type alone is a complete instance.
-const OWNERLESS = new Set<ResourceType>(['master', 'settings', 'apiToken']);
+const OWNERLESS = new Set<ResourceType>(['master', 'client', 'settings', 'apiToken']);
 
 /** Audit rows are append-only for everyone; the M2 extension writes them directly. */
 const AUDIT_IMMUTABLE = new Set<Action>(['create', 'update', 'delete']);

@@ -23,7 +23,11 @@ function toResult(error: unknown): ActionResult<never> {
     return { ok: false, error: ACTION_ERRORS.unauthenticated };
   if (error instanceof ForbiddenError) return { ok: false, error: ACTION_ERRORS.forbidden };
   if (error instanceof NotFoundError) return { ok: false, error: ACTION_ERRORS.notFound };
-  if (error instanceof DomainError) return { ok: false, error: error.message };
+  if (error instanceof DomainError) {
+    return error.field
+      ? { ok: false, error: error.message, fieldErrors: { [error.field]: [error.message] } }
+      : { ok: false, error: error.message };
+  }
   if (error instanceof z.ZodError) {
     const { fieldErrors } = z.flattenError(error);
     return {

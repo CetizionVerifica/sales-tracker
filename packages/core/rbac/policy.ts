@@ -45,6 +45,10 @@ export const policy: { [T in ResourceType]: Rule<T> } = {
   master: (_user, action) => action === 'read' || action === 'list',
   settings: (_user, action) => action === 'read',
 
+  // M3 Decision 11: everyone reads clients; Sales may also create them (not change them).
+  client: (user, action) =>
+    action === 'read' || action === 'list' || (action === 'create' && user.role === 'SALES'),
+
   // Own changes only. Rows are written by the M2 audit extension, never through can().
   auditLog: (user, action, i) => owned(action, i, READ_ONLY, (row) => row.actorId === user.id),
 
