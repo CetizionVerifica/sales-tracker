@@ -2,6 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './generated/prisma/client.ts';
 
 export { PrismaClient };
+export { Role } from './generated/prisma/enums.ts';
 export type { Prisma } from './generated/prisma/client.ts';
 
 /**

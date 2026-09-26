@@ -6,13 +6,17 @@
     ".": "./index.ts",
     "./env": "./env.ts",
     "./schemas": "./schemas/index.ts",
-    "./status": "./status/index.ts"
+    "./status": "./status/index.ts",
+    "./auth-cookie": "./auth/cookie.ts",
+    "./errors": "./errors.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx --env-file-if-exists=../../.env scripts/seed.ts"
   },
   "dependencies": {
     "@sales-tracker/db": "workspace:*",
+    "better-auth": "1.7.6",
     "ioredis": "6.0.0",
     "zod": "4.6.5"
   }

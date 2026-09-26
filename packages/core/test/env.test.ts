@@ -10,6 +10,8 @@ const valid = {
   S3_BUCKET: 'sales-tracker',
   S3_ACCESS_KEY_ID: 'key',
   S3_SECRET_ACCESS_KEY: 'secret',
+  BETTER_AUTH_SECRET: 'x'.repeat(32),
+  BETTER_AUTH_URL: 'http://localhost:3000',
 };
 
 describe('parseEnv', () => {
@@ -40,5 +42,15 @@ describe('parseEnv', () => {
       expect(message).toContain('REDIS_URL');
       expect(message).not.toContain('S3_REGION');
     }
+  });
+
+  it('AC9: rejects a BETTER_AUTH_SECRET shorter than 32 characters', () => {
+    expect(() => parseEnv({ ...valid, BETTER_AUTH_SECRET: 'too-short' })).toThrow(
+      /BETTER_AUTH_SECRET/,
+    );
+  });
+
+  it('leaves the seed admin variables optional', () => {
+    expect(parseEnv(valid).SEED_ADMIN_EMAIL).toBeUndefined();
   });
 });

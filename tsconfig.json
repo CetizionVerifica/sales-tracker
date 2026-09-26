@@ -1,4 +1,4 @@
 {
   "extends": "./tsconfig.base.json",
-  "include": ["tooling", "vitest.config.ts", "vitest.setup.ts"]
+  "include": ["tooling", "vitest.config.ts", "vitest.setup.ts", "vitest.global-setup.ts"]
 }

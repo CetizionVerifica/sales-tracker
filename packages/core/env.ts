@@ -15,6 +15,11 @@ export const envSchema = z.object({
   S3_ACCESS_KEY_ID: z.string().min(1),
   S3_SECRET_ACCESS_KEY: z.string().min(1),
   S3_FORCE_PATH_STYLE: booleanString,
+  BETTER_AUTH_SECRET: z.string().min(32, 'must be at least 32 characters'),
+  BETTER_AUTH_URL: z.url(),
+  // Only the seed script needs these; it reports a clear error when they are missing.
+  SEED_ADMIN_EMAIL: z.email().optional(),
+  SEED_ADMIN_PASSWORD: z.string().min(12).optional(),
   WEB_PORT: z.coerce.number().int().positive().default(3000),
   MCP_PORT: z.coerce.number().int().positive().default(3001),
 });

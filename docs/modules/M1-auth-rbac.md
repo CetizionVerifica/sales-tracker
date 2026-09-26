@@ -14,7 +14,7 @@ People sign in with email and password, sessions persist, and every request know
 - Better Auth tables, generated with the Better Auth CLI and then adjusted:
   - `User`: `id`, `name`, `email` (unique), `emailVerified`, `image?`, `role Role @default(SALES)`, `active Boolean @default(true)`, `isSystem Boolean @default(false)`, `createdAt`, `updatedAt`.
   - `Session`, `Account` (holds the password hash), `Verification`.
-  - The admin plugin's extra fields (`banned`, `banReason`, `banExpires` on `User`; `impersonatedBy` on `Session`) are added only if the plugin requires them.
+  - The admin plugin's extra fields (`banned`, `banReason`, `banExpires` on `User`; `impersonatedBy` on `Session`). The plugin requires them; they stay unused.
 - Users are never deleted, only deactivated (`active = false`). This is how rule 4 (soft delete) applies to users, so `User` has no `deletedAt`. Session, Account and Verification rows are auth plumbing and may be hard-deleted by Better Auth.
 - Migration name: `m1_auth`.
 - Seed: see "Seed" below.
@@ -30,7 +30,9 @@ People sign in with email and password, sessions persist, and every request know
 - Sessions:
   - They last 7 days, sliding (the expiry refreshes daily while in use).
   - Cookies are `httpOnly`, `sameSite=lax`, and `secure` in production.
-- Better Auth's built-in rate limiting is on for the sign-in endpoints.
+- Better Auth's built-in rate limiting is on: 5 sign-in attempts per minute per IP. The login form posts to Better Auth's endpoint (not a server action) so this limit applies.
+- The admin plugin's HTTP routes (`/api/auth/admin/*`) and `/sign-up/email` are disabled with `disabledPaths`. They would bypass `can()` and the audit log. Core services call the plugin's server API directly instead.
+- Better Auth telemetry is off.
 - Inactive users and the system user (`isSystem`) cannot sign in. A Better Auth hook rejects the session before it is created. Deactivating a user also revokes all of that user's sessions (the service ships here; the UI is M3).
 - New environment variables are added to the `env.ts` schema and `.env.example`:
   - `BETTER_AUTH_SECRET`: at least 32 characters.
@@ -94,7 +96,7 @@ People sign in with email and password, sessions persist, and every request know
     - `ADMIN` may see `company`.
     - `SALES` may see `personal`.
     - `PROJECT_MANAGER` may see `project`.
-- **List scoping.** For type-level `list` checks, `can()` only answers whether the role may list that type at all. The row filter comes from `scopeWhere(user, resourceType)`, which returns a Prisma `where` fragment. M1 ships it for `user` and `auditLog`. Each later entity module adds its own filter, with tests.
+- **List scoping.** For type-level `list` checks, `can()` only answers whether the role may list that type at all. The row filter comes from a typed per-entity function in `rbac/scope.ts` that returns a Prisma `where` fragment. M1 ships `scopeUsers`. M2 adds `scopeAuditLog`, when the AuditLog model exists. Each later entity module adds its own filter, with tests.
 - The rules live in one table-like module, `rbac/policy.ts`, so they can be reviewed against PLAN.md at a glance.
 
 ### Services (`packages/core/services/`)
@@ -120,7 +122,7 @@ People sign in with email and password, sessions persist, and every request know
   - It validates input with a shared Zod schema and builds `ctx`.
   - It maps `UnauthenticatedError`, `ForbiddenError` and `ZodError` to `{ ok: false, error }`, per the CLAUDE.md convention, and never throws to the client.
 - Pages:
-  - `/login`: a shadcn form (React Hook Form + `zodResolver`). It shows one generic error on failure: "Email or password is incorrect". It never reveals whether the email exists.
+  - `/login`: a shadcn form (React Hook Form + `zodResolver`). It shows one generic error on failure: "Email or password is incorrect". It never reveals whether the email exists. The form uses `method="post"`, and its button stays disabled until the page has hydrated, so a native submit can never put credentials in the URL.
   - An app shell with a header showing the user's name and role, and a sign-out button.
   - `/`: the existing home page, now behind login.
   - `/admin`: an admin-only placeholder page (filled in by M3). Other roles get a 403 page.
@@ -131,7 +133,9 @@ People sign in with email and password, sessions persist, and every request know
 
 - No auth changes in M1. MCP token auth is M13. The `Ctx` type already includes `source: 'mcp' | 'system'` so those modules can plug in.
 
-### Seed (`packages/db/prisma/seed.ts`)
+### Seed (`packages/core/system/seed.ts`)
+
+- The seed lives in core, because it uses the auth config. It is run by `pnpm db:seed` and by Prisma's seed hook through `packages/core/scripts/seed.ts`, invoked by path so there is no db → core dependency cycle.
 
 - The seed is idempotent. It upserts the admin from `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`, and exits with a clear error if either is missing.
 - In `NODE_ENV=development` it also seeds one `SALES` user and one `PROJECT_MANAGER` user with documented dev-only passwords. It never does this in production.
@@ -144,7 +148,8 @@ People sign in with email and password, sessions persist, and every request know
 - Audit rows for auth and user changes: M2. M1 passes `ctx.source` everywhere so M2 can hook in.
 - MCP token auth: M13.
 - SSO/OAuth, two-factor auth, email verification, self-service password reset: not planned for v1.
-- Row filters for entity lists (`scopeWhere` for enquiries and the rest) ship with each entity module.
+- Row filters for entity lists (`scopeEnquiries` and the rest) ship with each entity module.
+- Audit-row assertions in the `user.service` tests: added in M2 together with the audit extension.
 
 ## Acceptance criteria
 
@@ -171,7 +176,7 @@ People sign in with email and password, sessions persist, and every request know
 
 **End-to-end** (Playwright, one flow):
 
-13. **AC13:** an unauthenticated visit to `/` redirects to `/login`. The admin signs in, sees their name and role in the header, and can open `/admin`. After sign-out, `/` redirects to `/login` again. A seeded `SALES` user signs in and gets 403 on `/admin`.
+13. **AC13:** an unauthenticated visit to `/` redirects to `/login`. The admin signs in, sees their name and role in the header, and can open `/admin`. After sign-out, `/` redirects to `/login` again. A seeded `SALES` user signs in and sees the Forbidden page on `/admin`. The page is rendered by the admin layout; Next's `forbidden()` is still experimental in Next 16, so it is not used, and the HTTP status is 200.
 
 **Quality:**
 
@@ -179,19 +184,20 @@ People sign in with email and password, sessions persist, and every request know
 
 ## Dependencies
 
-| Package                                                           | Where | Why                                                                               |
-| ----------------------------------------------------------------- | ----- | --------------------------------------------------------------------------------- |
-| `better-auth`                                                     | core  | Auth, already in the CLAUDE.md stack.                                             |
-| `@better-auth/cli` (dev)                                          | db    | Generates the auth tables for the Prisma schema.                                  |
-| `react-hook-form`, `@hookform/resolvers`                          | web   | Login form, already in the CLAUDE.md stack.                                       |
-| shadcn/ui components (`button`, `input`, `label`, `form`, `card`) | web   | Copied into `apps/web/components/ui`; brings in `@radix-ui/*` and `lucide-react`. |
+| Package                                         | Where | Why                                                                                                                                  |
+| ----------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `better-auth`                                   | core  | Auth, already in the CLAUDE.md stack.                                                                                                |
+| `react-hook-form`, `@hookform/resolvers`, `zod` | web   | Login form with the shared Zod schema, all in the CLAUDE.md stack.                                                                   |
+| `radix-ui`, `class-variance-authority`          | web   | Needed by the shadcn/ui components (`button`, `input`, `label`, `card`, `field`, `separator`), copied into `apps/web/components/ui`. |
 
-## Risks to check during planning
+The Better Auth CLI is not a dependency. `@better-auth/cli` is deprecated, and its replacement (`auth`) was run once with `pnpm dlx auth@1.7.6 generate` to get the table layout. shadcn's CLI also installed its own `cn` package; it was removed in favour of the existing `@/lib/utils` `cn()`, so there is one class-name helper.
 
-- **Better Auth + Prisma 7:** confirm `better-auth`'s `prismaAdapter` works with the Prisma 7 client generated by the `prisma-client` generator and the `@prisma/adapter-pg` driver adapter. Fallback: Better Auth's built-in Postgres/Kysely adapter on the same `DATABASE_URL`, with the tables still owned by Prisma migrations.
-- **Role as an enum:** Better Auth's admin plugin treats `role` as a string. Confirm it round-trips with a Prisma `Role` enum column. Fallback: store the role as `String`, and validate it with a Zod enum in core.
-- **Next 16 `proxy.ts`:** confirm it runs in the Node runtime, or keep it to a cookie check that needs no Node APIs.
-- **Schema generator:** `@better-auth/cli` on npm is at 1.4.x while `better-auth` is at 1.7.x. Check whether schema generation has moved into `better-auth` itself before adding the CLI as a dependency. If it has, drop the CLI from the Dependencies table.
+## Risks (resolved during planning)
+
+- **Better Auth + Prisma 7:** ✅ `better-auth@1.7.6` lists Prisma `^7` as a supported peer, and the Prisma adapter works with core's client (integration tests).
+- **Role as an enum:** Better Auth's admin plugin treats `role` as a string. ✅ It round-trips through the `Role` enum column (`auth-role.integration.test.ts`). The roles are declared in the plugin config so its types match.
+- **Next 16 `proxy.ts`:** ✅ It runs on the Node runtime by default. It still only checks for the cookie; the matcher excludes all of `/_next/` so dev HMR keeps working.
+- **Schema generator:** `@better-auth/cli` on npm is at 1.4.x while `better-auth` is at 1.7.x. ✅ `@better-auth/cli` is deprecated; its replacement is the `auth` package, run once via `dlx`.
 
 ## Decisions
 
