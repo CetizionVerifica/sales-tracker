@@ -35,6 +35,7 @@ model User {
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
+  auditLogs     AuditLog[]
 
   @@map("user")
 }
@@ -87,4 +88,46 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  SOFT_DELETE
+  RESTORE
+}
+
+/// Matches ctx.source in packages/core (CLAUDE.md rule 3).
+enum AuditSource {
+  web
+  mcp
+  import
+  system
+}
+
+/// Append-only: written only by the audit extension in packages/core; a database trigger
+/// rejects UPDATE and DELETE (migration m2_audit_log).
+model AuditLog {
+  id            String      @id @default(uuid())
+  actorId       String
+  actor         User        @relation(fields: [actorId], references: [id])
+  action        AuditAction
+  source        AuditSource
+  /// Prisma model name, e.g. "User".
+  entityType    String
+  entityId      String
+  /// Full row before the change (credentials redacted); null for creates.
+  before        Json?
+  /// Full row after the change (credentials redacted); null for hard deletes.
+  after         Json?
+  changedFields String[]
+  /// Groups the rows written by one service call (withTx).
+  requestId     String
+  createdAt     DateTime    @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@map("audit_log")
 }

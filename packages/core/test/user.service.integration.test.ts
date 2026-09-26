@@ -7,7 +7,6 @@ import { deactivateUser, getCurrentUser, getUser, listUsers } from '../services/
 import { SYSTEM_USER_EMAIL, seed } from '../system/seed.ts';
 import { actor, createTestUser, ctxFor } from './helpers.ts';
 
-// Audit-row assertions for these services are added in M2, when the audit extension lands.
 describe('AC10: user.service (integration)', () => {
   let admin: Ctx;
   let sales: Ctx;
@@ -98,11 +97,31 @@ describe('AC10: user.service (integration)', () => {
       await expect(deactivateUser(admin, systemId)).rejects.toBeInstanceOf(DomainError);
     });
 
-    it('deactivates a user', async () => {
+    it('deactivates a user and writes its audit row (AC11)', async () => {
+      const auditBefore = await getDb().auditLog.count();
       const result = await deactivateUser(admin, pm.user.id);
       expect(result.active).toBe(false);
       const row = await getDb().user.findUniqueOrThrow({ where: { id: pm.user.id } });
       expect(row.active).toBe(false);
+
+      // Exactly one row: the User update. Session deletions are not audited (Decision 3).
+      expect(await getDb().auditLog.count()).toBe(auditBefore + 1);
+      const audit = await getDb().auditLog.findFirstOrThrow({
+        where: { entityType: 'User', entityId: pm.user.id, action: 'UPDATE' },
+      });
+      expect(audit).toMatchObject({
+        actorId: admin.user.id,
+        source: 'web',
+        changedFields: ['active'],
+      });
+      expect(audit.before).toMatchObject({ active: true });
+      expect(audit.after).toMatchObject({ active: false });
+    });
+
+    it('writes no audit row when it is denied (AC11)', async () => {
+      const auditBefore = await getDb().auditLog.count();
+      await expect(deactivateUser(sales, admin.user.id)).rejects.toBeInstanceOf(ForbiddenError);
+      expect(await getDb().auditLog.count()).toBe(auditBefore);
     });
   });
 });

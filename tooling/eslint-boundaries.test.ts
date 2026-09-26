@@ -29,3 +29,26 @@ describe('architecture boundary lint rule (CLAUDE.md rule 1)', () => {
     },
   );
 });
+
+describe('raw write SQL is banned in packages (M2 AC14)', () => {
+  async function rawSqlErrors(filePath: string, code: string) {
+    const [result] = await eslint.lintText(code, { filePath });
+    return (result?.messages ?? []).filter((m) => m.ruleId === 'no-restricted-properties');
+  }
+  const raw =
+    "declare const db: any;\nvoid db.$executeRaw`DELETE FROM x`;\nvoid db.$executeRawUnsafe('x');\n";
+
+  it('rejects $executeRaw and $executeRawUnsafe in core source', async () => {
+    expect(await rawSqlErrors('packages/core/services/fixture.ts', raw)).toHaveLength(2);
+  });
+
+  it('allows them in test utilities and tests', async () => {
+    expect(await rawSqlErrors('packages/db/test-utils/fixture.ts', raw)).toHaveLength(0);
+    expect(await rawSqlErrors('packages/core/test/fixture.test.ts', raw)).toHaveLength(0);
+  });
+
+  it('still allows $queryRaw reads (health check)', async () => {
+    const read = 'declare const db: any;\nvoid db.$queryRaw`SELECT 1`;\n';
+    expect(await rawSqlErrors('packages/core/system/fixture.ts', read)).toHaveLength(0);
+  });
+});

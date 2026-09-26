@@ -2,6 +2,7 @@ import { resetDb } from '@sales-tracker/db/test-utils';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAuth } from '../auth/auth.ts';
 import { disconnectAll, getDb } from '../clients.ts';
+import { systemCtx, withTx } from '../context.ts';
 import { SYSTEM_USER_EMAIL, SeedError, seed } from '../system/seed.ts';
 
 const options = {
@@ -40,12 +41,16 @@ describe('AC8: seed (integration)', () => {
   it('never lets the system user sign in, even if a password is attached', async () => {
     const system = await getDb().user.findUniqueOrThrow({ where: { email: SYSTEM_USER_EMAIL } });
     const context = await getAuth().$context;
-    await context.internalAdapter.linkAccount({
-      userId: system.id,
-      providerId: 'credential',
-      accountId: system.id,
-      password: await context.password.hash('sneaky-system-password'),
-    });
+    const password = await context.password.hash('sneaky-system-password');
+    // Audited write: must run inside withTx (fails closed otherwise).
+    await withTx(await systemCtx(), () =>
+      context.internalAdapter.linkAccount({
+        userId: system.id,
+        providerId: 'credential',
+        accountId: system.id,
+        password,
+      }),
+    );
 
     await expect(
       getAuth().api.signInEmail({
@@ -67,5 +72,32 @@ describe('AC8: seed (integration)', () => {
     await expect(seed({ ...options, adminPassword: undefined })).rejects.toThrow(
       /SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD/,
     );
+  });
+
+  it('AC12: audits every seeded User and Account row as the system user', async () => {
+    const db = getDb();
+    const system = await db.user.findUniqueOrThrow({ where: { email: SYSTEM_USER_EMAIL } });
+    const users = await db.user.findMany({ select: { id: true } });
+    const accounts = await db.account.findMany({
+      where: { providerId: 'credential', password: { not: null } },
+      select: { id: true, userId: true },
+    });
+    // The account linked by hand in the "sneaky password" test above was written under
+    // a test ctx; every seeded account belongs to a non-system user.
+    const seededAccounts = accounts.filter((a) => a.userId !== system.id);
+    for (const { id } of [...users, ...seededAccounts]) {
+      const create = await db.auditLog.findFirst({ where: { entityId: id, action: 'CREATE' } });
+      expect(create, `CREATE audit row for ${id}`).not.toBeNull();
+      expect(create?.source).toBe('system');
+      expect(create?.actorId).toBe(system.id);
+    }
+  });
+
+  it('AC12: the system user’s own CREATE row names itself as the actor', async () => {
+    const system = await getDb().user.findUniqueOrThrow({ where: { email: SYSTEM_USER_EMAIL } });
+    const row = await getDb().auditLog.findFirstOrThrow({
+      where: { entityType: 'User', entityId: system.id, action: 'CREATE' },
+    });
+    expect(row.actorId).toBe(system.id);
   });
 });

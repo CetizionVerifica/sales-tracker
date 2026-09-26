@@ -25,3 +25,11 @@ export class NotFoundError extends Error {
 export class DomainError extends Error {
   override name = 'DomainError';
 }
+
+/**
+ * An audited write ran without an acting context or outside withTx (M2: fails closed).
+ * Always a programming error: wrap the write in withTx(ctx, …).
+ */
+export class AuditContextError extends Error {
+  override name = 'AuditContextError';
+}
