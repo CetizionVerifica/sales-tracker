@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkHealth } from '../services/health.service.ts';
+import { checkHealth } from '../system/health.ts';
 
 describe('checkHealth (unit)', () => {
   it('is ok when every probe succeeds', async () => {

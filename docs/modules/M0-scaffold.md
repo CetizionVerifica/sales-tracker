@@ -35,9 +35,9 @@ A working, empty monorepo. One command starts all three apps and their infrastru
 
 - `env.ts`: parses `process.env` once with Zod and exports a typed `env`. It throws a readable error that lists every missing or invalid variable. It covers `DATABASE_URL`, `REDIS_URL`, the `S3_*` variables, `NODE_ENV`, `WEB_PORT`, `MCP_PORT`. Later modules add auth and Anthropic keys.
 - A `.env.example` at the repo root documents every variable, with values that work against docker compose.
-- `services/health.service.ts`: `checkHealth()` returns `{ status: 'ok' | 'degraded', checks: { db, redis } }`. The DB check is a read-only `SELECT 1` through `packages/db`. It is the only Prisma use in M0.
+- `system/health.ts`: `checkHealth()` returns `{ status: 'ok' | 'degraded', checks: { db, redis } }`. The DB check is a read-only `SELECT 1` through `packages/db`. It is the only Prisma use in M0.
 - Empty `schemas/`, `services/`, `status/` folders (with index files), matching the CLAUDE.md layout.
-- Note: `checkHealth` takes no `ctx`. It is a system probe, not a domain service; `ctx` and `can()` arrive in M1.
+- `system/` holds infrastructure code that is not a domain service, such as `checkHealth`, which takes no `ctx` and does no RBAC. Everything in `services/` must take `ctx` first and call `can()` (from M1), with no exceptions.
 
 ### `apps/web`
 
@@ -95,6 +95,19 @@ A working, empty monorepo. One command starts all three apps and their infrastru
 9. **AC9:** importing `@sales-tracker/db` from `apps/*` fails lint (a fixture-based test of the ESLint rule).
 10. **AC10:** the CI workflow runs typecheck, lint, format check, tests, build and E2E. The workflow file is validated locally with `actionlint` if available; otherwise it is checked on first push.
 11. **AC11:** `pnpm db:migrate` and `pnpm db:seed` run successfully against the dev DB (both are no-ops at this stage).
+
+## Dependencies
+
+Beyond the stack in CLAUDE.md:
+
+| Package                                             | Where | Why                                                                                   |
+| --------------------------------------------------- | ----- | ------------------------------------------------------------------------------------- |
+| `@prisma/adapter-pg`                                | db    | Prisma 7 needs a database adapter to connect to Postgres.                             |
+| `ioredis`                                           | core  | The Redis client BullMQ needs; the health check reuses it.                            |
+| `clsx`, `tailwind-merge`                            | web   | The `cn()` class-name helper that shadcn/ui components rely on.                       |
+| `tsx`                                               | root  | Runs the TypeScript worker, MCP server and seed script without a build step.          |
+| `turbo`, `prettier`                                 | root  | Turborepo task runner and formatter, both part of the M0 tooling scope.               |
+| `@eslint/js`, `globals`, `@next/eslint-plugin-next` | root  | Needed by the ESLint config: base rules, Node and browser globals, and Next.js rules. |
 
 ## Decisions
 

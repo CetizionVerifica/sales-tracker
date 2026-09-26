@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { disconnectAll } from '../clients.ts';
-import { checkHealth } from '../services/health.service.ts';
+import { checkHealth } from '../system/health.ts';
 
 describe('checkHealth (integration: real Postgres + Redis)', () => {
   afterAll(disconnectAll);
