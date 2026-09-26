@@ -10,3 +10,8 @@ export function scopeUsers(user: Actor): Prisma.UserWhereInput {
   // The system actor is never listed (M1 Decision 5).
   return user.role === 'ADMIN' ? { isSystem: false } : { id: user.id, isSystem: false };
 }
+
+/** Admins see every audit row; everyone else sees only the changes they made (PLAN.md). */
+export function scopeAuditLog(user: Actor): Prisma.AuditLogWhereInput {
+  return user.role === 'ADMIN' ? {} : { actorId: user.id };
+}

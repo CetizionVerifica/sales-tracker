@@ -3,7 +3,7 @@ import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { APIError } from 'better-auth/api';
 import { admin } from 'better-auth/plugins';
 import { adminAc, userAc } from 'better-auth/plugins/admin/access';
-import { getDb } from '../clients.ts';
+import { authDb, getDb } from '../clients.ts';
 import { getEnv } from '../env.ts';
 import { SIGN_IN_FAILED } from '../schemas/user.ts';
 
@@ -11,12 +11,11 @@ const DAY_SECONDS = 60 * 60 * 24;
 
 function createAuth() {
   const env = getEnv();
-  const db = getDb();
 
   return betterAuth({
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
-    database: prismaAdapter(db, { provider: 'postgresql' }),
+    database: prismaAdapter(authDb, { provider: 'postgresql' }),
     emailAndPassword: {
       enabled: true,
       disableSignUp: true, // only admins create users (M3)
@@ -37,7 +36,8 @@ function createAuth() {
         create: {
           // Inactive users and the system actor never get a session.
           before: async (session) => {
-            const user = await db.user.findUnique({
+            // Resolved per call: inside withTx this is the transaction client.
+            const user = await getDb().user.findUnique({
               where: { id: session.userId },
               select: { active: true, isSystem: true },
             });

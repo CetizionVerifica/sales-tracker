@@ -35,7 +35,7 @@ The audit-log **viewer UI** is M3 (PLAN.md). M2 ships the model, the extension, 
 - `withTx(ctx, fn)` opens one **interactive** Prisma transaction inside `runWithCtx`, and exposes its transaction client both to `fn` and to the extension. Every service mutation uses it.
 - Batch transactions (`$transaction([...])`) are not used for writes, because the extension cannot join them. `deactivateUser` moves from a batch to `withTx`.
 - `systemCtx()` returns `{ user: <the system user>, source: 'system' }`.
-  - The system user's id is looked up once and cached.
+  - The system user is looked up on each call (one indexed read), so it is never stale after a database reset.
   - It throws a clear error if the seed has not run.
 - `importCtx(ctx)` returns a copy of `ctx` with `source: 'import'`, for M13's bulk import acting as a real user.
 
@@ -46,7 +46,10 @@ The audit-log **viewer UI** is M3 (PLAN.md). M2 ships the model, the extension, 
 - **How it works:**
   - It reads the `before` rows first, inside the same transaction as the write.
   - It runs the write, then inserts **one audit row per affected record** in that same transaction.
-  - When no transaction is active, it opens one itself.
+  - **Audited writes must run inside `withTx`.** A write with a context but no transaction throws `AuditContextError`. (The spec first said the extension would open its own transaction; the planning spike showed that starting a transaction from inside the hook times out in Prisma 7, so the stricter rule applies.)
+  - `getDb()` returns the active transaction client inside `withTx`, so every core write, the seed's included, joins the transaction its audit rows use.
+  - Better Auth's Prisma adapter gets `authDb`, a proxy that resolves to `getDb()` on every access. Its writes (for example `createUser`'s `User` and `Account` rows) join our transaction; the spike confirmed a rollback removes them.
+  - Prisma query promises are lazy. The context store calls `.then()` inside its async-storage scope, so `withTx(ctx, (tx) => tx.user.create(…))` works without an explicit `await`.
 - **Action mapping:**
   - Create → `CREATE`; hard delete → `DELETE`; any other update → `UPDATE`.
   - An update that sets `deletedAt` from null to a value → `SOFT_DELETE`; from a value back to null → `RESTORE`. Soft-delete query filtering itself is M3, where the first soft-deletable model appears.
@@ -60,7 +63,7 @@ The audit-log **viewer UI** is M3 (PLAN.md). M2 ships the model, the extension, 
   - `Session` and `Verification`: high-volume auth plumbing with no business meaning (see Decision 3).
   - Any new model is audited by default. Adding it to the exclusion list needs a written reason in the code.
 - **Raw write SQL is banned in `packages/core`:**
-  - ESLint `no-restricted-properties` blocks `$executeRaw` and `$executeRawUnsafe` everywhere except `packages/db/test-utils`.
+  - ESLint `no-restricted-properties` blocks `$executeRaw` and `$executeRawUnsafe` in `packages/**`, except `packages/db/test-utils` and package test folders.
   - `$queryRaw` stays allowed for reads (the health check's `SELECT 1`).
 
 ### Services
@@ -89,14 +92,14 @@ The audit-log **viewer UI** is M3 (PLAN.md). M2 ships the model, the extension, 
 
 **Extension** (integration, real test database):
 
-1. **AC1:** every write operation (`create`, `createMany`, `update`, `updateMany`, `upsert` on both its create and update paths, `delete`, `deleteMany`) on an audited model writes exactly one audit row per affected record. Each row has the correct `action`, `entityType`, `entityId`, `before`, `after`, `changedFields`, `actorId`, `source` and `requestId`. The test runs the operations against `User` and a test-only audited model.
+1. **AC1:** every write operation (`create`, `createMany`, `update`, `updateMany`, `upsert` on both its create and update paths, `delete`, `deleteMany`) on an audited model writes exactly one audit row per affected record. Each row has the correct `action`, `entityType`, `entityId`, `before`, `after`, `changedFields`, `actorId`, `source` and `requestId`. It also covers `createManyAndReturn`, and an `update` whose `select` omits `id` (the id is added for the re-read and stripped from the result). `limit` on bulk writes is rejected. The test runs against `User` and `Account`: no test-only model is added to the production schema.
 2. **AC2 (atomicity):** if the transaction around a write rolls back, no audit row remains. If the audit insert fails, the write is rolled back too.
 3. **AC3 (fail closed):** a write to an audited model with no acting context throws `AuditContextError`, and the database is unchanged.
 4. **AC4:** a nested write to an audited relation is rejected, and nothing is written.
 5. **AC5 (redaction):** after a password is set or changed on an `Account`, no audit row contains the password hash. `changedFields` includes `password`.
 6. **AC6:** writes to `Session` and `Verification` produce no audit rows. Sign-in and sign-out still work.
 7. **AC7 (append-only):** updating or deleting an `AuditLog` row fails, both through Prisma and through raw SQL (the database trigger).
-8. **AC8:** `updateMany`/`deleteMany` that set `deletedAt` from null write `SOFT_DELETE` rows, and ones that clear it write `RESTORE` rows (test-only model).
+8. **AC8:** setting `deletedAt` from null is classified as `SOFT_DELETE`, and clearing it as `RESTORE`. This is unit-tested through `classifyAction`, because no model has `deletedAt` yet. **The integration test moves to M3**, with the first soft-deletable model.
 
 **Context and services:**
 
@@ -129,11 +132,16 @@ The audit-log **viewer UI** is M3 (PLAN.md). M2 ships the model, the extension, 
 
 None new. `AsyncLocalStorage` is in Node's standard library, and Prisma client extensions are part of `@prisma/client`.
 
-## Risks to check during planning
+## Risks (resolved by the planning spike)
 
-- **Prisma 7 query extensions and interactive transactions:** confirm that a `$allOperations` hook can run its before-read, the write and the audit insert on the **active transaction client** taken from async storage. Also confirm the hook sees `createManyAndReturn`. Fallback: an explicit `audited(tx, ctx)` wrapper that the services call, with AC13's coverage test catching any write that goes around it.
-- **Better Auth's own writes:** list every write Better Auth makes to `User` and `Account` outside our services (sign-in, session refresh, and anything else) and confirm none happen outside a context. If any do, they will throw under fail-closed. The fallback is a narrowly scoped `runAsSystem` wrapper around the Better Auth handler for those paths only, recorded as `source: 'system'`.
-- **Upsert before-snapshot:** confirm the before-read and the upsert run in one transaction, so the create/update decision matches what was recorded.
+- **Prisma 7 query extensions and interactive transactions:** ✅ The hook runs everything on the active transaction client, and a rollback removes both the write and its audit row. It sees `createManyAndReturn` as one operation; the extension writes one row per returned record. ❌ It cannot open its own transaction, hence the "writes need `withTx`" rule.
+- **Better Auth's own writes:** ✅ Sign-in, session checks and sign-out write only `Session` rows, which are excluded. No `runAsSystem` wrapper is needed.
+- **Upsert before-snapshot:** ✅ Both run on the same transaction client (AC1 covers both paths).
+
+## Carried to M3
+
+- The integration test for `SOFT_DELETE` and `RESTORE` audit rows, with the first model that has `deletedAt`.
+- The audit-log viewer UI, built on `listAuditLog` and `getAuditEntry`.
 
 ## Open questions
 

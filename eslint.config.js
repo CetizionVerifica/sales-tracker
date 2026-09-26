@@ -48,6 +48,21 @@ export default tseslint.config(
     },
   },
   {
+    // CLAUDE.md rule 3 / M2: writes go through the audit extension, never raw SQL.
+    // $queryRaw (reads, e.g. the health check) stays allowed.
+    files: ['packages/**/*.{ts,tsx,js,mjs}'],
+    ignores: ['packages/db/test-utils/**', 'packages/*/test/**'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        ...['$executeRaw', '$executeRawUnsafe'].map((property) => ({
+          property,
+          message: 'Raw SQL writes bypass the audit log; use Prisma inside withTx (M2).',
+        })),
+      ],
+    },
+  },
+  {
     files: ['apps/web/**/*.{ts,tsx}'],
     plugins: { '@next/next': nextPlugin },
     languageOptions: { globals: { ...globals.browser } },

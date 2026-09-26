@@ -2,8 +2,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './generated/prisma/client.ts';
 
 export { PrismaClient };
-export { Role } from './generated/prisma/enums.ts';
-export type { Prisma } from './generated/prisma/client.ts';
+export { AuditAction, AuditSource, Role } from './generated/prisma/enums.ts';
+export { Prisma } from './generated/prisma/client.ts';
 
 /**
  * Creates a Prisma client for the given database. Only `packages/core` should call this;

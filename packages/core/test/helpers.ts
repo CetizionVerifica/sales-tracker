@@ -1,6 +1,7 @@
 import type { Role } from '@sales-tracker/db';
 import { getAuth } from '../auth/auth.ts';
-import type { Actor, Ctx, Source } from '../context.ts';
+import { systemCtx, withTx, type Actor, type Ctx, type Source } from '../context.ts';
+import { bootstrapSystemUser } from '../system/seed.ts';
 
 export const PASSWORD = 'correct-horse-battery';
 
@@ -12,12 +13,24 @@ export function ctxFor(user: Actor, source: Source = 'web'): Ctx {
   return { user, source };
 }
 
-/** Creates a user through the admin plugin's server API (same path as the seed and M3). */
+/** Ensures the system user exists (after a resetDb) and returns its context. */
+export async function ensureSystemCtx(): Promise<Ctx> {
+  await bootstrapSystemUser();
+  return systemCtx();
+}
+
+/**
+ * Creates a user through the admin plugin's server API (same path as the seed and M3),
+ * inside withTx as the system actor: audited writes fail closed without a context.
+ */
 export async function createTestUser(email: string, role: Role, password = PASSWORD) {
-  const { user } = await getAuth().api.createUser({
-    body: { email, password, name: email.split('@')[0] ?? email, role },
+  const ctx = await ensureSystemCtx();
+  return withTx(ctx, async () => {
+    const { user } = await getAuth().api.createUser({
+      body: { email, password, name: email.split('@')[0] ?? email, role },
+    });
+    return user;
   });
-  return user;
 }
 
 /** Signs in and returns request headers carrying the session cookie. */

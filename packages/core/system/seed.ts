@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type { Role } from '@sales-tracker/db';
 import { getAuth } from '../auth/auth.ts';
 import { getDb } from '../clients.ts';
+import { systemCtx, withTx } from '../context.ts';
+import { SYSTEM_USER_EMAIL } from './constants.ts';
 
-export const SYSTEM_USER_EMAIL = 'system@internal';
+export { SYSTEM_USER_EMAIL } from './constants.ts';
 
 /** Dev-only accounts (never seeded in production). Passwords are documented in .env.example. */
 export const DEV_USERS = [
@@ -29,6 +31,7 @@ export interface SeedOptions {
   log?: (message: string) => void;
 }
 
+/** Creates a credential user through Better Auth's admin API; audited as the system user. */
 async function ensureCredentialUser(
   email: string,
   password: string,
@@ -37,9 +40,33 @@ async function ensureCredentialUser(
 ): Promise<boolean> {
   const exists = await getDb().user.findUnique({ where: { email }, select: { id: true } });
   if (exists) return false;
-  // Server-side admin API: hashes the password exactly as sign-in expects.
-  await getAuth().api.createUser({ body: { email, password, name, role } });
+  // Server-side admin API: hashes the password exactly as sign-in expects. Inside withTx
+  // its User and Account writes join one transaction with their audit rows.
+  await withTx(await systemCtx(), () =>
+    getAuth().api.createUser({ body: { email, password, name, role } }),
+  );
   return true;
+}
+
+/**
+ * Creates the system user if missing. Its own CREATE audit row names itself as the actor:
+ * the id is chosen first, so the row it inserts satisfies the audit FK in one transaction.
+ */
+export async function bootstrapSystemUser(): Promise<string> {
+  const existing = await getDb().user.findUnique({
+    where: { email: SYSTEM_USER_EMAIL },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+
+  const id = randomUUID();
+  const self = { user: { id, role: 'ADMIN' as const, active: true }, source: 'system' as const };
+  await withTx(self, (tx) =>
+    tx.user.create({
+      data: { id, email: SYSTEM_USER_EMAIL, name: 'System', role: 'ADMIN', isSystem: true },
+    }),
+  );
+  return id;
 }
 
 /** Idempotent: creates what is missing and never changes existing users or passwords. */
@@ -49,6 +76,11 @@ export async function seed(options: SeedOptions): Promise<void> {
     throw new SeedError('SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD must be set to seed the admin');
   }
 
+  // The system user first: every later seed write is audited as it (M2).
+  const systemExisted = await getDb().user.count({ where: { email: SYSTEM_USER_EMAIL } });
+  await bootstrapSystemUser();
+  if (!systemExisted) log('created system user');
+
   const createdAdmin = await ensureCredentialUser(
     adminEmail,
     adminPassword,
@@ -56,22 +88,6 @@ export async function seed(options: SeedOptions): Promise<void> {
     'ADMIN',
   );
   log(createdAdmin ? `created admin ${adminEmail}` : `admin ${adminEmail} already exists`);
-
-  // The non-login actor for jobs and imports (M1 Decision 5): no credential account.
-  const db = getDb();
-  const system = await db.user.findUnique({ where: { email: SYSTEM_USER_EMAIL } });
-  if (!system) {
-    await db.user.create({
-      data: {
-        id: randomUUID(),
-        email: SYSTEM_USER_EMAIL,
-        name: 'System',
-        role: 'ADMIN',
-        isSystem: true,
-      },
-    });
-    log('created system user');
-  }
 
   if (devUsers) {
     for (const user of DEV_USERS) {

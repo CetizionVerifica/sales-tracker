@@ -2,7 +2,7 @@ import { resetDb } from '@sales-tracker/db/test-utils';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAuth } from '../auth/auth.ts';
 import { disconnectAll, getDb } from '../clients.ts';
-import { getCtxFromHeaders } from '../context.ts';
+import { getCtxFromHeaders, systemCtx, withTx } from '../context.ts';
 import { UnauthenticatedError } from '../errors.ts';
 import { deactivateUser } from '../services/user.service.ts';
 import { PASSWORD, actor, authRequest, createTestUser, ctxFor, signIn } from './helpers.ts';
@@ -64,7 +64,9 @@ describe('authentication (integration)', () => {
   describe('AC7: inactive users', () => {
     it('cannot sign in', async () => {
       const user = await createTestUser('inactive@example.test', 'SALES');
-      await getDb().user.update({ where: { id: user.id }, data: { active: false } });
+      await withTx(await systemCtx(), (tx) =>
+        tx.user.update({ where: { id: user.id }, data: { active: false } }),
+      );
       await expect(
         getAuth().api.signInEmail({ body: { email: 'inactive@example.test', password: PASSWORD } }),
       ).rejects.toThrow();

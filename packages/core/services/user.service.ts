@@ -1,5 +1,5 @@
 import { getDb } from '../clients.ts';
-import { assertCan, type Ctx } from '../context.ts';
+import { assertCan, withTx, type Ctx } from '../context.ts';
 import { DomainError, NotFoundError } from '../errors.ts';
 import { scopeUsers } from '../rbac/scope.ts';
 import { paginationSchema, type Page, type PaginationInput } from '../schemas/common.ts';
@@ -44,7 +44,7 @@ export async function listUsers(ctx: Ctx, input: PaginationInput): Promise<Page<
   assertCan(ctx, 'list', 'user');
   const where = scopeUsers(ctx.user);
   const db = getDb();
-  const [items, total] = await db.$transaction([
+  const [items, total] = await Promise.all([
     db.user.findMany({
       where,
       select: publicUserSelect,
@@ -63,14 +63,18 @@ export async function deactivateUser(ctx: Ctx, id: string): Promise<PublicUser> 
   assertCan(ctx, 'update', { type: 'user', id: userId });
   if (userId === ctx.user.id) throw new DomainError('You cannot deactivate yourself');
 
-  const db = getDb();
-  const target = await db.user.findUnique({ where: { id: userId }, select: { isSystem: true } });
-  if (!target) throw new NotFoundError('user');
-  if (target.isSystem) throw new DomainError('The system user cannot be deactivated');
+  return withTx(ctx, async (tx) => {
+    const target = await tx.user.findUnique({ where: { id: userId }, select: { isSystem: true } });
+    if (!target) throw new NotFoundError('user');
+    if (target.isSystem) throw new DomainError('The system user cannot be deactivated');
 
-  const [user] = await db.$transaction([
-    db.user.update({ where: { id: userId }, data: { active: false }, select: publicUserSelect }),
-    db.session.deleteMany({ where: { userId } }),
-  ]);
-  return user;
+    const user = await tx.user.update({
+      where: { id: userId },
+      data: { active: false },
+      select: publicUserSelect,
+    });
+    // Sessions are not audited (M2 Decision 3); the User update above is.
+    await tx.session.deleteMany({ where: { userId } });
+    return user;
+  });
 }
