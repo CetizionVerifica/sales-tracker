@@ -223,6 +223,18 @@ Time-zone display uses `Intl.DateTimeFormat` with `timeZone: 'Asia/Kolkata'`, so
   - A regression test loads the store module twice. It fails with the old code.
 - **Table cells remounted on every refresh,** because TanStack's `flexRender` treats inline cell renderers as components, which closed open dialogs (e.g. the reset-password result). Column definitions are now memoised.
 
+## Review fixes (applied before merge)
+
+The M3 review confirmed each of these by probing, not just by reading the code.
+
+- **Action input shapes live in core** (CLAUDE.md rule 7): `masterCreateActionSchema`, `masterUpdateActionSchema` and `masterIdActionSchema`, plus `contactUpdateActionSchema` and `contactIdActionSchema`. The web app uses `zod` only for types.
+- **A client whose sector was retired can be edited.** `updateClient` checks the sector only when it _changes_. Before the fix, saving just a note failed with "Choose an active sector".
+- **Optional fields can be cleared.** An empty string is stored as `null` (cleared) and `undefined` means "unchanged". This covers GSTIN, address and notes on clients, and designation, email and phone on contacts. Before the fix, clearing silently kept the old value.
+- **Admin pages run nothing for non-admins.**
+  - A layout that renders Forbidden does not stop its page from running, so the services' own checks were the only barrier, and each visit logged a `ForbiddenError`.
+  - Pages now call `requireAdmin()` and return nothing for non-admins. The E2E test covers `/admin/clients`, `/admin/users`, `/admin/settings` and `/admin/audit-log`.
+- **Last-admin guard is race-free.** The check runs under a transaction-scoped Postgres advisory lock. Before the fix, two admins deactivating each other at the same moment both succeeded, leaving no admin; the concurrency test failed consistently without the lock.
+
 ## For M14 (hardening)
 
 - **Client IP trust:** without `TRUSTED_PROXY_CIDRS`, Better Auth trusts a _single-value_ `x-forwarded-for`. If the app were reachable without a proxy that overwrites that header, a client could fake it and dodge the sign-in rate limit. Production must sit behind a proxy that sets `x-forwarded-for`, with `TRUSTED_PROXY_CIDRS` configured.

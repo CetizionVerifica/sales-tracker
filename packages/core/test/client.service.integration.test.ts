@@ -175,6 +175,61 @@ describe('clients and contacts (integration)', () => {
     });
   });
 
+  describe('M3 review fixes', () => {
+    it('A: a client whose sector was retired can still be edited (sector unchanged)', async () => {
+      const retired = (await createSector(admin, { name: 'Sunset' })).id;
+      const client = await createClient(admin, { name: 'Legacy Co', sectorId: retired });
+      await updateSector(admin, retired, { active: false });
+      // What ClientForm sends: every field, the same sector.
+      const saved = await updateClient(admin, client.id, {
+        name: 'Legacy Co',
+        sectorId: retired,
+        notes: 'still a customer',
+      });
+      expect(saved.notes).toBe('still a customer');
+      // Moving it to another retired sector is still rejected.
+      const other = (await createSector(admin, { name: 'Dusk' })).id;
+      await updateSector(admin, other, { active: false });
+      expect(
+        fieldOf(await updateClient(admin, client.id, { sectorId: other }).catch((e) => e)),
+      ).toBe('sectorId');
+    });
+
+    it('B: optional client fields can be cleared, and undefined leaves them unchanged', async () => {
+      const client = await createClient(admin, {
+        name: 'Clearable Ltd',
+        sectorId: pharma,
+        gstin: '27AAPFU0939F1ZV',
+        address: 'Pune',
+        notes: 'note',
+      });
+      await updateClient(admin, client.id, { notes: 'kept' });
+      expect(await getClient(admin, client.id)).toMatchObject({
+        gstin: '27AAPFU0939F1ZV',
+        address: 'Pune',
+      });
+      await updateClient(admin, client.id, { gstin: '', address: '', notes: '' });
+      expect(await getClient(admin, client.id)).toMatchObject({
+        gstin: null,
+        address: null,
+        notes: null,
+      });
+    });
+
+    it('B: optional contact fields can be cleared', async () => {
+      const contact = await addContact(admin, acmeId, {
+        name: 'Clear Me',
+        designation: 'Buyer',
+        email: 'clear@acme.example',
+        phone: '+91 98200 11111',
+      });
+      await updateContact(admin, contact.id, { email: '', phone: '', designation: '' });
+      const row = (await getClient(admin, acmeId)).contacts.find((c) => c.id === contact.id)!;
+      expect(row).toMatchObject({ email: null, phone: null, designation: null, name: 'Clear Me' });
+      await removeContact(admin, contact.id);
+    });
+  });
+
   describe('AC13: permissions (Decision 11: Sales create clients)', () => {
     it('Sales can create a client with contacts, but not change it afterwards', async () => {
       const mine = await createClient(sales, {

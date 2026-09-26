@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test';
 import { choose, signIn, signOut } from './helpers.ts';
 import { E2E_USERS } from './users.ts';
 
-// AC18: an admin creates a sector and a client with a primary contact; Sales is forbidden.
+// AC18: an admin creates a sector and a client with a primary contact; Sales is forbidden
+// from every admin page (and the pages render nothing for them: M3 review fix C).
 test('admin sets up masters; a sales user cannot open them', async ({ page }) => {
   await signIn(page, E2E_USERS.admin.email, E2E_USERS.admin.password);
 
@@ -36,6 +37,9 @@ test('admin sets up masters; a sales user cannot open them', async ({ page }) =>
   await signOut(page);
 
   await signIn(page, E2E_USERS.sales.email, E2E_USERS.sales.password);
-  await page.goto('/admin/clients');
-  await expect(page.getByRole('heading', { name: 'Forbidden' })).toBeVisible();
+  for (const path of ['/admin/clients', '/admin/users', '/admin/settings', '/admin/audit-log']) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: 'Forbidden' })).toBeVisible();
+    await expect(page.getByRole('table')).toHaveCount(0);
+  }
 });

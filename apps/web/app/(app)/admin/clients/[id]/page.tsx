@@ -1,13 +1,14 @@
 import { getClient, listSectorOptions, NotFoundError } from '@sales-tracker/core';
 import { notFound } from 'next/navigation';
 import { ConfirmButton } from '@/components/ConfirmButton';
-import { requireUser } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { deleteClientAction } from '../actions';
 import { ClientForm } from '../ClientForm';
 import { ContactsSection } from './ContactsSection';
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireUser();
+  const ctx = await requireAdmin();
+  if (!ctx) return null; // non-admins: the layout shows Forbidden
   const { id } = await params;
   const client = await getClient(ctx, id).catch((error: unknown) => {
     if (error instanceof NotFoundError) notFound();

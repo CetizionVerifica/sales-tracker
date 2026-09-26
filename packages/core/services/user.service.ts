@@ -62,8 +62,17 @@ async function assertEmailFree(db: Db, email: string, excludeId?: string) {
   if (clash) throw new DomainError(EMAIL_TAKEN, { field: 'email' });
 }
 
-/** Nobody may demote or deactivate the last active admin (M3 Decision 6). */
+/** Transaction-scoped advisory lock serialising last-admin checks (M3 review fix D). */
+const ADMIN_GUARD_LOCK = 7_346_101;
+
+/**
+ * Nobody may demote or deactivate the last active admin (M3 Decision 6). The lock makes
+ * concurrent attempts run one after another, so two admins removing each other at the same
+ * moment cannot both see the other as "still active". Released when the transaction ends.
+ */
 async function assertNotLastAdmin(db: Db, userId: string, field?: string) {
+  // SELECT … FROM keeps the result deserialisable (pg_advisory_xact_lock returns void).
+  await db.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(${ADMIN_GUARD_LOCK})`;
   const others = await db.user.count({
     where: { role: 'ADMIN', active: true, isSystem: false, id: { not: userId } },
   });

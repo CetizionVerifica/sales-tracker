@@ -3,7 +3,7 @@ import { listClientsSchema } from '@sales-tracker/core/schemas';
 import Link from 'next/link';
 import { ListToolbar } from '@/components/data-table/ListToolbar';
 import { Button } from '@/components/ui/button';
-import { requireUser } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { parseListParams, type SearchParams } from '@/lib/list-params';
 import { ClientsTable } from './ClientsTable';
 
@@ -14,7 +14,8 @@ export default async function ClientsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const ctx = await requireUser();
+  const ctx = await requireAdmin();
+  if (!ctx) return null; // non-admins: the layout shows Forbidden
   const params = parseListParams(await searchParams, listClientsSchema);
   const [result, sectors] = await Promise.all([
     listClients(ctx, params),

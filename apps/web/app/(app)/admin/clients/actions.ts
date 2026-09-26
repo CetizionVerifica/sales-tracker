@@ -11,11 +11,12 @@ import {
   updateContact,
 } from '@sales-tracker/core';
 import {
+  contactIdActionSchema,
   contactSchema,
+  contactUpdateActionSchema,
   createClientSchema,
   idOnlySchema,
   updateClientSchema,
-  updateContactSchema,
   withId,
 } from '@sales-tracker/core/schemas';
 import { revalidatePath } from 'next/cache';
@@ -49,17 +50,16 @@ export const addContactAction = action(withId(contactSchema), async (ctx, { id, 
 );
 
 export const updateContactAction = action(
-  withId(updateContactSchema).extend({ clientId: idOnlySchema.shape.id }),
+  contactUpdateActionSchema,
   async (ctx, { id, data, clientId }) =>
     done({ id: (await updateContact(ctx, id, data)).id }, clientId),
 );
 
-export const removeContactAction = action(
-  idOnlySchema.extend({ clientId: idOnlySchema.shape.id }),
-  async (ctx, { id, clientId }) => done({ id: (await removeContact(ctx, id)).id }, clientId),
+export const removeContactAction = action(contactIdActionSchema, async (ctx, { id, clientId }) =>
+  done({ id: (await removeContact(ctx, id)).id }, clientId),
 );
 
 export const setPrimaryContactAction = action(
-  idOnlySchema.extend({ clientId: idOnlySchema.shape.id }),
+  contactIdActionSchema,
   async (ctx, { id, clientId }) => done({ id: (await setPrimaryContact(ctx, id)).id }, clientId),
 );

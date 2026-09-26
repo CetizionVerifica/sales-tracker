@@ -43,7 +43,7 @@ async function assertSectorUsable(db: Db, sectorId: string) {
 }
 
 async function findLiveClient(db: Db, id: string) {
-  const client = await db.client.findFirst({ where: { id }, select: { id: true } });
+  const client = await db.client.findFirst({ where: { id }, select: { id: true, sectorId: true } });
   if (!client) throw new NotFoundError('client');
   return client;
 }
@@ -120,8 +120,12 @@ export async function updateClient(
   const data = updateClientSchema.parse(input);
   assertCan(ctx, 'update', 'client');
   return withTx(ctx, async (tx) => {
-    await findLiveClient(tx, id);
-    if (data.sectorId) await assertSectorUsable(tx, data.sectorId);
+    const current = await findLiveClient(tx, id);
+    // Only a *new* sector must be active: a retired sector keeps working on existing
+    // clients (AC12), so saving other fields must not trip over it (M3 review fix A).
+    if (data.sectorId && data.sectorId !== current.sectorId) {
+      await assertSectorUsable(tx, data.sectorId);
+    }
     if (data.name) await assertNameFree(tx, data.name, id);
     await guardUnique('name', duplicate(data.name ?? ''), () =>
       tx.client.update({ where: { id }, data }),

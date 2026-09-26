@@ -1,9 +1,11 @@
 import { MastersPage } from '@/components/admin/masters/MastersPage';
-import { requireUser } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import type { SearchParams } from '@/lib/list-params';
 
 export const metadata = { title: 'Services · Sales Tracker' };
 
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  return <MastersPage ctx={await requireUser()} kind="service" searchParams={await searchParams} />;
+  const ctx = await requireAdmin();
+  if (!ctx) return null; // non-admins: the layout shows Forbidden
+  return <MastersPage ctx={ctx} kind="service" searchParams={await searchParams} />;
 }

@@ -11,16 +11,12 @@ import {
   updateService,
 } from '@sales-tracker/core';
 import {
-  createMasterSchema,
-  idOnlySchema,
-  updateMasterSchema,
-  withId,
+  masterCreateActionSchema,
+  masterIdActionSchema,
+  masterUpdateActionSchema,
 } from '@sales-tracker/core/schemas';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
 import { action } from '@/lib/action';
-
-const kindSchema = z.enum(['sector', 'service']);
 const ops = {
   sector: {
     create: createSector,
@@ -41,22 +37,19 @@ function done<T>(kind: 'sector' | 'service', value: T): T {
   return value;
 }
 
-export const createMasterAction = action(
-  z.object({ kind: kindSchema, data: createMasterSchema }),
-  async (ctx, { kind, data }) => done(kind, await ops[kind].create(ctx, data)),
+export const createMasterAction = action(masterCreateActionSchema, async (ctx, { kind, data }) =>
+  done(kind, await ops[kind].create(ctx, data)),
 );
 
 export const updateMasterAction = action(
-  withId(updateMasterSchema).extend({ kind: kindSchema }),
+  masterUpdateActionSchema,
   async (ctx, { kind, id, data }) => done(kind, await ops[kind].update(ctx, id, data)),
 );
 
-export const deleteMasterAction = action(
-  idOnlySchema.extend({ kind: kindSchema }),
-  async (ctx, { kind, id }) => done(kind, await ops[kind].remove(ctx, id)),
+export const deleteMasterAction = action(masterIdActionSchema, async (ctx, { kind, id }) =>
+  done(kind, await ops[kind].remove(ctx, id)),
 );
 
-export const restoreMasterAction = action(
-  idOnlySchema.extend({ kind: kindSchema }),
-  async (ctx, { kind, id }) => done(kind, await ops[kind].restore(ctx, id)),
+export const restoreMasterAction = action(masterIdActionSchema, async (ctx, { kind, id }) =>
+  done(kind, await ops[kind].restore(ctx, id)),
 );
