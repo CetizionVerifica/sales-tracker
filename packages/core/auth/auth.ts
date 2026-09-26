@@ -48,6 +48,11 @@ function createAuth() {
         },
       },
     },
+    advanced: {
+      // Resolve the real client IP behind our reverse proxies so each client gets its own
+      // rate-limit bucket (otherwise Better Auth falls back to one shared bucket).
+      ipAddress: { trustedProxies: env.TRUSTED_PROXY_CIDRS },
+    },
     rateLimit: {
       enabled: true,
       storage: 'memory',

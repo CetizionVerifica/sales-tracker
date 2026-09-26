@@ -33,6 +33,14 @@ People sign in with email and password, sessions persist, and every request know
 - Better Auth's built-in rate limiting is on: 5 sign-in attempts per minute per IP. The login form posts to Better Auth's endpoint (not a server action) so this limit applies.
 - The admin plugin's HTTP routes (`/api/auth/admin/*`) and `/sign-up/email` are disabled with `disabledPaths`. They would bypass `can()` and the audit log. Core services call the plugin's server API directly instead.
 - Better Auth telemetry is off.
+- **Production requirements** (added after the M1 review; check again in M14):
+  - `TRUSTED_PROXY_CIDRS` lists the reverse proxies in front of the app.
+    - Without it, Better Auth cannot work out a client IP from a multi-hop `x-forwarded-for`, and puts every sign-in in one shared rate-limit bucket. That would be a company-wide lockout risk.
+    - It is wired to `advanced.ipAddress.trustedProxies`.
+    - Tested: clients behind a trusted proxy get separate buckets, and spoofed hops are ignored.
+  - With `NODE_ENV=production`, `BETTER_AUTH_URL` must be `https://`, because Better Auth only marks cookies `Secure` for https URLs.
+    - Loopback hosts are exempt, so the production build can run locally and in CI.
+    - `env.ts` enforces this at startup.
 - Inactive users and the system user (`isSystem`) cannot sign in. A Better Auth hook rejects the session before it is created. Deactivating a user also revokes all of that user's sessions (the service ships here; the UI is M3).
 - New environment variables are added to the `env.ts` schema and `.env.example`:
   - `BETTER_AUTH_SECRET`: at least 32 characters.
