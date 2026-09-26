@@ -1,0 +1,35 @@
+{
+  "name": "sales-tracker",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": "^22.12.0 || >=24.0.0"
+  },
+  "scripts": {
+    "services:up": "docker compose up -d --wait postgres redis minio && docker compose run --rm minio-init",
+    "dev": "pnpm services:up && turbo run dev",
+    "build": "turbo run build",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit && turbo run typecheck",
+    "test": "vitest run",
+    "test:e2e": "turbo run test:e2e",
+    "db:migrate": "pnpm --filter @sales-tracker/db migrate",
+    "db:seed": "pnpm --filter @sales-tracker/db seed",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@next/eslint-plugin-next": "16.3.6",
+    "@types/node": "^22.20.4",
+    "eslint": "9.39.5",
+    "globals": "^17.12.0",
+    "prettier": "3.9.9",
+    "tsx": "4.23.15",
+    "turbo": "2.11.4",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.1",
+    "vitest": "5.0.2"
+  }
+}
