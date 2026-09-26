@@ -138,6 +138,17 @@ None new. `AsyncLocalStorage` is in Node's standard library, and Prisma client e
 - **Better Auth's own writes:** ✅ Sign-in, session checks and sign-out write only `Session` rows, which are excluded. No `runAsSystem` wrapper is needed.
 - **Upsert before-snapshot:** ✅ Both run on the same transaction client (AC1 covers both paths).
 
+## Review fixes (applied before merge)
+
+- **Better Auth's own routes behind an allow-list.** The M2 review found that `/update-user` and `/change-password` were reachable by any signed-in user. They bypassed `can()`, and returned 500 only because fail-closed blocked the unaudited write.
+  - The web route now goes through core's `handleAuthRequest`, which returns 404 for every path except `ENABLED_AUTH_PATHS` (sign-in, sign-out, get-session, ok, error).
+  - Better Auth's `disabledPaths` lists the rest as a second layer. It matches paths literally, so on its own it could not block parameterised routes such as `/callback/:id`.
+  - A test fails if a Better Auth upgrade registers a route that is on neither list.
+  - Self-service profile or password changes, if wanted, come later as audited core services.
+- **Bulk writes pinned to audited rows.**
+  - `updateMany`, `updateManyAndReturn` and `deleteMany` now write only the ids they read (`AND: [where, { id: { in: ids } }]`).
+  - Under READ COMMITTED, the original filter could also match a row committed by another transaction in between, which would then be written without an audit row.
+
 ## Carried to M3
 
 - The integration test for `SOFT_DELETE` and `RESTORE` audit rows, with the first model that has `deletedAt`.

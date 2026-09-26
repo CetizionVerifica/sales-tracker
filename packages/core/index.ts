@@ -1,6 +1,6 @@
 export { EnvError, getEnv, parseEnv, type Env } from './env.ts';
 export { createRedisConnection, disconnectAll } from './clients.ts';
-export { getAuth, type Auth } from './auth/auth.ts';
+export { getAuth, handleAuthRequest, type Auth } from './auth/auth.ts';
 export {
   assertCan,
   getCtxFromHeaders,

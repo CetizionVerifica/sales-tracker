@@ -1,7 +1,5 @@
-import { getAuth } from '@sales-tracker/core';
+import { handleAuthRequest } from '@sales-tracker/core';
 
-// Better Auth's HTTP API (sign-in, sign-out, session). Admin and sign-up routes are
-// disabled in core; user management goes through core services.
-const handle = (request: Request) => getAuth().handler(request);
-
-export { handle as GET, handle as POST };
+// Better Auth's HTTP API, behind core's allow-list (sign-in, sign-out, session). Every other
+// route returns 404; user management goes through core services (can() + audit log).
+export { handleAuthRequest as GET, handleAuthRequest as POST };

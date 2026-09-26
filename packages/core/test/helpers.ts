@@ -1,5 +1,5 @@
 import type { Role } from '@sales-tracker/db';
-import { getAuth } from '../auth/auth.ts';
+import { getAuth, handleAuthRequest } from '../auth/auth.ts';
 import { systemCtx, withTx, type Actor, type Ctx, type Source } from '../context.ts';
 import { bootstrapSystemUser } from '../system/seed.ts';
 
@@ -46,10 +46,10 @@ export async function signIn(email: string, password = PASSWORD): Promise<Header
   return new Headers({ cookie });
 }
 
-/** Sends a raw HTTP request through Better Auth's handler (exercises routing, rate limits). */
+/** Sends a raw HTTP request through the real entry point (allow-list, routing, rate limits). */
 export function authRequest(path: string, body: unknown, ip = '203.0.113.1') {
   const base = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000';
-  return getAuth().handler(
+  return handleAuthRequest(
     new Request(`${base}/api/auth${path}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: base, 'x-forwarded-for': ip },

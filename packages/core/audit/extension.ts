@@ -73,6 +73,12 @@ function stripId<T>(result: T, added: boolean): T {
   return rest as T;
 }
 
+/** Restricts a bulk write to the ids that were read (and will be audited). */
+export function pinnedWhere(where: unknown, ids: string[]): Args {
+  const pin = { id: { in: ids } };
+  return where ? { AND: [where, pin] } : pin;
+}
+
 function rejectLimit(model: string, operation: string, args: Args) {
   if (args.limit !== undefined) {
     throw new Error(
@@ -174,11 +180,11 @@ export async function auditOperation({ model, operation, args, query }: Operatio
     case 'updateManyAndReturn': {
       rejectLimit(model, operation, args);
       const before = await delegate.findMany({ where: args.where });
-      const result = await query(args);
-      const after = await rowsById(
-        delegate,
-        before.map((row) => row.id),
-      );
+      const ids = before.map((row) => row.id);
+      // Write exactly the rows read and audited: under READ COMMITTED the original filter
+      // could also match a row another transaction commits in between (M2 review fix B).
+      const result = await query({ ...args, where: pinnedWhere(args.where, ids) });
+      const after = await rowsById(delegate, ids);
       await writeAudit(
         store,
         model,
@@ -201,7 +207,13 @@ export async function auditOperation({ model, operation, args, query }: Operatio
     case 'deleteMany': {
       rejectLimit(model, operation, args);
       const before = await delegate.findMany({ where: args.where });
-      const result = await query(args);
+      const result = await query({
+        ...args,
+        where: pinnedWhere(
+          args.where,
+          before.map((row) => row.id),
+        ),
+      });
       await writeAudit(
         store,
         model,
