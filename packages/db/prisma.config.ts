@@ -10,7 +10,7 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
-    seed: 'tsx prisma/seed.ts',
+    seed: 'tsx ../core/scripts/seed.ts',
   },
   datasource: {
     // Placeholder keeps `prisma generate` working without a DB; migrate commands need the real URL.

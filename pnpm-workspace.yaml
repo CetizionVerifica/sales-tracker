@@ -11,3 +11,4 @@ allowBuilds:
   msgpackr-extract: true
 minimumReleaseAgeExclude:
   - bullmq@6.3.9
+  - react-hook-form@7.89.0

@@ -1,0 +1,27 @@
+/** No valid session. Web maps this to a sign-in redirect or an action error. */
+export class UnauthenticatedError extends Error {
+  override name = 'UnauthenticatedError';
+  constructor(message = 'Not signed in') {
+    super(message);
+  }
+}
+
+/** can() said no. The message names the action and resource type only, never record data. */
+export class ForbiddenError extends Error {
+  override name = 'ForbiddenError';
+  constructor(action: string, resourceType: string) {
+    super(`Not allowed to ${action} ${resourceType}`);
+  }
+}
+
+export class NotFoundError extends Error {
+  override name = 'NotFoundError';
+  constructor(resourceType: string) {
+    super(`${resourceType} not found`);
+  }
+}
+
+/** A business-rule violation whose message is safe to show to the user. */
+export class DomainError extends Error {
+  override name = 'DomainError';
+}
