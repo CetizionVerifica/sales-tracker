@@ -1,0 +1,14 @@
+{
+  "name": "@sales-tracker/worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sales-tracker/core": "workspace:*",
+    "bullmq": "6.3.9"
+  }
+}

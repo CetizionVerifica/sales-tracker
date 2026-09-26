@@ -1,0 +1,10 @@
+// Models are added per module (User and auth tables in M1, AuditLog in M2, ...).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
