@@ -28,6 +28,8 @@ export default defineConfig({
       // The E2E app talks to the test database, never the dev one.
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? '',
       BETTER_AUTH_URL: BASE_URL,
+      // Every test signs in from 127.0.0.1; the production default (5/min) would 429.
+      AUTH_SIGNIN_RATE_LIMIT: '1000',
     },
   },
 });

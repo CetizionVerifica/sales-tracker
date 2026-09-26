@@ -46,6 +46,9 @@ export const envSchema = z
     // Reverse proxies whose x-forwarded-for entries are trusted. Without this, production
     // rate limiting cannot tell clients apart behind a proxy (all share one bucket).
     TRUSTED_PROXY_CIDRS: cidrList,
+    // Sign-in attempts per minute per client IP. Keep the default in production; the E2E
+    // server raises it because every test signs in from 127.0.0.1.
+    AUTH_SIGNIN_RATE_LIMIT: z.coerce.number().int().min(1).max(1000).default(5),
     // Only the seed script needs these; it reports a clear error when they are missing.
     SEED_ADMIN_EMAIL: z.email().optional(),
     SEED_ADMIN_PASSWORD: z.string().min(12).optional(),

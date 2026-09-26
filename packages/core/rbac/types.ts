@@ -16,6 +16,7 @@ export interface Actor {
 export type ResourceInstance =
   | { type: 'user'; id: string }
   | { type: 'master' }
+  | { type: 'client' }
   | { type: 'settings' }
   | { type: 'auditLog'; actorId: string }
   | { type: 'apiToken' }

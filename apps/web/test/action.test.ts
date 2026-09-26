@@ -94,4 +94,18 @@ describe('AC12: server-action wrapper', () => {
     });
     spy.mockRestore();
   });
+
+  it('maps a DomainError with a field to fieldErrors (e.g. duplicate name)', async () => {
+    const run = build(
+      async () => ctx,
+      () => {
+        throw new DomainError('A sector with this name already exists', { field: 'name' });
+      },
+    );
+    await expect(run({ name: 'x' })).resolves.toEqual({
+      ok: false,
+      error: 'A sector with this name already exists',
+      fieldErrors: { name: ['A sector with this name already exists'] },
+    });
+  });
 });

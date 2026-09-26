@@ -18,8 +18,10 @@ export {
   DomainError,
   ForbiddenError,
   NotFoundError,
+  SoftDeleteError,
   UnauthenticatedError,
 } from './errors.ts';
 export * from './rbac/index.ts';
 export * from './services/index.ts';
+export { auditedModels } from './audit/model-meta.ts';
 export * from './system/health.ts';

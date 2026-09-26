@@ -131,3 +131,81 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_log")
 }
+
+// ─── M3: masters and settings ───────────────────────────────────────────────
+// Soft-deletable models (have `deletedAt`): reads hide deleted rows by default and
+// hard deletes throw (packages/core/audit/soft-delete.ts). Case-insensitive name
+// uniqueness among non-deleted rows is a partial index in migration m3_admin_masters.
+
+/// `active = false` retires a sector (hidden from pickers); `deletedAt` removes mistakes.
+model Sector {
+  id        String    @id @default(uuid())
+  name      String
+  active    Boolean   @default(true)
+  clients   Client[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("sector")
+}
+
+/// A service the company sells (e.g. Inspection). Same lifecycle as Sector.
+model Service {
+  id        String    @id @default(uuid())
+  name      String
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("service")
+}
+
+model Client {
+  id        String          @id @default(uuid())
+  name      String
+  sectorId  String
+  sector    Sector          @relation(fields: [sectorId], references: [id])
+  /// Indian GST identification number (15 characters), optional.
+  gstin     String?
+  address   String?
+  notes     String?
+  contacts  ClientContact[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  deletedAt DateTime?
+
+  @@index([sectorId])
+  @@map("client")
+}
+
+/// At most one non-deleted primary contact per client (partial unique index).
+model ClientContact {
+  id          String    @id @default(uuid())
+  clientId    String
+  client      Client    @relation(fields: [clientId], references: [id])
+  name        String
+  designation String?
+  email       String?
+  phone       String?
+  isPrimary   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([clientId])
+  @@map("client_contact")
+}
+
+/// Exactly one row (id = 1, enforced by a CHECK constraint). Base currency is fixed INR.
+model CompanySettings {
+  id                    Int      @id @default(1)
+  companyName           String
+  defaultInvoiceDueDays Int      @default(30)
+  enabledCurrencies     String[] @default(["INR"])
+  baseCurrency          String   @default("INR")
+  updatedAt             DateTime @updatedAt
+
+  @@map("company_settings")
+}

@@ -116,7 +116,7 @@ function createAuth() {
     rateLimit: {
       enabled: true,
       storage: 'memory',
-      customRules: { '/sign-in/email': { window: 60, max: 5 } },
+      customRules: { '/sign-in/email': { window: 60, max: env.AUTH_SIGNIN_RATE_LIMIT } },
     },
     disabledPaths: DISABLED_AUTH_PATHS,
     telemetry: { enabled: false },

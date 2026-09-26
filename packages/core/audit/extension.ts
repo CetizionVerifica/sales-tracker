@@ -2,8 +2,10 @@ import { Prisma } from '@sales-tracker/db';
 import { AuditContextError } from '../errors.ts';
 import { isAudited, modelFields } from './model-meta.ts';
 import { assertNoNestedWrites, changedFields, classifyAction, toAuditJson } from './snapshot.ts';
+import { applySoftDelete, withDeleted } from './soft-delete.ts';
 import { getStore, type AuditStore } from './store.ts';
 
+/** Audited models have a single `id` (string UUIDs, or Int for the CompanySettings singleton). */
 type Row = Record<string, unknown> & { id: string };
 type Args = Record<string, unknown>;
 
@@ -97,7 +99,7 @@ async function writeAudit(store: AuditStore & { tx: TxClient }, model: string, e
       source: store.ctx.source,
       action: classifyAction(operation, before, after),
       entityType: model,
-      entityId: (after ?? before)!.id,
+      entityId: String((after ?? before)!.id), // Int ids (CompanySettings) stored as text
       before: toAuditJson(before) ?? Prisma.DbNull,
       after: toAuditJson(after) ?? Prisma.DbNull,
       changedFields: changedFields(before, after),
@@ -107,8 +109,12 @@ async function writeAudit(store: AuditStore & { tx: TxClient }, model: string, e
 }
 
 /** Rows affected by a bulk write, matched by id so the before/after pair up. */
-async function rowsById(delegate: Delegate, ids: string[]): Promise<Map<string, Row>> {
-  const rows = await delegate.findMany({ where: { id: { in: ids } } });
+async function rowsById(
+  delegate: Delegate,
+  model: string,
+  ids: string[],
+): Promise<Map<string, Row>> {
+  const rows = await delegate.findMany({ where: withDeleted({ id: { in: ids } }, model) });
   return new Map(rows.map((row) => [row.id, row]));
 }
 
@@ -124,7 +130,10 @@ interface OperationParams {
  * and the audit insert on the active transaction client, so they commit or roll back
  * together. Reads and excluded models pass straight through.
  */
-export async function auditOperation({ model, operation, args, query }: OperationParams) {
+export async function auditOperation(params: OperationParams) {
+  // Soft delete first: filters reads and rejects hard deletes on soft-deletable models (M3).
+  const args = applySoftDelete(params.model, params.operation, params.args);
+  const { model, operation, query } = params;
   if (!WRITE_OPERATIONS.has(operation) || !isAudited(model)) return query(args);
 
   const store = requireStore(model, operation);
@@ -140,7 +149,9 @@ export async function auditOperation({ model, operation, args, query }: Operatio
     case 'create': {
       const call = withId(args);
       const result = (await query(call.args)) as Row;
-      const after = await delegate.findUniqueOrThrow({ where: { id: result.id } });
+      const after = await delegate.findUniqueOrThrow({
+        where: withDeleted({ id: result.id }, model),
+      });
       await writeAudit(store, model, [{ operation: 'create', before: null, after }]);
       return stripId(result, call.added);
     }
@@ -156,6 +167,7 @@ export async function auditOperation({ model, operation, args, query }: Operatio
       const result = (await query(call.args)) as Row[];
       const after = await rowsById(
         delegate,
+        model,
         result.map((row) => row.id),
       );
       await writeAudit(
@@ -168,10 +180,12 @@ export async function auditOperation({ model, operation, args, query }: Operatio
 
     case 'update':
     case 'upsert': {
-      const before = await delegate.findUnique({ where: args.where });
+      const before = await delegate.findUnique({ where: withDeleted(args.where, model) });
       const call = withId(args);
       const result = (await query(call.args)) as Row;
-      const after = await delegate.findUniqueOrThrow({ where: { id: result.id } });
+      const after = await delegate.findUniqueOrThrow({
+        where: withDeleted({ id: result.id }, model),
+      });
       await writeAudit(store, model, [{ operation: before ? 'update' : 'create', before, after }]);
       return stripId(result, call.added);
     }
@@ -179,12 +193,12 @@ export async function auditOperation({ model, operation, args, query }: Operatio
     case 'updateMany':
     case 'updateManyAndReturn': {
       rejectLimit(model, operation, args);
-      const before = await delegate.findMany({ where: args.where });
+      const before = await delegate.findMany({ where: withDeleted(args.where, model) });
       const ids = before.map((row) => row.id);
       // Write exactly the rows read and audited: under READ COMMITTED the original filter
       // could also match a row another transaction commits in between (M2 review fix B).
       const result = await query({ ...args, where: pinnedWhere(args.where, ids) });
-      const after = await rowsById(delegate, ids);
+      const after = await rowsById(delegate, model, ids);
       await writeAudit(
         store,
         model,
@@ -198,7 +212,7 @@ export async function auditOperation({ model, operation, args, query }: Operatio
     }
 
     case 'delete': {
-      const before = await delegate.findUnique({ where: args.where });
+      const before = await delegate.findUnique({ where: withDeleted(args.where, model) });
       const result = await query(args);
       if (before) await writeAudit(store, model, [{ operation: 'delete', before, after: null }]);
       return result;
@@ -206,7 +220,7 @@ export async function auditOperation({ model, operation, args, query }: Operatio
 
     case 'deleteMany': {
       rejectLimit(model, operation, args);
-      const before = await delegate.findMany({ where: args.where });
+      const before = await delegate.findMany({ where: withDeleted(args.where, model) });
       const result = await query({
         ...args,
         where: pinnedWhere(

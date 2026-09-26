@@ -10,7 +10,17 @@ export interface AuditStore {
   tx?: unknown;
 }
 
-const storage = new AsyncLocalStorage<AuditStore>();
+/**
+ * One storage per process, on globalThis. Next.js bundles server actions and server
+ * components into separate module graphs, so this file can be loaded twice; the Prisma
+ * client (cached on globalThis) must read the same storage that withTx writes, whichever
+ * copy of this module either of them came from.
+ */
+const globalForStore = globalThis as unknown as {
+  salesTrackerAuditStorage?: AsyncLocalStorage<AuditStore>;
+};
+globalForStore.salesTrackerAuditStorage ??= new AsyncLocalStorage<AuditStore>();
+const storage = globalForStore.salesTrackerAuditStorage;
 
 export function getStore(): AuditStore | undefined {
   return storage.getStore();

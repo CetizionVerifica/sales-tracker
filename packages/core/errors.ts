@@ -21,9 +21,18 @@ export class NotFoundError extends Error {
   }
 }
 
-/** A business-rule violation whose message is safe to show to the user. */
+/**
+ * A business-rule violation whose message is safe to show to the user. `field` points the
+ * UI at the input it concerns (e.g. a duplicate name), mapped to fieldErrors by actions.
+ */
 export class DomainError extends Error {
   override name = 'DomainError';
+  readonly field: string | undefined;
+
+  constructor(message: string, options: { field?: string } = {}) {
+    super(message);
+    this.field = options.field;
+  }
 }
 
 /**
@@ -32,4 +41,9 @@ export class DomainError extends Error {
  */
 export class AuditContextError extends Error {
   override name = 'AuditContextError';
+}
+
+/** A hard delete on a soft-deletable model (CLAUDE.md rule 4): set `deletedAt` instead. */
+export class SoftDeleteError extends Error {
+  override name = 'SoftDeleteError';
 }
