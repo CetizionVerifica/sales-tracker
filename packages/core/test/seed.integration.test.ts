@@ -116,3 +116,34 @@ describe('AC8: seed (integration)', () => {
     expect(row.actorId).toBe(system.id);
   });
 });
+
+// Code-review fix: the sample pipeline is all-or-nothing. It is skipped once any enquiry
+// exists, so a failure part-way must not leave some behind.
+describe('M4: dev seed sample pipeline after a failure', () => {
+  beforeAll(() => resetDb(getDb()));
+  afterAll(disconnectAll);
+
+  it('leaves no sample data behind, so the next seed completes', async () => {
+    const db = getDb();
+    await seed(options);
+    // A soft-deleted "Training" service: masters count it as present, but the fourth
+    // sample enquiry cannot use it, so seeding fails after three enquiries.
+    const training = await withTx(await systemCtx(), (tx) =>
+      tx.service.create({ data: { name: 'Training', deletedAt: new Date() } }),
+    );
+
+    await expect(seed({ ...options, devUsers: true })).rejects.toThrow(/Training/);
+    expect(await db.enquiry.count({ where: { deletedAt: undefined } })).toBe(0);
+    expect(await db.client.count({ where: { deletedAt: undefined } })).toBe(0);
+
+    await withTx(await systemCtx(), (tx) =>
+      tx.service.update({ where: { id: training.id }, data: { deletedAt: null } }),
+    );
+    await seed({ ...options, devUsers: true });
+    const statuses = await db.enquiry.findMany({ select: { status: true } });
+    expect(statuses).toHaveLength(8);
+    expect(new Set(statuses.map((e) => e.status))).toEqual(
+      new Set(['IN_PROGRESS', 'CONVERTED', 'LOST']),
+    );
+  });
+});

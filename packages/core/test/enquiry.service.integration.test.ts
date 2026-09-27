@@ -398,6 +398,52 @@ describe('enquiries (integration)', () => {
     });
   });
 
+  // Code-review fix: convert, mark lost and delete read the status and then write it. Two
+  // requests at once must not both succeed (e.g. CONVERTED with a lostReason, or a
+  // converted enquiry deleted, breaking Decision 6).
+  describe('concurrent status changes', () => {
+    const ROUNDS = 10;
+
+    it('convert vs mark lost: exactly one wins and one transition is audited', async () => {
+      for (let round = 0; round < ROUNDS; round++) {
+        const enquiry = await createEnquiry(sales, input({ proposalSentDate: '2026-03-11' }));
+        const results = await Promise.allSettled([
+          convertEnquiry(sales, { id: enquiry.id }),
+          markEnquiryLost(admin, { id: enquiry.id, lostReason: 'Race' }),
+        ]);
+
+        expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+        for (const r of results) {
+          if (r.status === 'rejected') expect(r.reason).toBeInstanceOf(DomainError);
+        }
+        const row = await getDb().enquiry.findUniqueOrThrow({ where: { id: enquiry.id } });
+        if (row.status === 'CONVERTED') expect(row.lostReason).toBeNull();
+        else expect(row).toMatchObject({ status: 'LOST', lostReason: 'Race' });
+        expect((await auditOf('Enquiry', enquiry.id)).map((r) => r.action)).toEqual([
+          'CREATE',
+          'UPDATE',
+        ]);
+      }
+    });
+
+    it('convert vs delete: a converted enquiry is never deleted', async () => {
+      for (let round = 0; round < ROUNDS; round++) {
+        const enquiry = await createEnquiry(sales, input({ proposalSentDate: '2026-03-11' }));
+        const results = await Promise.allSettled([
+          convertEnquiry(sales, { id: enquiry.id }),
+          softDeleteEnquiry(sales, enquiry.id),
+        ]);
+
+        expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+        const row = await getDb().enquiry.findFirstOrThrow({
+          where: { id: enquiry.id, deletedAt: undefined },
+        });
+        expect(row.status === 'CONVERTED' && row.deletedAt !== null).toBe(false);
+        expect(await auditOf('Enquiry', enquiry.id)).toHaveLength(2);
+      }
+    });
+  });
+
   describe('AC8: status only through the machine', () => {
     it('ignores status in updates', async () => {
       const enquiry = await createEnquiry(sales, input());

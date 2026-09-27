@@ -327,16 +327,38 @@ function draftFrom(row: {
   };
 }
 
-async function transition(
+export const CONCURRENT_CHANGE = 'Someone else changed this enquiry. Reload and try again.';
+
+/**
+ * Writes only if the row still looks the way the caller read it. The services read the
+ * status and then write it, and under READ COMMITTED two requests could both pass the
+ * read (e.g. convert and mark lost at once). The conditional UPDATE re-checks `expected`
+ * under the row lock, so the second request updates nothing and fails; its transaction,
+ * including any audit row, rolls back.
+ */
+async function guardedUpdate(
   tx: Db,
   id: string,
-  status: EnquiryStatus,
-  data: Prisma.EnquiryUpdateInput,
+  expected: Prisma.EnquiryWhereInput,
+  data: Prisma.EnquiryUpdateManyMutationInput,
 ) {
-  await tx.enquiry.update({
-    where: { id },
-    data: { ...data, status, statusChangedAt: new Date() },
-  });
+  const { count } = await tx.enquiry.updateMany({ where: { ...expected, id }, data });
+  if (count === 0) throw new DomainError(CONCURRENT_CHANGE);
+}
+
+/** Applies a status change the status machine has already allowed. */
+async function transition(
+  tx: Db,
+  current: { id: string; status: EnquiryStatus },
+  status: EnquiryStatus,
+  data: Prisma.EnquiryUpdateManyMutationInput,
+) {
+  await guardedUpdate(
+    tx,
+    current.id,
+    { status: current.status, deletedAt: null },
+    { ...data, status, statusChangedAt: new Date() },
+  );
 }
 
 /**
@@ -354,7 +376,7 @@ export async function convertEnquiry(
     if (proposalSentDate && proposalSentDate < current.receivedDate) {
       throw new DomainError(PROPOSAL_BEFORE_RECEIVED, { field: 'proposalSentDate' });
     }
-    await transition(tx, id, 'CONVERTED', proposalSentDate ? { proposalSentDate } : {});
+    await transition(tx, current, 'CONVERTED', proposalSentDate ? { proposalSentDate } : {});
     const enquiry = await loadEnquiry(tx, id);
     return {
       enquiry,
@@ -375,7 +397,7 @@ export async function markEnquiryLost(
   return withTx(ctx, async (tx) => {
     const current = await findAccessible(tx, ctx, id, 'update');
     assertEnquiryTransition(current, 'LOST', { lostReason });
-    await transition(tx, id, 'LOST', { lostReason });
+    await transition(tx, current, 'LOST', { lostReason });
     return loadEnquiry(tx, id);
   });
 }
@@ -387,7 +409,15 @@ export async function softDeleteEnquiry(ctx: Ctx, id: string): Promise<EnquiryDe
     if (current.status === 'CONVERTED') {
       throw new DomainError('A converted enquiry cannot be deleted');
     }
-    await tx.enquiry.update({ where: { id }, data: { deletedAt: new Date() } });
+    // Guarded: a convert committed since the read must still block the delete.
+    await guardedUpdate(
+      tx,
+      id,
+      { status: current.status, deletedAt: null },
+      {
+        deletedAt: new Date(),
+      },
+    );
     return loadEnquiry(tx, id);
   });
 }
@@ -395,7 +425,7 @@ export async function softDeleteEnquiry(ctx: Ctx, id: string): Promise<EnquiryDe
 export async function restoreEnquiry(ctx: Ctx, id: string): Promise<EnquiryDetail> {
   return withTx(ctx, async (tx) => {
     await findAccessible(tx, ctx, id, 'delete', 'deleted');
-    await tx.enquiry.update({ where: { id }, data: { deletedAt: null } });
+    await guardedUpdate(tx, id, { deletedAt: { not: null } }, { deletedAt: null });
     return loadEnquiry(tx, id);
   });
 }

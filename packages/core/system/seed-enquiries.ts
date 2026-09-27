@@ -1,7 +1,7 @@
 import type { EnquirySourceValue } from '../schemas/enquiry.ts';
 import { todayInIST, toCalendarDateString } from '../schemas/common.ts';
 import { getDb } from '../clients.ts';
-import { systemCtx } from '../context.ts';
+import { systemCtx, withTx } from '../context.ts';
 import { createClient } from '../services/client.service.ts';
 import { convertEnquiry, createEnquiry, markEnquiryLost } from '../services/enquiry.service.ts';
 
@@ -104,53 +104,60 @@ const daysAgo = (days: number) =>
 
 /**
  * Dev-only sample pipeline, written through the services as the system user (audited as
- * `system`). Idempotent: does nothing once any enquiry exists.
+ * `system`). Idempotent: does nothing once any enquiry exists. Everything runs in one
+ * transaction (the services join it), so a failure part-way leaves nothing behind and the
+ * next seed starts over instead of skipping a half-made pipeline.
  */
 export async function ensureSampleEnquiries(log: (message: string) => void): Promise<void> {
-  const db = getDb();
-  if ((await db.enquiry.count({ where: { deletedAt: undefined } })) > 0) return;
+  if ((await getDb().enquiry.count({ where: { deletedAt: undefined } })) > 0) return;
+
   const ctx = await systemCtx();
+  await withTx(ctx, async (tx) => {
+    // Reads use the transaction too, so they see the clients created in it.
+    const byName = async (model: 'sector' | 'service', name: string) => {
+      const row = await (model === 'sector'
+        ? tx.sector.findFirst({ where: { name } })
+        : tx.service.findFirst({ where: { name } }));
+      if (!row) throw new Error(`Sample ${model} "${name}" is missing; seed masters first`);
+      return row.id;
+    };
 
-  const byName = async (model: 'sector' | 'service', name: string) => {
-    const row = await (model === 'sector'
-      ? db.sector.findFirst({ where: { name } })
-      : db.service.findFirst({ where: { name } }));
-    if (!row) throw new Error(`Sample ${model} "${name}" is missing; seed masters first`);
-    return row.id;
-  };
-
-  const clients = new Map<string, { id: string; sectorId: string }>();
-  for (const { name, sector } of SAMPLE_CLIENTS) {
-    const existing = await db.client.findFirst({ where: { name } });
-    const client =
-      existing ?? (await createClient(ctx, { name, sectorId: await byName('sector', sector) }));
-    clients.set(name, { id: client.id, sectorId: client.sectorId });
-  }
-
-  for (const sample of SAMPLE_ENQUIRIES) {
-    const client = clients.get(sample.client)!;
-    const owner = await db.user.findUnique({
-      where: { email: sample.owner },
-      select: { id: true },
-    });
-    if (!owner) throw new Error(`Dev user ${sample.owner} is missing`);
-    const enquiry = await createEnquiry(ctx, {
-      clientId: client.id,
-      sectorId: client.sectorId,
-      serviceIds: await Promise.all(sample.services.map((name) => byName('service', name))),
-      receivedDate: daysAgo(sample.receivedDaysAgo),
-      ...(sample.proposalDaysAgo !== undefined && {
-        proposalSentDate: daysAgo(sample.proposalDaysAgo),
-      }),
-      source: sample.source,
-      sourceDetail: sample.sourceDetail,
-      description: sample.description,
-      ownerId: owner.id,
-    });
-    if (sample.outcome === 'CONVERTED') await convertEnquiry(ctx, { id: enquiry.id });
-    else if (sample.outcome) {
-      await markEnquiryLost(ctx, { id: enquiry.id, lostReason: sample.outcome.lostReason });
+    const clients = new Map<string, { id: string; sectorId: string }>();
+    for (const { name, sector } of SAMPLE_CLIENTS) {
+      const existing = await tx.client.findFirst({ where: { name } });
+      const client =
+        existing ?? (await createClient(ctx, { name, sectorId: await byName('sector', sector) }));
+      clients.set(name, { id: client.id, sectorId: client.sectorId });
     }
-  }
+
+    for (const sample of SAMPLE_ENQUIRIES) {
+      const client = clients.get(sample.client)!;
+      const owner = await tx.user.findUnique({
+        where: { email: sample.owner },
+        select: { id: true },
+      });
+      if (!owner) throw new Error(`Dev user ${sample.owner} is missing`);
+      // One query at a time: an interactive transaction runs on a single connection.
+      const serviceIds: string[] = [];
+      for (const name of sample.services) serviceIds.push(await byName('service', name));
+      const enquiry = await createEnquiry(ctx, {
+        clientId: client.id,
+        sectorId: client.sectorId,
+        serviceIds,
+        receivedDate: daysAgo(sample.receivedDaysAgo),
+        ...(sample.proposalDaysAgo !== undefined && {
+          proposalSentDate: daysAgo(sample.proposalDaysAgo),
+        }),
+        source: sample.source,
+        sourceDetail: sample.sourceDetail,
+        description: sample.description,
+        ownerId: owner.id,
+      });
+      if (sample.outcome === 'CONVERTED') await convertEnquiry(ctx, { id: enquiry.id });
+      else if (sample.outcome) {
+        await markEnquiryLost(ctx, { id: enquiry.id, lostReason: sample.outcome.lostReason });
+      }
+    }
+  });
   log(`created ${SAMPLE_ENQUIRIES.length} sample enquiries`);
 }

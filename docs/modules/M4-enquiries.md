@@ -232,6 +232,11 @@ None remaining.
 - **Radix Select and new options:** Radix mirrors its value into a hidden native `<select>` and resets a value whose `<option>` hasn't rendered yet. A client just created in the dialog is therefore selected in an effect after the render that adds it. The E2E test caught this.
 - **History panel** lists enquiry-row changes only (not service links) with readable field names. M2's scope applies: admins see every change, others only their own.
 
+## Code review fixes (after merge)
+
+- **Concurrent status changes.** Convert, mark lost, delete and restore read the enquiry and then wrote it with `where: { id }`, so two requests at once could both succeed: `CONVERTED` with a `lostReason`, or a converted enquiry deleted (breaking Decision 6). The writes are now conditional `updateMany` calls that re-check the status (and `deletedAt`) that was read; a request that loses the race updates nothing and fails with "Someone else changed this enquiry". The tests race convert against mark lost and convert against delete, 10 rounds each; both failed before the fix.
+- **Seed all-or-nothing.** The sample pipeline was skipped once any enquiry existed, but each sample was saved in its own transaction, so a failure part-way left a partial pipeline that no later seed completed. It now runs in one transaction; a test makes the fourth sample fail and checks nothing is left, then that the next seed creates all eight.
+
 ## For M8 (projects)
 
 - `scopeEnquiries` returns nothing for project managers, and `enquiryResource` passes `projectManagerIds: []`. Both are marked `TODO(M8)` in `rbac/scope.ts`; the test pinning today's behaviour will need updating.
