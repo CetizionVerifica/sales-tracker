@@ -63,8 +63,23 @@ describe('AC8: seed (integration)', () => {
     const db = getDb();
     expect(await db.user.count({ where: { role: { not: 'ADMIN' } } })).toBe(0);
     await seed({ ...options, devUsers: true });
-    expect(await db.user.count({ where: { role: 'SALES' } })).toBe(1);
+    expect(await db.user.count({ where: { role: 'SALES' } })).toBe(2);
     expect(await db.user.count({ where: { role: 'PROJECT_MANAGER' } })).toBe(1);
+  });
+
+  it('M4: dev seed adds a sample pipeline with every status and source, once', async () => {
+    const db = getDb();
+    await seed({ ...options, devUsers: true });
+    const enquiries = await db.enquiry.findMany();
+    expect(new Set(enquiries.map((e) => e.status))).toEqual(
+      new Set(['IN_PROGRESS', 'CONVERTED', 'LOST']),
+    );
+    expect(new Set(enquiries.map((e) => e.source)).size).toBe(7);
+    const audit = await db.auditLog.findMany({ where: { entityType: 'Enquiry' } });
+    expect(audit.every((row) => row.source === 'system')).toBe(true);
+
+    await seed({ ...options, devUsers: true });
+    expect(await db.enquiry.count()).toBe(enquiries.length);
   });
 
   it('fails clearly when the admin credentials are missing', async () => {

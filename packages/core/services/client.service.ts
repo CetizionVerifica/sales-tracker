@@ -156,10 +156,15 @@ export async function restoreClient(ctx: Ctx, id: string): Promise<ClientDetail>
   });
 }
 
-/** Live clients for pickers (M4 enquiry form). */
-export async function listClientOptions(ctx: Ctx): Promise<{ id: string; name: string }[]> {
+/** Live clients for pickers. The M4 enquiry form pre-selects the client's sector. */
+export async function listClientOptions(
+  ctx: Ctx,
+): Promise<{ id: string; name: string; sectorId: string }[]> {
   assertCan(ctx, 'list', 'client');
-  return getDb().client.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } });
+  return getDb().client.findMany({
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, sectorId: true },
+  });
 }
 
 // ─── Contacts: changing a contact is changing the client (admin only) ────────────────

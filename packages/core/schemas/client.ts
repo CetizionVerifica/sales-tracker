@@ -1,41 +1,27 @@
 import { z } from 'zod';
-import { idOnlySchema, withId } from './common.ts';
+import { clearable, idOnlySchema, optionalText, withId } from './common.ts';
 import { listParamsSchema } from './list-params.ts';
 
 /** 2-digit state code, 10-character PAN, entity number, "Z", checksum character. */
 const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
-/**
- * Optional text: `undefined` = not provided / unchanged (updates), `''` or `null` = empty
- * (stored as null, so an update can clear a field that was set).
- */
-const optionalText = (max: number) =>
+export const gstinSchema = clearable(
+  z.string().trim().toUpperCase().regex(GSTIN_PATTERN, 'Enter a valid 15-character GSTIN'),
+);
+
+const contactEmail = clearable(z.email('Enter a valid email'));
+const contactPhone = clearable(
   z
     .string()
     .trim()
-    .max(max)
-    .nullish()
-    .transform((value) => (value === '' ? null : value));
-
-/** Same contract for fields with a format: '' clears, otherwise the format must match. */
-function clearable<T extends z.ZodType>(format: T) {
-  return z.union([z.literal('').transform(() => null), z.null(), format]).optional();
-}
-
-export const gstinSchema = clearable(
-  z.string().trim().toUpperCase().regex(GSTIN_PATTERN, 'Enter a valid 15-character GSTIN'),
+    .regex(/^\+?[0-9 ()-]{7,20}$/, 'Enter a valid phone number'),
 );
 
 export const contactSchema = z.object({
   name: z.string().trim().min(1, 'Enter a name').max(100),
   designation: optionalText(100),
-  email: clearable(z.email('Enter a valid email')),
-  phone: clearable(
-    z
-      .string()
-      .trim()
-      .regex(/^\+?[0-9 ()-]{7,20}$/, 'Enter a valid phone number'),
-  ),
+  email: contactEmail,
+  phone: contactPhone,
   isPrimary: z.boolean().default(false),
 });
 
@@ -59,6 +45,25 @@ export const createClientSchema = z.object({
 
 /** The client form (new and edit pages): contacts are managed separately on the detail page. */
 export const clientFormSchema = createClientSchema.omit({ contacts: true });
+
+/**
+ * "New client" from the enquiry form (M4): a client plus an optional primary contact,
+ * flattened for a small dialog. The action maps it to createClient's input.
+ */
+export const quickClientSchema = z
+  .object({
+    name: clientFields.name,
+    sectorId: clientFields.sectorId,
+    contactName: optionalText(100),
+    contactEmail,
+    contactPhone,
+  })
+  .refine((input) => input.contactName || (!input.contactEmail && !input.contactPhone), {
+    path: ['contactName'],
+    message: 'Add the contact’s name',
+  });
+
+export type QuickClientInput = z.input<typeof quickClientSchema>;
 
 export const updateClientSchema = z
   .object(clientFields)

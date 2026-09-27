@@ -161,6 +161,8 @@ describe('clients and contacts (integration)', () => {
       await softDeleteClient(admin, gone.id);
       const options = await listClientOptions(sales);
       expect(options.map((o) => o.name)).toEqual(['Acme Pharma', 'Bharat Steel', 'Zenith Steel']);
+      // M4: the enquiry form pre-selects the client's sector.
+      expect(options[0]).toEqual({ id: expect.any(String), name: 'Acme Pharma', sectorId: pharma });
     });
 
     it('a client still shows its sector after the sector is deactivated or deleted', async () => {

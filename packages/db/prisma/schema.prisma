@@ -18,24 +18,25 @@ enum Role {
 
 /// Users are deactivated (`active = false`), never deleted.
 model User {
-  id            String    @id
+  id            String     @id
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  email         String     @unique
+  emailVerified Boolean    @default(false)
   image         String?
-  role          Role      @default(SALES)
-  active        Boolean   @default(true)
+  role          Role       @default(SALES)
+  active        Boolean    @default(true)
   /// The non-login actor for jobs and imports (see M1 spec, Decision 5).
-  isSystem      Boolean   @default(false)
+  isSystem      Boolean    @default(false)
   /// Required by the Better Auth admin plugin; unused — deactivation uses `active`.
-  banned        Boolean?  @default(false)
+  banned        Boolean?   @default(false)
   banReason     String?
   banExpires    DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   sessions      Session[]
   accounts      Account[]
   auditLogs     AuditLog[]
+  enquiries     Enquiry[]
 
   @@map("user")
 }
@@ -143,6 +144,7 @@ model Sector {
   name      String
   active    Boolean   @default(true)
   clients   Client[]
+  enquiries Enquiry[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -152,11 +154,12 @@ model Sector {
 
 /// A service the company sells (e.g. Inspection). Same lifecycle as Sector.
 model Service {
-  id        String    @id @default(uuid())
+  id        String           @id @default(uuid())
   name      String
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  active    Boolean          @default(true)
+  enquiries EnquiryService[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
   deletedAt DateTime?
 
   @@map("service")
@@ -172,6 +175,7 @@ model Client {
   address   String?
   notes     String?
   contacts  ClientContact[]
+  enquiries Enquiry[]
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   deletedAt DateTime?
@@ -208,4 +212,84 @@ model CompanySettings {
   updatedAt             DateTime @updatedAt
 
   @@map("company_settings")
+}
+
+// ─── M4: enquiries ──────────────────────────────────────────────────────────
+
+/// Changed only by the status machine in packages/core/status/enquiry.ts (CLAUDE.md rule 8).
+enum EnquiryStatus {
+  IN_PROGRESS
+  CONVERTED
+  LOST
+}
+
+/// Where the enquiry came from (M4 Decision 10).
+enum EnquirySource {
+  EMAIL
+  PHONE
+  TENDER_PORTAL
+  REFERRAL
+  WEBSITE
+  WALK_IN
+  OTHER
+}
+
+/// CHECKs in migration m4_enquiries: proposalSentDate >= receivedDate, and CONVERTED
+/// requires proposalSentDate.
+model Enquiry {
+  id               String           @id @default(uuid())
+  /// Human-readable reference, e.g. ENQ-2026-0042 (M4 Decision 9). Immutable, never reused.
+  number           String           @unique
+  clientId         String
+  client           Client           @relation(fields: [clientId], references: [id])
+  /// Defaults to the client's sector in the UI; stored per enquiry (M4 Decision 3).
+  sectorId         String
+  sector           Sector           @relation(fields: [sectorId], references: [id])
+  ownerId          String
+  owner            User             @relation(fields: [ownerId], references: [id])
+  services         EnquiryService[]
+  receivedDate     DateTime         @db.Date
+  proposalSentDate DateTime?        @db.Date
+  source           EnquirySource
+  /// Required for TENDER_PORTAL, REFERRAL and OTHER (portal and tender ID, referrer, ...).
+  sourceDetail     String?
+  description      String?
+  status           EnquiryStatus    @default(IN_PROGRESS)
+  /// Required when LOST (M4 Decision 4).
+  lostReason       String?
+  statusChangedAt  DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+
+  @@index([ownerId, status])
+  @@index([clientId])
+  @@index([status, receivedDate])
+  @@index([source])
+  @@map("enquiry")
+}
+
+/// Explicit join (M4 Decision 2) so each added or removed service is audited. Not
+/// soft-deletable: removing a service is a hard DELETE with its `before` row.
+model EnquiryService {
+  id        String   @id @default(uuid())
+  enquiryId String
+  enquiry   Enquiry  @relation(fields: [enquiryId], references: [id])
+  serviceId String
+  service   Service  @relation(fields: [serviceId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([enquiryId, serviceId])
+  @@index([serviceId])
+  @@map("enquiry_service")
+}
+
+/// Per-prefix, per-year counters for human-readable numbers (`id` = "ENQ-2026").
+/// Incremented inside the caller's transaction, so a rollback does not consume a number.
+model NumberSequence {
+  id        String   @id
+  lastValue Int
+  updatedAt DateTime @updatedAt
+
+  @@map("number_sequence")
 }
