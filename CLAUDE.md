@@ -104,6 +104,10 @@ docker compose up -d  # postgres, redis
 - **PurchaseOrder:** derived — `PAID` if all invoices paid, `OVERDUE` if any overdue, else `PENDING`. Recompute whenever an invoice changes. Never set manually.
 - **Invoice due date** = `invoiceDate + CompanySettings.defaultInvoiceDueDays`, overridable per invoice.
 
+## UI
+
+All UI follows docs/UI-GUIDE.md. Read it before building or changing any screen. Use the shared layout and display components it lists, tokens only (no raw colours), and run its checklist before finishing.
+
 ## Conventions
 
 - File names: `kebab-case.ts`; React components `PascalCase.tsx`.
