@@ -4,12 +4,19 @@ import { getAuth } from '../auth/auth.ts';
 import { getDb } from '../clients.ts';
 import { systemCtx, withTx } from '../context.ts';
 import { SYSTEM_USER_EMAIL } from './constants.ts';
+import { ensureSampleEnquiries } from './seed-enquiries.ts';
 
 export { SYSTEM_USER_EMAIL } from './constants.ts';
 
 /** Dev-only accounts (never seeded in production). Passwords are documented in .env.example. */
 export const DEV_USERS = [
   { email: 'sales@example.com', name: 'Sam Sales', role: 'SALES', password: 'sales-dev-password' },
+  {
+    email: 'sales2@example.com',
+    name: 'Sita Sales',
+    role: 'SALES',
+    password: 'sales2-dev-password',
+  },
   {
     email: 'pm@example.com',
     name: 'Priya PM',
@@ -127,5 +134,6 @@ export async function seed(options: SeedOptions): Promise<void> {
         log(`created dev user ${user.email}`);
       }
     }
+    await ensureSampleEnquiries(log);
   }
 }

@@ -219,3 +219,19 @@ None new. Tables, forms, dialogs, badges and toasts reuse what M3 added (`@tanst
 Settled by the product owner: multi-service enquiries (Decision 2), no reopening in v1 (Decision 5), human-readable numbers per calendar year (Decision 9), and recording the enquiry source (Decision 10).
 
 None remaining.
+
+## Implementation notes (decided during the build)
+
+- **`NumberSequence` uses `id` as its key** (`"ENQ-2026"`), not `key`: the audit extension and the M2 coverage test require every audited model to have a single `id`. It is audited, not exempt. Each create also logs the counter write under the same `requestId`, which shows where the number came from.
+- **No retry on the first-of-year race.** A failed statement aborts the whole Postgres transaction, so catching P2002 and retrying inside `withTx` cannot work. `nextNumber` instead runs `createMany({ skipDuplicates: true })` (`INSERT … ON CONFLICT DO NOTHING`), then an `increment` update. Neither statement can fail on a race, and the row lock queues concurrent creates. AC12's 20-way concurrency test covers it.
+- **`calendarDateSchema` also accepts a UTC-midnight `Date`.** Server actions parse input with the shared schema and the service parses it again, so a date already parsed once must parse again unchanged. Dates with a time of day are rejected.
+- **Forms submit raw values** (`zodResolver(schema, undefined, { raw: true })`): dates stay `YYYY-MM-DD` on the wire.
+- **`quickClientSchema`** (core) backs the "New client" dialog: a client plus an optional primary contact. `listClientOptions` now also returns `sectorId`, so the form can pre-select the client's sector.
+- **Dev seed:** a second dev sales user (`sales2@example.com`, used by the E2E RBAC test) and eight sample enquiries covering every status and source, created through the services as the system user.
+- **Shared list components:** `ListToolbar` filters can be `multi` (comma-separated URL values), and `DateRangeFilter` takes param names and a label, so one page can show two date ranges.
+- **Radix Select and new options:** Radix mirrors its value into a hidden native `<select>` and resets a value whose `<option>` hasn't rendered yet. A client just created in the dialog is therefore selected in an effect after the render that adds it. The E2E test caught this.
+- **History panel** lists enquiry-row changes only (not service links) with readable field names. M2's scope applies: admins see every change, others only their own.
+
+## For M8 (projects)
+
+- `scopeEnquiries` returns nothing for project managers, and `enquiryResource` passes `projectManagerIds: []`. Both are marked `TODO(M8)` in `rbac/scope.ts`; the test pinning today's behaviour will need updating.

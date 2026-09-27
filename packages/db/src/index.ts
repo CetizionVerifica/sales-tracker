@@ -2,7 +2,13 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './generated/prisma/client.ts';
 
 export { PrismaClient };
-export { AuditAction, AuditSource, Role } from './generated/prisma/enums.ts';
+export {
+  AuditAction,
+  AuditSource,
+  EnquirySource,
+  EnquiryStatus,
+  Role,
+} from './generated/prisma/enums.ts';
 export { Prisma } from './generated/prisma/client.ts';
 
 /**
