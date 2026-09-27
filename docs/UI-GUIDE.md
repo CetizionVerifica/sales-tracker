@@ -311,7 +311,7 @@ One `<StatusBadge entity status />` component. Badges are soft fill + strong tex
 | Quotation | Sent | neutral |
 | Quotation | Under negotiation | warning |
 | Quotation | PO received | success |
-| Project | Not started / In progress / On hold / Completed | neutral / primary (secondary bg) / warning / success |
+| Project | Not started / In progress / On hold / Completed / Cancelled | neutral / primary (secondary bg) / warning / success / destructive |
 | PO, Invoice | Pending | neutral |
 | PO, Invoice | Paid | success |
 | PO, Invoice | Overdue | **attention** (saffron) |
