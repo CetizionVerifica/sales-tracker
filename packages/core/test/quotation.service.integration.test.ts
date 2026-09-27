@@ -444,6 +444,23 @@ describe('quotations (integration)', () => {
         await rejection(changeQuotationStatus(pm, { id: q.id, to: 'LOST', lostReason: 'x' })),
       ).toBeInstanceOf(NotFoundError);
     });
+
+    it('only the owner or an admin restores a deleted quotation; a refusal is not audited', async () => {
+      const q = await quotation(sales2);
+      await softDeleteQuotation(sales2, q.id);
+      const restores = () =>
+        getDb().auditLog.count({
+          where: { entityType: 'Quotation', entityId: q.id, action: 'RESTORE' },
+        });
+
+      expect(await rejection(restoreQuotation(sales, q.id))).toBeInstanceOf(NotFoundError);
+      expect(await rejection(restoreQuotation(pm, q.id))).toBeInstanceOf(NotFoundError);
+      expect(await restores()).toBe(0);
+      expect((await getQuotation(sales2, q.id)).deletedAt).not.toBeNull();
+
+      await restoreQuotation(admin, q.id);
+      expect(await restores()).toBe(1);
+    });
   });
 
   describe('AC7: PO received (the “done when”)', () => {

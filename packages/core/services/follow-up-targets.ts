@@ -127,8 +127,10 @@ export const HIGHLIGHTS_MAX = 1000;
  * one than last synced, or is the one that just changed, so a hand edit survives changes to
  * older follow-ups. With no live follow-up left, nothing changes (the required date is never
  * cleared). Writes only fields whose value differs, so the audit log shows real changes.
+ * Not exported: it takes no ctx, so it must only run from the registry hook, inside a
+ * follow-up service's permission-checked, audited transaction.
  */
-export async function syncQuotationFromFollowUps(
+async function syncQuotationFromFollowUps(
   db: Db,
   quotationId: string,
   changedFollowUpId: string,
