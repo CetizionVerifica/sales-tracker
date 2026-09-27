@@ -34,3 +34,28 @@ export function scopeEnquiries(user: Actor): Prisma.EnquiryWhereInput {
 export function enquiryResource(row: { ownerId: string }) {
   return { type: 'enquiry' as const, ownerId: row.ownerId, projectManagerIds: [] as string[] };
 }
+
+/**
+ * Follow-ups the user may see (M5 Decision 4): their own, client-level ones (everyone reads
+ * clients), and those on records they can read. The polymorphic `entityId` has no relation
+ * to join on, so the caller resolves the readable record ids per type first
+ * (follow-up-targets.ts) and passes them in.
+ */
+export function scopeFollowUps(
+  user: Actor,
+  visible: { ENQUIRY: readonly string[] },
+): Prisma.FollowUpWhereInput {
+  if (user.role === 'ADMIN') return {};
+  return {
+    OR: [
+      { userId: user.id },
+      { entityType: 'CLIENT' },
+      { entityType: 'ENQUIRY', entityId: { in: [...visible.ENQUIRY] } },
+    ],
+  };
+}
+
+/** The can() instance for a follow-up row. */
+export function followUpResource(row: { userId: string }, canReadLinked: boolean) {
+  return { type: 'followUp' as const, userId: row.userId, canReadLinked };
+}

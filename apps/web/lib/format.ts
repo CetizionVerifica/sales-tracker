@@ -26,3 +26,15 @@ export function formatDate(value: Date | string | null | undefined): string {
   if (!value) return '—';
   return calendarDate.format(typeof value === 'string' ? new Date(value) : value);
 }
+
+const time = new Intl.DateTimeFormat('en-IN', {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+  timeZone: 'Asia/Kolkata',
+});
+
+/** Time of day in IST, for events already grouped under a date. */
+export function formatTime(value: Date | string): string {
+  return time.format(typeof value === 'string' ? new Date(value) : value);
+}

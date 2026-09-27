@@ -7,7 +7,7 @@ import {
   todayInIST,
   withId,
 } from './common.ts';
-import { listParamsSchema } from './list-params.ts';
+import { listParamsSchema, multi } from './list-params.ts';
 
 export const ENQUIRY_STATUSES = ['IN_PROGRESS', 'CONVERTED', 'LOST'] as const;
 export const ENQUIRY_SOURCES = [
@@ -96,19 +96,6 @@ export const convertEnquirySchema = idOnlySchema.extend({
 export const markEnquiryLostSchema = idOnlySchema.extend({
   lostReason: z.string().trim().min(1, 'Say why the enquiry was lost').max(500),
 });
-
-/** A comma-separated URL value (`IN_PROGRESS,LOST`) or an array, as a list of enum values. */
-function multi<T extends readonly [string, ...string[]]>(values: T) {
-  return z.preprocess(
-    (value) => {
-      const list = typeof value === 'string' ? value.split(',') : value;
-      if (!Array.isArray(list)) return list;
-      const cleaned = list.map((v) => String(v).trim()).filter(Boolean);
-      return cleaned.length ? cleaned : undefined;
-    },
-    z.array(z.enum(values)).optional(),
-  );
-}
 
 export const ENQUIRY_SORTS = [
   'receivedDate',

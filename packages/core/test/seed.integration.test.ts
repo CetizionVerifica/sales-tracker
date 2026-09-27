@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAuth } from '../auth/auth.ts';
 import { disconnectAll, getDb } from '../clients.ts';
 import { systemCtx, withTx } from '../context.ts';
+import { todayInIST } from '../schemas/common.ts';
 import { SYSTEM_USER_EMAIL, SeedError, seed } from '../system/seed.ts';
 
 const options = {
@@ -80,6 +81,40 @@ describe('AC8: seed (integration)', () => {
 
     await seed({ ...options, devUsers: true });
     expect(await db.enquiry.count()).toBe(enquiries.length);
+  });
+
+  it('M5: dev seed adds follow-ups on every channel, with missed, due and future next dates', async () => {
+    const db = getDb();
+    const followUps = await db.followUp.findMany();
+    expect(new Set(followUps.map((f) => f.channel)).size).toBe(6);
+    expect(new Set(followUps.map((f) => f.entityType))).toEqual(new Set(['CLIENT', 'ENQUIRY']));
+
+    const today = todayInIST().getTime();
+    const next = followUps.flatMap((f) =>
+      f.nextFollowUpDate ? [f.nextFollowUpDate.getTime()] : [],
+    );
+    expect(next.some((t) => t < today)).toBe(true);
+    expect(next.some((t) => t === today)).toBe(true);
+    expect(next.some((t) => t > today)).toBe(true);
+
+    // Authored by the enquiry owners (realistic timeline), audited as `system`.
+    const system = await db.user.findUniqueOrThrow({ where: { email: SYSTEM_USER_EMAIL } });
+    expect(followUps.every((f) => f.userId !== system.id)).toBe(true);
+    const audit = await db.auditLog.findMany({ where: { entityType: 'FollowUp' } });
+    expect(audit).toHaveLength(followUps.length);
+    expect(audit.every((row) => row.source === 'system')).toBe(true);
+
+    await seed({ ...options, devUsers: true });
+    expect(await db.followUp.count()).toBe(followUps.length);
+  });
+
+  it('M5: a database seeded before M5 (enquiries, no follow-ups) gets the sample follow-ups', async () => {
+    const db = getDb();
+    const before = await db.followUp.count();
+    // Test-only reset of the fixture: follow_up is soft-delete only in app code.
+    await db.$executeRawUnsafe('DELETE FROM "follow_up"');
+    await seed({ ...options, devUsers: true });
+    expect(await db.followUp.count()).toBe(before);
   });
 
   it('fails clearly when the admin credentials are missing', async () => {

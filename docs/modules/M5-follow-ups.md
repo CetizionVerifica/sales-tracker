@@ -131,7 +131,7 @@ The M1 rule (`followUp`: CRUD when `userId === user.id`) covers editing and dele
    - a contact from another client, or a deleted contact;
    - an `entityType` whose module hasn't shipped (e.g. `QUOTATION` in M5);
    - an `entityId` that doesn't exist, is soft deleted, or whose client is soft deleted.
-   The DB `CHECK`s reject `nextFollowUpDate < date` and a `CLIENT` follow-up whose `entityId ≠ clientId` even via raw SQL.
+   - The DB `CHECK`s reject `nextFollowUpDate < date` and a `CLIENT` follow-up whose `entityId ≠ clientId` even via raw SQL.
 3. **AC3 (RBAC, write):**
    - A Sales user cannot log a follow-up on another rep's enquiry (not found).
    - Anyone may log a client-level follow-up.
@@ -187,3 +187,29 @@ None new. Reuses the M3/M4 table, dialog, badge and toast components and `calend
 Settled by the product owner: visibility follows the linked record and client-level notes are visible to all (Decision 4), logging needs read access (Decision 10), the channel list (Decision 11), and no `/follow-ups` list until M11 (Decision 9).
 
 None remaining.
+
+## Implementation notes (decided during the build)
+
+- **`scopeFollowUps(user, visible)` takes the readable record ids.** `entityId` has no relation Prisma can join on, so the services resolve readable ids per type first (`visibleRecordIds` in `follow-up-targets.ts`) and pass them in. This keeps `scopeFollowUps` a pure filter like the other scope functions. Admins skip the lookup.
+- **Policy shape.** `followUp` is now: `list` always (rows are scoped); `create` needs `userId === actor` and `canReadLinked`; `read` needs author or `canReadLinked`; `update`/`delete` need the author. Admins pass everything in `can()`.
+- **No "next date not newly in the past" rule.** The spec's Schemas section said a newly set `nextFollowUpDate` may not be in the past. It was dropped: it blocks back-filling a call from last week whose next date has also passed, M13 history imports, and the seed's missed follow-ups for M11. The rules are `date ≤ today (IST)` and `nextFollowUpDate ≥ date` (Zod, service on merged values, and DB `CHECK`).
+- **Timeline ordering and paging.** Events sort by `(day desc, at desc, rank, id)`, where `rank` separates follow-ups (0) from audit rows (1).
+  - Each source is queried in its own database order and the two lists are **merged** rather than re-sorted in JavaScript. Postgres' text collation for `id` can differ from JS string order, so re-sorting ties could move the page cut, and events would repeat or vanish.
+  - The audit cursor bounds by IST day first (`createdAt < start of cursor day`), then by `at` within the day. A back-dated follow-up's `at` lies after its day, and a plain `createdAt < at` would re-emit later-day audit rows. AC8 fails with that naive cursor (checked).
+- **Cursor parsing is idempotent.** `clientTimelineSchema.cursor` accepts the opaque string or an already-decoded cursor, so a server action's parse followed by the service's parse works (the same idea as `calendarDateSchema`). Encoding uses `btoa`/`atob`, not `Buffer`, because schemas are also bundled for the browser.
+- **Timeline record filter.** The client page filters by one record (`?record=ENQUIRY:<id>`, or the client only), matching the schema's `entityType` + `entityId`, rather than by record type. With one audited type in M5 the two are nearly the same; revisit when M6 adds quotations.
+- **`listFollowUps` also searches notes (`q`).** It costs nothing and M11/M13 will want it.
+- **Seed.** Sample follow-ups (all six channels; next dates missed, due today and upcoming) are logged as the enquiry owners with `source: 'system'`. They are added when no follow-ups exist, even if enquiries do, so a database seeded before M5 gets them on the next `pnpm db:seed`. They attach to sample enquiries by (client, owner, source), which is unique among the eight.
+- **History panel replaced.** `EnquiryHistory` is gone; the enquiry page shows its timeline, a **Log follow-up** button and the latest next follow-up date. The M4 E2E assertion on the History panel ("Updated … owner") now checks the admin's `/activity` page, where field edits still appear.
+- **Shared list helper.** `multi()` (comma-separated enum lists) moved from `schemas/enquiry.ts` to `schemas/list-params.ts`.
+
+## Code review fixes
+
+- **Concurrent edit, delete and restore.** These read the follow-up and then wrote it by `id` alone, so two requests at once could both succeed: a follow-up edited after it was deleted, or deleted twice (two audit rows). The writes are now conditional `updateMany` calls that re-check `deletedAt` (live for edit and delete, deleted for restore). A request that loses the race updates nothing and fails with "Someone else changed this follow-up". The merged-date rule is also backed by the DB `CHECK`, so a concurrent date edit cannot slip through.
+  - The tests race delete against delete and edit against delete, 10 rounds each. Both failed before the fix. The losing request is refused either at the guarded write or, if the winner committed first, at the read (not found); both count as a correct refusal.
+- **Test gaps closed:** restore by a non-author is forbidden; the record picker returns not found for a deleted client; switching to another client's contact on edit is rejected.
+
+## For M6 (quotations)
+
+- Add a `QUOTATION` entry to `FOLLOW_UP_TARGETS` (`load`, `visibleIds`, `labels`, `pickable`, `auditModel: 'Quotation'`), add its ids to `scopeFollowUps`/`visibleRecordIds`, and add `recordHref` in `apps/web/lib/follow-up-labels.ts`.
+- Use the target's `afterLog` hook to update the quotation's `nextFollowUpDate` and `lastFollowUpHighlights` in the logging transaction, or read `getLatestFollowUp` (Decision 6).

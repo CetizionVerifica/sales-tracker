@@ -75,7 +75,10 @@ test('enquiry: create → convert → quotation draft; RBAC and reassignment', a
   await page.getByRole('button', { name: 'Save enquiry' }).click();
   await expect(page).toHaveURL(url);
   await expect(page.getByText('Sita Sales', { exact: true })).toBeVisible();
+  // M5 replaced the History panel with the timeline (status changes only); field edits
+  // stay in the audit log, where the admin sees their own change.
+  await page.goto('/activity');
   await expect(
-    page.getByRole('listitem').filter({ hasText: 'E2E Admin' }).filter({ hasText: 'Updated' }),
-  ).toContainText('owner');
+    page.getByRole('row').filter({ hasText: 'Enquiry' }).filter({ hasText: 'UPDATE' }).first(),
+  ).toContainText('ownerId');
 });

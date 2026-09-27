@@ -37,6 +37,7 @@ model User {
   accounts      Account[]
   auditLogs     AuditLog[]
   enquiries     Enquiry[]
+  followUps     FollowUp[]
 
   @@map("user")
 }
@@ -176,6 +177,7 @@ model Client {
   notes     String?
   contacts  ClientContact[]
   enquiries Enquiry[]
+  followUps FollowUp[]
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   deletedAt DateTime?
@@ -194,6 +196,7 @@ model ClientContact {
   email       String?
   phone       String?
   isPrimary   Boolean   @default(false)
+  followUps   FollowUp[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
@@ -292,4 +295,57 @@ model NumberSequence {
   updatedAt DateTime @updatedAt
 
   @@map("number_sequence")
+}
+
+// ─── M5: follow-ups ─────────────────────────────────────────────────────────
+
+enum FollowUpChannel {
+  CALL
+  EMAIL
+  MEETING
+  SITE_VISIT
+  WHATSAPP
+  OTHER
+}
+
+/// Every pipeline record type a follow-up can be linked to. The service accepts only the
+/// types whose module has shipped (M5 Decision 3; registry in follow-up-targets.ts).
+enum FollowUpEntityType {
+  CLIENT
+  ENQUIRY
+  QUOTATION
+  PROJECT
+  PURCHASE_ORDER
+  INVOICE
+}
+
+/// A touchpoint that happened (M5 Decision 1). Linked polymorphically to a record
+/// (`entityType` + `entityId`, no FK: checked by the service) and always to its client, for
+/// the per-client timeline. CHECKs in migration m5_follow_ups: nextFollowUpDate >= date,
+/// and a CLIENT follow-up's entityId is its clientId.
+model FollowUp {
+  id               String             @id @default(uuid())
+  clientId         String
+  client           Client             @relation(fields: [clientId], references: [id])
+  /// The author.
+  userId           String
+  user             User               @relation(fields: [userId], references: [id])
+  entityType       FollowUpEntityType
+  entityId         String
+  /// Who at the client was spoken to; must belong to clientId.
+  contactId        String?
+  contact          ClientContact?     @relation(fields: [contactId], references: [id])
+  /// When it happened (a calendar day, M5 Decision 7).
+  date             DateTime           @db.Date
+  channel          FollowUpChannel
+  notes            String
+  nextFollowUpDate DateTime?          @db.Date
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  deletedAt        DateTime?
+
+  @@index([clientId, date])
+  @@index([entityType, entityId, date])
+  @@index([userId, nextFollowUpDate])
+  @@map("follow_up")
 }
