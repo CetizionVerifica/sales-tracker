@@ -89,7 +89,7 @@ docker compose up -d  # postgres, redis
 - **Enquiry** — client, sector, services, `receivedDate`, `proposalSentDate`, status, owner.
 - **Quotation** — enquiry, client (fixed to the enquiry's), sector/service/owner (copied from enquiry, editable), `quotationDate` (defaults to enquiry `proposalSentDate`), amount + currency, status, `nextFollowUpDate`, `lastFollowUpHighlights`, `poReceivedDate`, `lostReason`, document. Edited in place; the audit log is the revision history.
 - **Project** — quotation, manager, client, services, revenue, start/end dates, status, `completionPct` (0–100).
-- **PurchaseOrder** — project, `poNumber`, `receivedDate`, client, services, amount + currency, `paymentTerms`, document, status (derived).
+- **PurchaseOrder** — project, `poNumber`, `receivedDate`, client, services, amount + currency, `paymentTerms`, `paymentTermsDays`, document, status (derived).
 - **Invoice** — PO, `invoiceNumber`, `invoiceDate`, client, service, amount + currency, `dueDate`, status, `paidAt`, document.
 - **FollowUp** — client, `entityType` + `entityId`, date, channel, notes, `nextFollowUpDate`, user.
 - **Document** — storage key, mime type, `extraction` (JSON), `reviewStatus` (PENDING | CONFIRMED).
@@ -101,8 +101,8 @@ docker compose up -d  # postgres, redis
 - **Enquiry:** `IN_PROGRESS → CONVERTED | LOST`. `CONVERTED` requires `proposalSentDate` and offers to create a Quotation pre-filled from the enquiry.
 - **Quotation:** `SENT ⇄ UNDER_NEGOTIATION → PO_RECEIVED | LOST`. `nextFollowUpDate` required while `SENT` or `UNDER_NEGOTIATION`. `PO_RECEIVED` requires `poReceivedDate` and offers to create a Project. `LOST` requires `lostReason`. Both are terminal.
 - **Invoice:** `PENDING → PAID`; `PENDING → OVERDUE` (nightly job when `dueDate < today` and unpaid); `OVERDUE → PAID`.
-- **PurchaseOrder:** derived — `PAID` if all invoices paid, `OVERDUE` if any overdue, else `PENDING`. Recompute whenever an invoice changes. Never set manually.
-- **Invoice due date** = `invoiceDate + CompanySettings.defaultInvoiceDueDays`, overridable per invoice.
+- **PurchaseOrder:** derived — `OVERDUE` if any invoice is overdue; `PAID` if it has invoices, all are paid, and they total at least the PO amount; else `PENDING` (including a PO with no invoices). Recompute whenever an invoice changes. Never set manually.
+- **Invoice due date** = `invoiceDate` + the PO's `paymentTermsDays`, or `CompanySettings.defaultInvoiceDueDays` when the PO has none; overridable per invoice.
 
 ## UI
 
