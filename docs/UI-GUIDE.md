@@ -6,7 +6,7 @@ If a screen needs something this guide doesn't cover, follow the closest existin
 **Design intent:** a calm, dense, professional workspace for people who live in it all day. Quiet neutrals, clear hierarchy, data first. Two things carry the identity:
 
 1. **The pipeline ramp** — the five stages (Enquiry → Quotation → Project → PO → Invoice) always use the same blue ramp, light to deep, so position in the pipeline is visible at a glance.
-2. **The saffron "needs attention" mark** — used *only* for things due today or overdue. Nothing else in the app is saffron.
+2. **The saffron "needs attention" mark** — used _only_ for things due today or overdue. Nothing else in the app is saffron.
 
 Everything else stays restrained: no gradients, no decorative shadows, no illustrations.
 
@@ -34,92 +34,100 @@ Put these in `apps/web/app/globals.css`. Components use tokens only — **no raw
 ```css
 :root {
   /* Neutrals */
-  --background: #F5F6F8;        /* app canvas */
-  --foreground: #1B2533;        /* primary text */
-  --card: #FFFFFF;              /* panels, tables */
-  --card-foreground: #1B2533;
-  --popover: #FFFFFF;
-  --popover-foreground: #1B2533;
-  --muted: #EEF0F3;             /* table header, subtle fills */
-  --muted-foreground: #5B6675;  /* secondary text */
-  --border: #DDE1E7;
-  --input: #D2D7DE;
+  --background: #f5f6f8; /* app canvas */
+  --foreground: #1b2533; /* primary text */
+  --card: #ffffff; /* panels, tables */
+  --card-foreground: #1b2533;
+  --popover: #ffffff;
+  --popover-foreground: #1b2533;
+  --muted: #eef0f3; /* table header, subtle fills */
+  --muted-foreground: #5b6675; /* secondary text */
+  --border: #dde1e7;
+  --input: #d2d7de;
 
   /* Brand */
-  --primary: #1E3F66;           /* primary buttons, active nav, links */
-  --primary-foreground: #FFFFFF;
-  --secondary: #E8EDF3;
-  --secondary-foreground: #1E3F66;
-  --accent: #E8EDF3;            /* hover fills */
-  --accent-foreground: #1B2533;
-  --ring: #3A6EA5;
+  --primary: #1e3f66; /* primary buttons, active nav, links */
+  --primary-foreground: #ffffff;
+  --secondary: #e8edf3;
+  --secondary-foreground: #1e3f66;
+  --accent: #e8edf3; /* hover fills */
+  --accent-foreground: #1b2533;
+  --ring: #3a6ea5;
 
   /* Attention (due today / overdue only) */
-  --attention: #D99A1E;
-  --attention-soft: #FBF1DC;
-  --attention-foreground: #6B4A08;
+  --attention: #d99a1e;
+  --attention-soft: #fbf1dc;
+  --attention-foreground: #6b4a08;
 
   /* Semantic status */
-  --success: #2E7D4F;   --success-soft: #E4F2E9;
-  --warning: #A86A12;   --warning-soft: #F8EEDC;
-  --destructive: #B42318; --destructive-soft: #FBE7E5;
-  --destructive-foreground: #FFFFFF;
-  --neutral: #6B7686;   --neutral-soft: #EEF0F3;
+  --success: #2e7d4f;
+  --success-soft: #e4f2e9;
+  --warning: #a86a12;
+  --warning-soft: #f8eedc;
+  --destructive: #b42318;
+  --destructive-soft: #fbe7e5;
+  --destructive-foreground: #ffffff;
+  --neutral: #6b7686;
+  --neutral-soft: #eef0f3;
 
   /* Pipeline ramp (light → deep = earlier → later) */
-  --stage-enquiry:   #8FA8C8;
-  --stage-quotation: #5F86B3;
-  --stage-project:   #3A6A9E;
-  --stage-po:        #245184;
-  --stage-invoice:   #143A63;
+  --stage-enquiry: #8fa8c8;
+  --stage-quotation: #5f86b3;
+  --stage-project: #3a6a9e;
+  --stage-po: #245184;
+  --stage-invoice: #143a63;
 
   /* Charts (non-pipeline series) */
   --chart-1: #245184;
-  --chart-2: #2E7D4F;
-  --chart-3: #D99A1E;
-  --chart-4: #8FA8C8;
-  --chart-5: #6B7686;
+  --chart-2: #2e7d4f;
+  --chart-3: #d99a1e;
+  --chart-4: #8fa8c8;
+  --chart-5: #6b7686;
 
   /* Sidebar */
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #1B2533;
-  --sidebar-accent: #EEF2F7;
-  --sidebar-border: #DDE1E7;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1b2533;
+  --sidebar-accent: #eef2f7;
+  --sidebar-border: #dde1e7;
 
   /* Shape */
-  --radius: 10px;        /* panels, cards, dialogs */
+  --radius: 10px; /* panels, cards, dialogs */
   --radius-control: 6px; /* inputs, buttons, badges */
 }
 
 .dark {
-  --background: #10161F;
-  --foreground: #E6EAF0;
-  --card: #161E29;
-  --card-foreground: #E6EAF0;
-  --popover: #1B2431;
-  --popover-foreground: #E6EAF0;
-  --muted: #1E2835;
-  --muted-foreground: #97A2B1;
-  --border: #2A3544;
+  --background: #10161f;
+  --foreground: #e6eaf0;
+  --card: #161e29;
+  --card-foreground: #e6eaf0;
+  --popover: #1b2431;
+  --popover-foreground: #e6eaf0;
+  --muted: #1e2835;
+  --muted-foreground: #97a2b1;
+  --border: #2a3544;
   --input: #334051;
-  --primary: #7FA6D4;
-  --primary-foreground: #0E1620;
-  --secondary: #1F2B3A;
-  --secondary-foreground: #C9D6E6;
-  --accent: #1F2B3A;
-  --accent-foreground: #E6EAF0;
-  --ring: #7FA6D4;
-  --attention: #E8B040;
-  --attention-soft: #3A2E14;
-  --attention-foreground: #F4D58F;
-  --success: #5BB582;   --success-soft: #16301F;
-  --warning: #D9A04A;   --warning-soft: #33280F;
-  --destructive: #E0675C; --destructive-soft: #3A1714;
-  --neutral: #97A2B1;   --neutral-soft: #1E2835;
-  --sidebar: #131A24;
-  --sidebar-foreground: #E6EAF0;
-  --sidebar-accent: #1F2B3A;
-  --sidebar-border: #2A3544;
+  --primary: #7fa6d4;
+  --primary-foreground: #0e1620;
+  --secondary: #1f2b3a;
+  --secondary-foreground: #c9d6e6;
+  --accent: #1f2b3a;
+  --accent-foreground: #e6eaf0;
+  --ring: #7fa6d4;
+  --attention: #e8b040;
+  --attention-soft: #3a2e14;
+  --attention-foreground: #f4d58f;
+  --success: #5bb582;
+  --success-soft: #16301f;
+  --warning: #d9a04a;
+  --warning-soft: #33280f;
+  --destructive: #e0675c;
+  --destructive-soft: #3a1714;
+  --neutral: #97a2b1;
+  --neutral-soft: #1e2835;
+  --sidebar: #131a24;
+  --sidebar-foreground: #e6eaf0;
+  --sidebar-accent: #1f2b3a;
+  --sidebar-border: #2a3544;
 }
 ```
 
@@ -127,14 +135,14 @@ Light mode is the default. Dark mode is a toggle in the user menu (next-themes);
 
 ### Typography
 
-| Role | Size / line-height | Weight | Use |
-|---|---|---|---|
-| Page title | 22px / 28px | 600 | One per page, in the page header |
-| Section title | 16px / 24px | 600 | Panel and card headings |
-| Body | 14px / 20px | 400 | Default UI text, table cells |
-| Small | 13px / 18px | 400 | Secondary text, helper text, table meta |
-| Micro | 12px / 16px | 500 | Badges, chart axis labels |
-| KPI value | 28px / 34px | 600 | Dashboard metric numbers only |
+| Role          | Size / line-height | Weight | Use                                     |
+| ------------- | ------------------ | ------ | --------------------------------------- |
+| Page title    | 22px / 28px        | 600    | One per page, in the page header        |
+| Section title | 16px / 24px        | 600    | Panel and card headings                 |
+| Body          | 14px / 20px        | 400    | Default UI text, table cells            |
+| Small         | 13px / 18px        | 400    | Secondary text, helper text, table meta |
+| Micro         | 12px / 16px        | 500    | Badges, chart axis labels               |
+| KPI value     | 28px / 34px        | 600    | Dashboard metric numbers only           |
 
 - **All numbers use tabular figures** (`font-variant-numeric: tabular-nums` — add a `.num` utility) and are right-aligned in tables.
 - Sentence case everywhere: titles, buttons, tabs, column headers. **No ALL CAPS labels.**
@@ -303,18 +311,18 @@ Each row: [type icon] Client — what to do         due date     [Log follow-up]
 
 One `<StatusBadge entity status />` component. Badges are soft fill + strong text, 12px, `--radius-control`, with a 6px dot.
 
-| Entity | Status | Style |
-|---|---|---|
-| Enquiry | In progress | neutral |
-| Enquiry | Converted | success |
-| Enquiry | Lost | destructive |
-| Quotation | Sent | neutral |
-| Quotation | Under negotiation | warning |
-| Quotation | PO received | success |
-| Project | Not started / In progress / On hold / Completed / Cancelled | neutral / primary (secondary bg) / warning / success / destructive |
-| PO, Invoice | Pending | neutral |
-| PO, Invoice | Paid | success |
-| PO, Invoice | Overdue | **attention** (saffron) |
+| Entity      | Status                                                      | Style                                                              |
+| ----------- | ----------------------------------------------------------- | ------------------------------------------------------------------ |
+| Enquiry     | In progress                                                 | neutral                                                            |
+| Enquiry     | Converted                                                   | success                                                            |
+| Enquiry     | Lost                                                        | destructive                                                        |
+| Quotation   | Sent                                                        | neutral                                                            |
+| Quotation   | Under negotiation                                           | warning                                                            |
+| Quotation   | PO received                                                 | success                                                            |
+| Project     | Not started / In progress / On hold / Completed / Cancelled | neutral / primary (secondary bg) / warning / success / destructive |
+| PO, Invoice | Pending                                                     | neutral                                                            |
+| PO, Invoice | Paid                                                        | success                                                            |
+| PO, Invoice | Overdue                                                     | **attention** (saffron)                                            |
 
 Status labels are sentence case ("Under negotiation"), never enum strings (`UNDER_NEGOTIATION`).
 
