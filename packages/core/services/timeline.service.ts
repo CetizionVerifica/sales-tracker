@@ -26,7 +26,7 @@ export interface TimelineEvent {
   actor: { id: string; name: string };
   entity: { type: FollowUpEntityTypeValue; id: string; label: string; deleted: boolean };
   summary: string;
-  change?: { from: string; to: string; lostReason?: string };
+  change?: { from: string; to: string; lostReason?: string; poReceivedDate?: string };
   followUp?: {
     date: Date;
     channel: FollowUpChannelValue;
@@ -182,6 +182,7 @@ export async function getClientTimeline(
           AND: [
             scopeFollowUps(ctx.user, {
               ENQUIRY: records.find((r) => r.entityType === 'ENQUIRY')?.ids ?? [],
+              QUOTATION: records.find((r) => r.entityType === 'QUOTATION')?.ids ?? [],
             }),
             ...(p.cursor ? [followUpsAfter(p.cursor)] : []),
           ],
@@ -272,13 +273,21 @@ export async function getClientTimeline(
     };
     if (kind === 'STATUS_CHANGE') {
       const from = String((a.before as { status?: unknown } | null)?.status ?? '');
-      const after = (a.after ?? {}) as { status?: unknown; lostReason?: unknown };
+      const after = (a.after ?? {}) as {
+        status?: unknown;
+        lostReason?: unknown;
+        poReceivedDate?: unknown;
+      };
       const to = String(after.status ?? '');
+      // Whitelisted fields only; amounts never reach the timeline (M6).
       event.change = {
         from,
         to,
         ...(to === 'LOST' && typeof after.lostReason === 'string'
           ? { lostReason: after.lostReason }
+          : {}),
+        ...(to === 'PO_RECEIVED' && typeof after.poReceivedDate === 'string'
+          ? { poReceivedDate: after.poReceivedDate.slice(0, 10) }
           : {}),
       };
       event.summary = `${from} → ${to}`;

@@ -5,6 +5,7 @@ import type {
   EnquiryStatusValue,
   FollowUpChannelValue,
   FollowUpEntityTypeValue,
+  QuotationStatusValue,
   TimelineKind,
 } from '@sales-tracker/core/schemas';
 import {
@@ -27,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { applyResult } from '@/lib/apply-result';
 import { STATUS_LABELS } from '@/lib/enquiry-labels';
+import { QUOTATION_STATUS_LABELS } from '@/lib/quotation-labels';
 import { CHANNEL_LABELS, ENTITY_TYPE_LABELS, recordHref } from '@/lib/follow-up-labels';
 import { formatDate, formatTime } from '@/lib/format';
 import { deleteFollowUpAction, loadTimelineAction } from './actions';
@@ -55,9 +57,11 @@ const KIND_VERBS: Partial<Record<TimelineKind, string>> = {
 };
 
 function statusLabel(type: FollowUpEntityTypeValue, status: string): string {
-  return type === 'ENQUIRY'
-    ? (STATUS_LABELS[status as EnquiryStatusValue] ?? status)
-    : status.toLowerCase();
+  if (type === 'ENQUIRY') return STATUS_LABELS[status as EnquiryStatusValue] ?? status;
+  if (type === 'QUOTATION') {
+    return QUOTATION_STATUS_LABELS[status as QuotationStatusValue] ?? status;
+  }
+  return status.toLowerCase();
 }
 
 export interface TimelineQuery {
@@ -136,6 +140,11 @@ function EventItem({
         </p>
         {event.change?.lostReason && (
           <p className="text-muted-foreground text-sm">Reason: {event.change.lostReason}</p>
+        )}
+        {event.change?.poReceivedDate && (
+          <p className="text-muted-foreground text-sm">
+            PO received on {formatDate(event.change.poReceivedDate)}
+          </p>
         )}
         {followUp && (
           <>

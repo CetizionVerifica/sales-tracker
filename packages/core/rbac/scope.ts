@@ -36,6 +36,25 @@ export function enquiryResource(row: { ownerId: string }) {
 }
 
 /**
+ * Admins see every quotation; Sales see their own. Project managers see quotations on
+ * projects they manage — none exist until M8, so for now they see nothing.
+ * TODO(M8): match quotations whose project has managerId = user.id.
+ */
+export function scopeQuotations(user: Actor): Prisma.QuotationWhereInput {
+  if (user.role === 'ADMIN') return {};
+  if (user.role === 'SALES') return { ownerId: user.id };
+  return { id: { in: [] } };
+}
+
+/**
+ * The can() instance for a quotation row. projectManagerIds is empty until M8 adds
+ * projects; this is the one place that changes then.
+ */
+export function quotationResource(row: { ownerId: string }) {
+  return { type: 'quotation' as const, ownerId: row.ownerId, projectManagerIds: [] as string[] };
+}
+
+/**
  * Follow-ups the user may see (M5 Decision 4): their own, client-level ones (everyone reads
  * clients), and those on records they can read. The polymorphic `entityId` has no relation
  * to join on, so the caller resolves the readable record ids per type first
@@ -43,7 +62,7 @@ export function enquiryResource(row: { ownerId: string }) {
  */
 export function scopeFollowUps(
   user: Actor,
-  visible: { ENQUIRY: readonly string[] },
+  visible: { ENQUIRY: readonly string[]; QUOTATION: readonly string[] },
 ): Prisma.FollowUpWhereInput {
   if (user.role === 'ADMIN') return {};
   return {
@@ -51,6 +70,7 @@ export function scopeFollowUps(
       { userId: user.id },
       { entityType: 'CLIENT' },
       { entityType: 'ENQUIRY', entityId: { in: [...visible.ENQUIRY] } },
+      { entityType: 'QUOTATION', entityId: { in: [...visible.QUOTATION] } },
     ],
   };
 }

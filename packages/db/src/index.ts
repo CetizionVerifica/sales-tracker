@@ -7,6 +7,7 @@ export {
   AuditSource,
   EnquirySource,
   EnquiryStatus,
+  QuotationStatus,
   Role,
 } from './generated/prisma/enums.ts';
 export { Prisma } from './generated/prisma/client.ts';

@@ -3,6 +3,7 @@ export * from './audit-log.service.ts';
 export * from './client.service.ts';
 export * from './enquiry.service.ts';
 export * from './follow-up.service.ts';
+export * from './quotation.service.ts';
 export * from './sector.service.ts';
 export * from './service.service.ts';
 export * from './settings.service.ts';

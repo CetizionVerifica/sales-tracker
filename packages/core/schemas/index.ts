@@ -6,5 +6,7 @@ export * from './enquiry.ts';
 export * from './follow-up.ts';
 export * from './list-params.ts';
 export * from './master.ts';
+export * from './money.ts';
+export * from './quotation.ts';
 export * from './settings.ts';
 export * from './user.ts';

@@ -4,8 +4,9 @@ import {
   getClient,
   getClientTimeline,
   getLatestFollowUp,
+  listQuotationsForEnquiry,
 } from '@sales-tracker/core';
-import { todayInIST, toCalendarDateString } from '@sales-tracker/core/schemas';
+import { formatMoney, todayInIST, toCalendarDateString } from '@sales-tracker/core/schemas';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ConfirmButton } from '@/components/ConfirmButton';
@@ -16,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { requireUser } from '@/lib/auth';
 import { SOURCE_DETAIL, SOURCE_LABELS, STATUS_BADGE, STATUS_LABELS } from '@/lib/enquiry-labels';
 import { formatDate, formatDateTime } from '@/lib/format';
+import { QUOTATION_STATUS_BADGE, QUOTATION_STATUS_LABELS } from '@/lib/quotation-labels';
 import { deleteEnquiryAction, restoreEnquiryAction } from '../actions';
 import { loadEnquiryOr404 } from '../load';
 import { ConvertDialog, MarkLostDialog } from './StatusActions';
@@ -45,10 +47,11 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
     entityType: 'ENQUIRY' as const,
     entityId: enquiry.id,
   };
-  const [timeline, latest, client] = await Promise.all([
+  const [timeline, latest, client, quotations] = await Promise.all([
     getClientTimeline(ctx, query),
     getLatestFollowUp(ctx, 'ENQUIRY', enquiry.id),
     getClient(ctx, enquiry.client.id),
+    enquiry.status === 'CONVERTED' && !deleted ? listQuotationsForEnquiry(ctx, enquiry.id) : [],
   ]);
   const contacts = client.contacts.map((c) => ({ id: c.id, name: c.name }));
   const canLog = !deleted && client.deletedAt === null;
@@ -156,6 +159,33 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
         <Item label="Created">{formatDateTime(enquiry.createdAt)}</Item>
         <Item label="Updated">{formatDateTime(enquiry.updatedAt)}</Item>
       </dl>
+
+      {enquiry.status === 'CONVERTED' && !deleted && (
+        <section className="flex max-w-3xl flex-col gap-2">
+          <h2 className="text-lg font-semibold">Quotations</h2>
+          {quotations.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No quotations yet.</p>
+          ) : (
+            <ul className="flex flex-col gap-2 text-sm">
+              {quotations.map((q) => (
+                <li key={q.id} className="flex flex-wrap items-center gap-3">
+                  <Link
+                    className="font-medium underline-offset-4 hover:underline"
+                    href={`/quotations/${q.id}`}
+                  >
+                    {q.number}
+                  </Link>
+                  <span className="text-muted-foreground">{formatDate(q.quotationDate)}</span>
+                  <span className="tabular-nums">{formatMoney(q.amountMinor, q.currency)}</span>
+                  <Badge variant={QUOTATION_STATUS_BADGE[q.status]}>
+                    {QUOTATION_STATUS_LABELS[q.status]}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section className="flex max-w-3xl flex-col gap-4">
         <h2 className="text-lg font-semibold">Timeline</h2>

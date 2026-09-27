@@ -79,6 +79,7 @@ export function FollowUpDialog({
   initial,
   triggerLabel,
   triggerVariant = 'default',
+  nextRequired = false,
 }: {
   mode: 'create' | 'edit';
   targets?: FollowUpTargetOption[];
@@ -88,6 +89,8 @@ export function FollowUpDialog({
   initial?: { id: string } & FollowUpFormValues;
   triggerLabel: string;
   triggerVariant?: 'default' | 'outline' | 'ghost';
+  /** An open quotation needs a next date on every follow-up (M6); the server enforces it. */
+  nextRequired?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -237,7 +240,9 @@ export function FollowUpDialog({
           </Field>
 
           <Field data-invalid={Boolean(errors.nextFollowUpDate)}>
-            <FieldLabel htmlFor="follow-up-next">Next follow-up</FieldLabel>
+            <FieldLabel htmlFor="follow-up-next">
+              Next follow-up{nextRequired ? '' : ' (optional)'}
+            </FieldLabel>
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 id="follow-up-next"

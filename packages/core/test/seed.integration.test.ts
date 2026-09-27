@@ -87,7 +87,9 @@ describe('AC8: seed (integration)', () => {
     const db = getDb();
     const followUps = await db.followUp.findMany();
     expect(new Set(followUps.map((f) => f.channel)).size).toBe(6);
-    expect(new Set(followUps.map((f) => f.entityType))).toEqual(new Set(['CLIENT', 'ENQUIRY']));
+    expect(new Set(followUps.map((f) => f.entityType))).toEqual(
+      new Set(['CLIENT', 'ENQUIRY', 'QUOTATION']),
+    );
 
     const today = todayInIST().getTime();
     const next = followUps.flatMap((f) =>
@@ -115,6 +117,46 @@ describe('AC8: seed (integration)', () => {
     await db.$executeRawUnsafe('DELETE FROM "follow_up"');
     await seed({ ...options, devUsers: true });
     expect(await db.followUp.count()).toBe(before);
+  });
+
+  it('M6: dev seed adds quotations in every status, INR and USD, above 32-bit amounts, once', async () => {
+    const db = getDb();
+    const quotations = await db.quotation.findMany();
+    expect(new Set(quotations.map((q) => q.status))).toEqual(
+      new Set(['SENT', 'UNDER_NEGOTIATION', 'PO_RECEIVED', 'LOST']),
+    );
+    expect(new Set(quotations.map((q) => q.currency))).toEqual(new Set(['INR', 'USD']));
+    expect(quotations.some((q) => q.amountMinor > 2_147_483_647n)).toBe(true);
+    const settings = await db.companySettings.findUniqueOrThrow({ where: { id: 1 } });
+    expect(settings.enabledCurrencies).toContain('USD');
+
+    // Highlights come from the real follow-up sync; open ones have missed, due and future dates.
+    expect(quotations.some((q) => q.lastFollowUpId !== null)).toBe(true);
+    const today = todayInIST().getTime();
+    const open = quotations
+      .filter((q) => q.status === 'SENT' || q.status === 'UNDER_NEGOTIATION')
+      .map((q) => q.nextFollowUpDate!.getTime());
+    expect(open.some((t) => t < today)).toBe(true);
+    expect(open.some((t) => t === today)).toBe(true);
+    expect(open.some((t) => t > today)).toBe(true);
+    const audit = await db.auditLog.findMany({ where: { entityType: 'Quotation' } });
+    expect(audit.every((row) => row.source === 'system')).toBe(true);
+
+    await seed({ ...options, devUsers: true });
+    expect(await db.quotation.count()).toBe(quotations.length);
+  });
+
+  it('M6: a database seeded before M6 (no quotations) gets the sample quotations and their follow-ups', async () => {
+    const db = getDb();
+    const quotations = await db.quotation.count();
+    const followUps = await db.followUp.count();
+    // Test-only reset of the fixture: quotations are soft-delete only in app code.
+    await db.$executeRawUnsafe(`DELETE FROM "follow_up" WHERE "entityType" = 'QUOTATION'`);
+    await db.$executeRawUnsafe('DELETE FROM "quotation_service"');
+    await db.$executeRawUnsafe('DELETE FROM "quotation"');
+    await seed({ ...options, devUsers: true });
+    expect(await db.quotation.count()).toBe(quotations);
+    expect(await db.followUp.count()).toBe(followUps);
   });
 
   it('fails clearly when the admin credentials are missing', async () => {
