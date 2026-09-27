@@ -1,0 +1,43 @@
+{
+  "0badbf5c2b1c0e8619c7fccc125c7df51e0d38e68fce6bb9873b00959a7bc0f3": {
+    "type": "result",
+    "wire": {
+      "documentNumber": {
+        "value": "GLX/Q/2026/118",
+        "confidence": "high",
+        "page": 1,
+        "sourceText": "Ref: GLX/Q/2026/118"
+      },
+      "documentDate": {
+        "value": "2026-09-20",
+        "confidence": "high",
+        "page": 1,
+        "sourceText": "Date: 2026-09-20"
+      },
+      "clientName": {
+        "value": "Globex Ltd",
+        "confidence": "high",
+        "page": 1,
+        "sourceText": "To: Globex Ltd"
+      },
+      "amount": {
+        "value": "340000.00",
+        "confidence": "medium",
+        "page": 1,
+        "sourceText": "Grand total: INR 3,40,000.00"
+      },
+      "currency": {
+        "value": "INR",
+        "confidence": "high",
+        "page": 1,
+        "sourceText": "INR"
+      },
+      "scopeSummary": {
+        "value": "Third-party inspection of two boilers",
+        "confidence": "high",
+        "page": 1,
+        "sourceText": "Scope: Third-party inspection of two boilers"
+      }
+    }
+  }
+}

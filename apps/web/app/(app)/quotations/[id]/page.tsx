@@ -2,6 +2,8 @@ import {
   can,
   getClient,
   getClientTimeline,
+  getCurrentDocument,
+  getEnv,
   getLatestFollowUp,
   quotationResource,
 } from '@sales-tracker/core';
@@ -22,6 +24,7 @@ import {
 } from '@/lib/quotation-labels';
 import { deleteQuotationAction, restoreQuotationAction } from '../actions';
 import { loadQuotationOr404 } from '../load';
+import { DocumentCard, type DocumentSummary } from './DocumentCard';
 import { StatusDialog } from './StatusActions';
 
 function Item({ label, children }: { label: string; children: ReactNode }) {
@@ -51,11 +54,25 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
     entityType: 'QUOTATION' as const,
     entityId: quotation.id,
   };
-  const [timeline, latest, client] = await Promise.all([
+  const [timeline, latest, client, document] = await Promise.all([
     getClientTimeline(ctx, query),
     getLatestFollowUp(ctx, 'QUOTATION', quotation.id),
     getClient(ctx, quotation.client.id),
+    deleted ? null : getCurrentDocument(ctx, 'QUOTATION', quotation.id),
   ]);
+  const documentSummary: DocumentSummary | null = document && {
+    id: document.id,
+    originalFilename: document.originalFilename,
+    sizeBytes: document.sizeBytes,
+    uploadedBy: document.uploadedBy.name,
+    createdAt: document.createdAt.toISOString(),
+    extractionStatus: document.extractionStatus,
+    extractionError: document.extractionError,
+    reviewStatus: document.reviewStatus,
+    reviewedBy: document.reviewedBy?.name ?? null,
+    reviewedAt: document.reviewedAt?.toISOString() ?? null,
+    appliedFields: document.appliedFields,
+  };
   const contacts = client.contacts.map((c) => ({ id: c.id, name: c.name }));
   const canLog = !deleted && client.deletedAt === null;
   const synced = latest && latest.id === quotation.lastFollowUpId ? latest : null;
@@ -200,6 +217,16 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
         <Item label="Created">{formatDateTime(quotation.createdAt)}</Item>
         <Item label="Updated">{formatDateTime(quotation.updatedAt)}</Item>
       </dl>
+
+      {!deleted && (
+        <DocumentCard
+          kind="QUOTATION"
+          entityId={quotation.id}
+          document={documentSummary}
+          canUpdate={canUpdate}
+          maxMb={Math.floor(getEnv().DOCUMENT_MAX_BYTES / (1024 * 1024))}
+        />
+      )}
 
       <section className="flex max-w-3xl flex-col gap-4">
         <h2 className="text-lg font-semibold">Timeline</h2>

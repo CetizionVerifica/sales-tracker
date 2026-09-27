@@ -5,8 +5,11 @@ export { PrismaClient };
 export {
   AuditAction,
   AuditSource,
+  DocumentKind,
+  DocumentReviewStatus,
   EnquirySource,
   EnquiryStatus,
+  ExtractionStatus,
   QuotationStatus,
   Role,
 } from './generated/prisma/enums.ts';

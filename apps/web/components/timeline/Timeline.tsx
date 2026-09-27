@@ -11,6 +11,7 @@ import type {
 import {
   ArrowRightLeft,
   FilePlus,
+  FileText,
   Mail,
   MapPin,
   MessageCircle,
@@ -27,6 +28,7 @@ import { ConfirmButton } from '@/components/ConfirmButton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { applyResult } from '@/lib/apply-result';
+import { fieldLabel } from '@/lib/document-labels';
 import { STATUS_LABELS } from '@/lib/enquiry-labels';
 import { QUOTATION_STATUS_LABELS } from '@/lib/quotation-labels';
 import { CHANNEL_LABELS, ENTITY_TYPE_LABELS, recordHref } from '@/lib/follow-up-labels';
@@ -48,7 +50,16 @@ const KIND_ICONS: Partial<Record<TimelineKind, LucideIcon>> = {
   STATUS_CHANGE: ArrowRightLeft,
   DELETED: Trash2,
   RESTORED: RotateCcw,
+  DOCUMENT: FileText,
 };
+
+const DOCUMENT_VERBS = {
+  UPLOADED: 'uploaded',
+  CONFIRMED: 'confirmed',
+  DELETED: 'deleted',
+  REPLACED: 'replaced',
+  RESTORED: 'restored',
+} as const;
 
 const KIND_VERBS: Partial<Record<TimelineKind, string>> = {
   CREATED: 'created',
@@ -122,6 +133,11 @@ function EventItem({
               logged {CHANNEL_LABELS[followUp.channel].toLowerCase()}
               {followUp.contact && <> with {followUp.contact.name}</>}
             </>
+          ) : event.document ? (
+            <>
+              {DOCUMENT_VERBS[event.document.action]} {event.document.filename}
+              {' on'}
+            </>
           ) : event.change ? (
             <>
               changed status from {statusLabel(event.entity.type, event.change.from)} to{' '}
@@ -138,6 +154,13 @@ function EventItem({
           )}
           <span className="text-muted-foreground"> · {formatTime(event.at)}</span>
         </p>
+        {event.document?.appliedFields && (
+          <p className="text-muted-foreground text-sm">
+            {event.document.appliedFields.length > 0
+              ? `Applied ${event.document.appliedFields.map(fieldLabel).join(', ')}`
+              : 'Confirmed without changes'}
+          </p>
+        )}
         {event.change?.lostReason && (
           <p className="text-muted-foreground text-sm">Reason: {event.change.lostReason}</p>
         )}

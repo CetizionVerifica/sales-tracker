@@ -326,3 +326,26 @@ describe('AC4: audit rows are immutable, even for admins', () => {
     expect(can(admin, action, resource)).toBe(false);
   });
 });
+
+// M7 Decision 4: a document's permissions are its record's.
+describe('documents follow their record', () => {
+  const doc = (canReadParent: boolean, canUpdateParent: boolean) =>
+    ({ type: 'document', canReadParent, canUpdateParent }) as const;
+
+  it.each([
+    ['reads with read on the record', sales, 'read', doc(true, false), true],
+    ['cannot read without it', sales, 'read', doc(false, false), false],
+    ['uploads with update on the record', sales, 'create', doc(true, true), true],
+    ['cannot upload with read only', pm, 'create', doc(true, false), false],
+    ['confirms with update on the record', sales, 'update', doc(true, true), true],
+    ['cannot confirm with read only', pm, 'update', doc(true, false), false],
+    ['deletes with update on the record', sales, 'delete', doc(true, true), true],
+    ['cannot delete with read only', sales, 'delete', doc(true, false), false],
+    ['type-level create passes (record checked later)', pm, 'create', 'document', true],
+    ['type-level list passes (scoped later)', sales, 'list', 'document', true],
+    ['type-level update needs a record', sales, 'update', 'document', false],
+    ['admins do everything', admin, 'delete', doc(false, false), true],
+  ] as const)('%s', (_name, user, action, resource, allowed) => {
+    expect(can(user, action, resource)).toBe(allowed);
+  });
+});

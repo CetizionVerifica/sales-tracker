@@ -23,6 +23,12 @@ export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
   LOST: 'Lost',
 };
 
+/** The only fields a PO_RECEIVED or LOST quotation still takes (M6 Decisions 9 and 11). */
+export const CLOSED_QUOTATION_EDITABLE: readonly string[] = [
+  'description',
+  'lastFollowUpHighlights',
+];
+
 export function isActiveQuotation(status: QuotationStatus): boolean {
   return ACTIVE_QUOTATION_STATUSES.includes(status);
 }

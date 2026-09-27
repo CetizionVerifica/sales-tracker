@@ -13,6 +13,8 @@ import {
   type TimelineCursor,
   type TimelineKind,
 } from '../schemas/follow-up.ts';
+import { kindSpec } from '../extraction/kinds.ts';
+import type { DocumentKindValue } from '../schemas/document.ts';
 import { labelsFor, supportedTargets, targetFor } from './follow-up-targets.ts';
 
 export interface TimelineEvent {
@@ -27,6 +29,13 @@ export interface TimelineEvent {
   entity: { type: FollowUpEntityTypeValue; id: string; label: string; deleted: boolean };
   summary: string;
   change?: { from: string; to: string; lostReason?: string; poReceivedDate?: string };
+  /** DOCUMENT events: which file and what happened (never its values). */
+  document?: {
+    id: string;
+    filename: string;
+    action: 'UPLOADED' | 'CONFIRMED' | 'DELETED' | 'REPLACED' | 'RESTORED';
+    appliedFields?: string[];
+  };
   followUp?: {
     date: Date;
     channel: FollowUpChannelValue;
@@ -47,6 +56,23 @@ const AUDIT_KIND: Partial<Record<AuditAction, TimelineKind>> = {
   UPDATE: 'STATUS_CHANGE',
   SOFT_DELETE: 'DELETED',
   RESTORE: 'RESTORED',
+};
+
+/** Document audit rows shown on the timeline (M7), by audit action. */
+/** Document audit rows shown on the timeline (M7), by audit action; same verbs as the UI. */
+const DOCUMENT_ACTION = {
+  CREATE: 'UPLOADED',
+  UPDATE: 'CONFIRMED',
+  SOFT_DELETE: 'DELETED',
+  RESTORE: 'RESTORED',
+} as const satisfies Partial<Record<AuditAction, NonNullable<TimelineEvent['document']>['action']>>;
+
+const DOCUMENT_VERB: Record<NonNullable<TimelineEvent['document']>['action'], string> = {
+  UPLOADED: 'Uploaded',
+  CONFIRMED: 'Confirmed',
+  DELETED: 'Deleted',
+  REPLACED: 'Replaced',
+  RESTORED: 'Restored',
 };
 
 const AUDIT_SUMMARY: Partial<Record<TimelineKind, string>> = {
@@ -170,8 +196,22 @@ export async function getClientTimeline(
     records.push({ entityType, model: target.auditModel, ids });
   }
   const modelType = new Map(records.map((r) => [r.model, r.entityType]));
-
   const wants = (kind: TimelineKind) => !p.kinds || p.kinds.includes(kind);
+
+  // M7: documents on those records (a document kind shares its record type's name).
+  const documents = wants('DOCUMENT')
+    ? await db.document.findMany({
+        where: {
+          deletedAt: undefined,
+          OR: records
+            .filter((r) => kindSpec(r.entityType as DocumentKindValue) && r.ids.length > 0)
+            .map((r) => ({ kind: r.entityType as DocumentKindValue, entityId: { in: r.ids } })),
+        },
+        select: { id: true, kind: true, entityId: true },
+      })
+    : [];
+  const documentOf = new Map(documents.map((d) => [d.id, d]));
+
   const take = p.limit + 1;
 
   const followUps = wants('FOLLOW_UP')
@@ -205,15 +245,35 @@ export async function getClientTimeline(
     ...(wants('RESTORED') ? [{ action: 'RESTORE' as const }] : []),
   ];
   const withRecords = records.filter((r) => r.ids.length > 0);
-  const audits =
-    actions.length > 0 && withRecords.length > 0
-      ? await db.auditLog.findMany({
-          where: {
+  const sources: Prisma.AuditLogWhereInput[] = [
+    ...(actions.length > 0 && withRecords.length > 0
+      ? [
+          {
             AND: [
               { OR: withRecords.map((r) => ({ entityType: r.model, entityId: { in: r.ids } })) },
               { OR: actions },
-              ...(p.cursor ? [auditAfter(p.cursor)] : []),
             ],
+          },
+        ]
+      : []),
+    ...(documents.length > 0
+      ? [
+          {
+            entityType: 'Document',
+            entityId: { in: [...documentOf.keys()] },
+            OR: [
+              { action: { in: ['CREATE', 'SOFT_DELETE', 'RESTORE'] as AuditAction[] } },
+              { action: 'UPDATE' as const, changedFields: { has: 'reviewStatus' } },
+            ],
+          },
+        ]
+      : []),
+  ];
+  const audits =
+    sources.length > 0
+      ? await db.auditLog.findMany({
+          where: {
+            AND: [{ OR: sources }, ...(p.cursor ? [auditAfter(p.cursor)] : [])],
           },
           select: {
             id: true,
@@ -223,6 +283,7 @@ export async function getClientTimeline(
             before: true,
             after: true,
             createdAt: true,
+            requestId: true,
             actor: { select: { id: true, name: true } },
           },
           orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
@@ -230,10 +291,34 @@ export async function getClientTimeline(
         })
       : [];
 
-  const label = await labelsFor(db, [
-    ...followUps,
-    ...audits.map((a) => ({ entityType: modelType.get(a.entityType)!, entityId: a.entityId })),
-  ]);
+  // A document deleted in the same request as an upload was replaced by it (M7 Decision 2).
+  const deletedDocs = audits.filter(
+    (a) => a.entityType === 'Document' && a.action === 'SOFT_DELETE',
+  );
+  const replacing = new Set(
+    deletedDocs.length > 0
+      ? (
+          await db.auditLog.findMany({
+            where: {
+              entityType: 'Document',
+              action: 'CREATE',
+              requestId: { in: deletedDocs.map((a) => a.requestId) },
+            },
+            select: { requestId: true },
+          })
+        ).map((r) => r.requestId)
+      : [],
+  );
+
+  /** The record an audit row belongs to (a document's is its quotation, PO or invoice). */
+  const recordOf = (a: { entityType: string; entityId: string }) => {
+    const doc = a.entityType === 'Document' ? documentOf.get(a.entityId) : undefined;
+    return doc
+      ? { entityType: doc.kind as FollowUpEntityTypeValue, entityId: doc.entityId }
+      : { entityType: modelType.get(a.entityType)!, entityId: a.entityId };
+  };
+
+  const label = await labelsFor(db, [...followUps, ...audits.map(recordOf)]);
 
   const followUpEvents = followUps.map((f): TimelineEvent & Keyed => {
     const entity = { type: f.entityType, id: f.entityId, ...label(f.entityType, f.entityId) };
@@ -258,8 +343,43 @@ export async function getClientTimeline(
   });
 
   const auditEvents = audits.map((a): TimelineEvent & Keyed => {
-    const type = modelType.get(a.entityType)!;
-    const entity = { type, id: a.entityId, ...label(type, a.entityId) };
+    const record = recordOf(a);
+    const entity = {
+      type: record.entityType,
+      id: record.entityId,
+      ...label(record.entityType, record.entityId),
+    };
+    if (a.entityType === 'Document') {
+      const mapped = DOCUMENT_ACTION[a.action as keyof typeof DOCUMENT_ACTION];
+      const action = mapped === 'DELETED' && replacing.has(a.requestId) ? 'REPLACED' : mapped;
+      // Whitelisted fields only: the filename and applied field names, never values.
+      const row = (a.after ?? a.before ?? {}) as {
+        originalFilename?: unknown;
+        appliedFields?: unknown;
+      };
+      const filename = typeof row.originalFilename === 'string' ? row.originalFilename : 'document';
+      const applied = Array.isArray(row.appliedFields)
+        ? row.appliedFields.filter((f): f is string => typeof f === 'string')
+        : [];
+      const detail =
+        action === 'CONFIRMED' && applied.length > 0 ? ` · applied ${applied.join(', ')}` : '';
+      return {
+        id: a.id,
+        kind: 'DOCUMENT',
+        at: a.createdAt,
+        day: istDay(a.createdAt),
+        rank: RANK.audit,
+        actor: a.actor,
+        entity,
+        summary: `${DOCUMENT_VERB[action]} ${filename}${detail}`,
+        document: {
+          id: a.entityId,
+          filename,
+          action,
+          ...(action === 'CONFIRMED' && { appliedFields: applied }),
+        },
+      };
+    }
     const kind = AUDIT_KIND[a.action]!;
     const event: TimelineEvent & Keyed = {
       id: a.id,

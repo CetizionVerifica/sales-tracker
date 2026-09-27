@@ -5,7 +5,15 @@ import { updateSettingsSchema } from '@sales-tracker/core/schemas';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { applyResult } from '@/lib/apply-result';
 import { updateSettingsAction } from './actions';
@@ -14,7 +22,12 @@ export function SettingsForm({
   values,
   baseCurrency,
 }: {
-  values: { companyName: string; defaultInvoiceDueDays: number; enabledCurrencies: string[] };
+  values: {
+    companyName: string;
+    defaultInvoiceDueDays: number;
+    enabledCurrencies: string[];
+    documentExtractionEnabled: boolean;
+  };
   baseCurrency: string;
 }) {
   const router = useRouter();
@@ -79,6 +92,26 @@ export function SettingsForm({
                 : [errors.enabledCurrencies]
             }
           />
+        </Field>
+        <Field orientation="horizontal">
+          <Controller
+            control={form.control}
+            name="documentExtractionEnabled"
+            render={({ field }) => (
+              <Checkbox
+                id="settings-extraction"
+                checked={field.value ?? true}
+                onCheckedChange={(checked) => field.onChange(checked === true)}
+              />
+            )}
+          />
+          <FieldContent>
+            <FieldLabel htmlFor="settings-extraction">Read documents with AI</FieldLabel>
+            <FieldDescription>
+              Uploaded quotations, POs and invoices are sent to the Anthropic API to suggest values,
+              which people confirm before anything is saved. Turn off to keep files in-house.
+            </FieldDescription>
+          </FieldContent>
         </Field>
         <Field>
           <FieldLabel htmlFor="settings-base">Base currency</FieldLabel>

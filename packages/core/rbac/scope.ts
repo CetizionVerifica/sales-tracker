@@ -79,3 +79,26 @@ export function scopeFollowUps(
 export function followUpResource(row: { userId: string }, canReadLinked: boolean) {
   return { type: 'followUp' as const, userId: row.userId, canReadLinked };
 }
+
+/**
+ * Documents the user may see (M7): those on records they can read. Like follow-ups, the
+ * polymorphic `entityId` has no relation to join on, so the caller resolves the readable
+ * record ids per kind (extraction/kinds.ts) and passes them in.
+ */
+export function scopeDocuments(
+  user: Actor,
+  visible: Partial<Record<'QUOTATION' | 'PURCHASE_ORDER' | 'INVOICE', readonly string[]>>,
+): Prisma.DocumentWhereInput {
+  if (user.role === 'ADMIN') return {};
+  return {
+    OR: Object.entries(visible).map(([kind, ids]) => ({
+      kind: kind as 'QUOTATION' | 'PURCHASE_ORDER' | 'INVOICE',
+      entityId: { in: [...(ids ?? [])] },
+    })),
+  };
+}
+
+/** The can() instance for a document, from what the actor may do on its record. */
+export function documentResource(canReadParent: boolean, canUpdateParent: boolean) {
+  return { type: 'document' as const, canReadParent, canUpdateParent };
+}

@@ -13,13 +13,14 @@ export const CHANNEL_LABELS: Record<FollowUpChannelValue, string> = {
   OTHER: 'Other',
 };
 
-/** Kinds a user can filter by (DOCUMENT arrives in M7). */
+/** Kinds a user can filter by. */
 export const KIND_LABELS: Partial<Record<TimelineKind, string>> = {
   FOLLOW_UP: 'Follow-ups',
   CREATED: 'Created',
   STATUS_CHANGE: 'Status changes',
   DELETED: 'Deleted',
   RESTORED: 'Restored',
+  DOCUMENT: 'Documents',
 };
 
 export const ENTITY_TYPE_LABELS: Record<FollowUpEntityTypeValue, string> = {

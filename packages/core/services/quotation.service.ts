@@ -22,6 +22,7 @@ import {
 import {
   ACTIVE_QUOTATION_STATUSES,
   assertQuotationTransition,
+  CLOSED_QUOTATION_EDITABLE,
   isActiveQuotation,
 } from '../status/quotation.ts';
 import { nextNumber } from './number-sequence.ts';
@@ -324,9 +325,6 @@ export async function createQuotation(
   });
 }
 
-/** Fields a closed (PO_RECEIVED or LOST) quotation may still change (M6 Decisions 9, 11). */
-const CLOSED_EDITABLE = new Set(['description', 'lastFollowUpHighlights']);
-
 /**
  * Edited in place; the audit log is the history (M6 Decision 2). Referenced records and the
  * currency are re-checked only when they change, so a retired sector or a since-disabled
@@ -343,7 +341,7 @@ export async function updateQuotation(
 
     if (!isActiveQuotation(current.status)) {
       const locked = [...Object.keys(fields), ...(serviceIds ? ['serviceIds'] : [])].filter(
-        (key) => !CLOSED_EDITABLE.has(key),
+        (key) => !CLOSED_QUOTATION_EDITABLE.includes(key),
       );
       if (locked.length > 0) {
         // The amount (with its currency) is the field people try to change; point at it.

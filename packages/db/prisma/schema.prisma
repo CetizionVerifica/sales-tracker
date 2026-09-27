@@ -18,27 +18,29 @@ enum Role {
 
 /// Users are deactivated (`active = false`), never deleted.
 model User {
-  id            String      @id
-  name          String
-  email         String      @unique
-  emailVerified Boolean     @default(false)
-  image         String?
-  role          Role        @default(SALES)
-  active        Boolean     @default(true)
+  id                String      @id
+  name              String
+  email             String      @unique
+  emailVerified     Boolean     @default(false)
+  image             String?
+  role              Role        @default(SALES)
+  active            Boolean     @default(true)
   /// The non-login actor for jobs and imports (see M1 spec, Decision 5).
-  isSystem      Boolean     @default(false)
+  isSystem          Boolean     @default(false)
   /// Required by the Better Auth admin plugin; unused — deactivation uses `active`.
-  banned        Boolean?    @default(false)
-  banReason     String?
-  banExpires    DateTime?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  sessions      Session[]
-  accounts      Account[]
-  auditLogs     AuditLog[]
-  enquiries     Enquiry[]
-  followUps     FollowUp[]
-  quotations    Quotation[]
+  banned            Boolean?    @default(false)
+  banReason         String?
+  banExpires        DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  sessions          Session[]
+  accounts          Account[]
+  auditLogs         AuditLog[]
+  enquiries         Enquiry[]
+  followUps         FollowUp[]
+  quotations        Quotation[]
+  uploadedDocuments Document[]  @relation("DocumentUploader")
+  reviewedDocuments Document[]  @relation("DocumentReviewer")
 
   @@map("user")
 }
@@ -182,6 +184,7 @@ model Client {
   enquiries  Enquiry[]
   followUps  FollowUp[]
   quotations Quotation[]
+  documents  Document[]
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
   deletedAt  DateTime?
@@ -211,12 +214,14 @@ model ClientContact {
 
 /// Exactly one row (id = 1, enforced by a CHECK constraint). Base currency is fixed INR.
 model CompanySettings {
-  id                    Int      @id @default(1)
-  companyName           String
-  defaultInvoiceDueDays Int      @default(30)
-  enabledCurrencies     String[] @default(["INR"])
-  baseCurrency          String   @default("INR")
-  updatedAt             DateTime @updatedAt
+  id                        Int      @id @default(1)
+  companyName               String
+  defaultInvoiceDueDays     Int      @default(30)
+  enabledCurrencies         String[] @default(["INR"])
+  baseCurrency              String   @default("INR")
+  /// Admins can stop files being sent to the Claude API (M7 Decision 6).
+  documentExtractionEnabled Boolean  @default(true)
+  updatedAt                 DateTime @updatedAt
 
   @@map("company_settings")
 }
@@ -401,6 +406,9 @@ model Quotation {
   lostReason             String?
   description            String?
   statusChangedAt        DateTime?
+  /// The quotation's current document (M7 Decision 2).
+  documentId             String?            @unique
+  document               Document?          @relation(fields: [documentId], references: [id])
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
   deletedAt              DateTime?
@@ -425,4 +433,71 @@ model QuotationService {
   @@unique([quotationId, serviceId])
   @@index([serviceId])
   @@map("quotation_service")
+}
+
+// ─── M7: documents and extraction ───────────────────────────────────────────
+
+/// The pipeline record a document belongs to. PURCHASE_ORDER and INVOICE ship with M9/M10.
+enum DocumentKind {
+  QUOTATION
+  PURCHASE_ORDER
+  INVOICE
+}
+
+/// Changed only by packages/core/status/document.ts (CLAUDE.md rule 8).
+enum ExtractionStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+/// CLAUDE.md rule 9: extracted values reach a record only after the user confirms.
+enum DocumentReviewStatus {
+  PENDING
+  CONFIRMED
+}
+
+/// A file attached to a quotation, PO or invoice. `entityId` is polymorphic (no FK); the
+/// document-kind registry in packages/core checks it, as FollowUp.entityId.
+model Document {
+  id                 String               @id @default(uuid())
+  kind               DocumentKind
+  entityId           String
+  clientId           String
+  client             Client               @relation(fields: [clientId], references: [id])
+  uploadedById       String
+  uploadedBy         User                 @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  /// Cloudinary public_id (or the local/memory store key in tests).
+  storageKey         String               @unique
+  resourceType       String
+  originalFilename   String
+  mimeType           String
+  sizeBytes          Int
+  sha256             String
+  extractionStatus   ExtractionStatus     @default(QUEUED)
+  extractionAttempts Int                  @default(0)
+  /// User-safe message; never raw API output.
+  extractionError    String?
+  extractionModel    String?
+  extractedAt        DateTime?
+  /// Validated extraction output; a suggestion only, never read by pipeline services.
+  extraction         Json?
+  reviewStatus       DocumentReviewStatus @default(PENDING)
+  reviewedById       String?
+  reviewedBy         User?                @relation("DocumentReviewer", fields: [reviewedById], references: [id])
+  reviewedAt         DateTime?
+  /// Fields the reviewer wrote to the record on confirm.
+  appliedFields      String[]             @default([])
+  quotation          Quotation?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  deletedAt          DateTime?
+
+  @@index([kind, entityId])
+  @@index([clientId, createdAt])
+  @@index([uploadedById, reviewStatus])
+  @@index([extractionStatus, updatedAt])
+  @@map("document")
 }

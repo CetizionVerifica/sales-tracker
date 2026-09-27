@@ -16,6 +16,7 @@ export default async function SettingsPage() {
           companyName: settings.companyName,
           defaultInvoiceDueDays: settings.defaultInvoiceDueDays,
           enabledCurrencies: settings.enabledCurrencies,
+          documentExtractionEnabled: settings.documentExtractionEnabled,
         }}
         baseCurrency={settings.baseCurrency}
       />

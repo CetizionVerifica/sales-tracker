@@ -23,6 +23,9 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+  /* UI guide semantic status (added in M7 for low-confidence extracted values). */
+  --warning: #a86a12;
+  --warning-soft: #f8eedc;
 }
 
 .dark {
@@ -44,6 +47,8 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+  --warning: #d9a04a;
+  --warning-soft: #33280f;
 }
 
 @theme inline {
@@ -69,6 +74,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
 }
 
 @layer base {

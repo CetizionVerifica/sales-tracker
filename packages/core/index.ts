@@ -25,3 +25,13 @@ export * from './rbac/index.ts';
 export * from './services/index.ts';
 export { auditedModels } from './audit/model-meta.ts';
 export * from './system/health.ts';
+export {
+  closeDocumentsQueue,
+  DOCUMENTS_QUEUE,
+  enqueueExtraction,
+  getDocumentsQueue,
+  EXTRACT_JOB,
+  EXTRACT_JOB_OPTIONS,
+} from './extraction/queue.ts';
+export { RetryableExtractionError } from './extraction/types.ts';
+export { setDocumentDeps } from './extraction/deps.ts';

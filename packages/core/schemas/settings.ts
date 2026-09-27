@@ -23,6 +23,8 @@ export const updateSettingsSchema = z
       .min(1)
       .refine((codes) => new Set(codes).size === codes.length, 'Each currency only once')
       .refine((codes) => codes.includes(BASE_CURRENCY), `${BASE_CURRENCY} must stay enabled`),
+    /** M7 Decision 6: whether uploaded documents are sent to the Claude API. */
+    documentExtractionEnabled: z.boolean().optional(),
   })
   .strict(); // rejects baseCurrency and any other unknown key
 
