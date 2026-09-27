@@ -18,7 +18,7 @@ The build plan lives in `docs/PLAN.md`; each module has a spec in `docs/modules/
 - **Validation:** Zod — one schema per entity, shared by forms, server actions, API routes, MCP tools and AI extraction.
 - **DB:** PostgreSQL + Prisma.
 - **Auth:** Better Auth (admin plugin). No public sign-up; only admins create users.
-- **Files:** Cloudinary-compatible storage (MinIO locally).
+- **Files:** Cloudinary. There is no local emulator, so local dev uses a separate dev Cloudinary account.
 - **Jobs:** BullMQ + Redis (document extraction, nightly overdue check, reminders).
 - **AI extraction:** Anthropic API, PDF/image input, structured JSON validated by Zod.
 - **MCP:** `@modelcontextprotocol/sdk`, Streamable HTTP transport.
@@ -120,7 +120,7 @@ docker compose up -d  # postgres, redis, minio
 - Every service method needs tests for: happy path, RBAC denial, and audit row written.
 - Every status transition needs a test for allowed and disallowed moves.
 - Integration tests use a real test database (reset per test file), not mocks of Prisma.
-- Mock the Anthropic API and S3 in tests; never call real external services.
+- Mock the Anthropic API and Cloudinary in tests; never call real external services.
 - One Playwright E2E per major user flow (create enquiry → convert → quotation → PO → invoice).
 
 ## MCP server rules
