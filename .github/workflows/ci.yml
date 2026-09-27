@@ -33,11 +33,10 @@ jobs:
       DATABASE_URL: postgresql://sales:sales@localhost:5432/sales_tracker_test
       TEST_DATABASE_URL: postgresql://sales:sales@localhost:5432/sales_tracker_test
       REDIS_URL: redis://localhost:6379
-      S3_ENDPOINT: http://localhost:9000
-      S3_REGION: ap-south-1
-      S3_BUCKET: sales-tracker
-      S3_ACCESS_KEY_ID: ci
-      S3_SECRET_ACCESS_KEY: ci
+      # Placeholders: tests mock Cloudinary and never call it.
+      CLOUDINARY_CLOUD_NAME: ci
+      CLOUDINARY_API_KEY: ci
+      CLOUDINARY_API_SECRET: ci
       # CI-only secret; never used outside this ephemeral job.
       BETTER_AUTH_SECRET: ci-only-better-auth-secret-0123456789abcdef
       BETTER_AUTH_URL: http://localhost:3000

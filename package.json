@@ -7,7 +7,7 @@
     "node": "^22.12.0 || >=24.0.0"
   },
   "scripts": {
-    "services:up": "docker compose up -d --wait postgres redis minio && docker compose run --rm minio-init",
+    "services:up": "docker compose up -d --wait postgres redis",
     "dev": "pnpm services:up && turbo run dev",
     "build": "turbo run build",
     "lint": "eslint .",

@@ -14,21 +14,21 @@ The companion `CLAUDE.md` file holds the rules Claude Code must follow in every 
 
 One language (TypeScript) across web app, worker and MCP server, so validation and business rules are written once in a shared `core` package.
 
-| Layer               | Choice                                                                     | Why                                                                    |
-| ------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Repo                | pnpm workspaces + Turborepo                                                | Web, worker and MCP apps share `core` and `db` packages                |
-| Web app             | Next.js (App Router) + React                                               | UI, server actions and route handlers in one deployable                |
-| UI                  | Tailwind CSS, shadcn/ui, TanStack Table, React Hook Form, Recharts         | Fast CRUD screens, data grids, dashboards                              |
-| Validation          | Zod                                                                        | One schema for forms, API, MCP tools and AI extraction output          |
-| Database            | PostgreSQL + Prisma                                                        | Relational pipeline data; Prisma client extensions power the audit log |
-| Auth                | Better Auth (admin plugin)                                                 | Admin-created users, roles, sessions, no public sign-up                |
-| File storage        | S3-compatible: MinIO locally, AWS S3 (ap-south-1) or Cloudflare R2 in prod | PO and invoice PDFs and images                                         |
-| Document extraction | Claude API with PDF/image input and structured JSON output                 | Reads PO amount, payment terms, invoice number, date, client           |
-| Background jobs     | BullMQ + Redis                                                             | Extraction queue, nightly overdue check, reminders                     |
-| MCP server          | `@modelcontextprotocol/sdk`, Streamable HTTP transport                     | Lets Claude query, analyse and bulk-import data                        |
-| Email (optional)    | Resend or SMTP                                                             | Follow-up and overdue reminders                                        |
-| Testing             | Vitest, Playwright                                                         | Unit/integration and end-to-end feedback loop for Claude Code          |
-| Deploy              | Docker Compose (postgres, redis, minio, web, worker, mcp)                  | One command locally; portable to any VPS or cloud                      |
+| Layer               | Choice                                                             | Why                                                                    |
+| ------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Repo                | pnpm workspaces + Turborepo                                        | Web, worker and MCP apps share `core` and `db` packages                |
+| Web app             | Next.js (App Router) + React                                       | UI, server actions and route handlers in one deployable                |
+| UI                  | Tailwind CSS, shadcn/ui, TanStack Table, React Hook Form, Recharts | Fast CRUD screens, data grids, dashboards                              |
+| Validation          | Zod                                                                | One schema for forms, API, MCP tools and AI extraction output          |
+| Database            | PostgreSQL + Prisma                                                | Relational pipeline data; Prisma client extensions power the audit log |
+| Auth                | Better Auth (admin plugin)                                         | Admin-created users, roles, sessions, no public sign-up                |
+| File storage        | Cloudinary (separate dev account locally; no local emulator)       | PO and invoice PDFs and images                                         |
+| Document extraction | Claude API with PDF/image input and structured JSON output         | Reads PO amount, payment terms, invoice number, date, client           |
+| Background jobs     | BullMQ + Redis                                                     | Extraction queue, nightly overdue check, reminders                     |
+| MCP server          | `@modelcontextprotocol/sdk`, Streamable HTTP transport             | Lets Claude query, analyse and bulk-import data                        |
+| Email (optional)    | Resend or SMTP                                                     | Follow-up and overdue reminders                                        |
+| Testing             | Vitest, Playwright                                                 | Unit/integration and end-to-end feedback loop for Claude Code          |
+| Deploy              | Docker Compose (postgres, redis, web, worker, mcp)                 | One command locally; portable to any VPS or cloud                      |
 
 ## Roles and permissions
 

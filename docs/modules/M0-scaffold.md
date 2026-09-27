@@ -19,6 +19,8 @@ A working, empty monorepo. One command starts all three apps and their infrastru
 
 ### Infrastructure (`docker-compose.yml`)
 
+> **Later change:** file storage moved to Cloudinary after M5. MinIO, its bucket-init job and the `S3_*` variables were removed; `env.ts` now validates `CLOUDINARY_*` instead. The MinIO notes below are kept as the original M0 record.
+
 - `postgres` (16), `redis` (7), `minio` (+ a one-shot job that creates the `sales-tracker` bucket). All have health checks.
 - Postgres init script creates two databases: `sales_tracker` (dev) and `sales_tracker_test` (tests).
 - Only dependencies run in Compose for M0. App images (web, worker, mcp) are M14.

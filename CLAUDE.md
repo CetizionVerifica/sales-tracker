@@ -51,7 +51,7 @@ pnpm test             # vitest
 pnpm test:e2e         # playwright
 pnpm db:migrate       # prisma migrate dev
 pnpm db:seed          # seed admin, masters, sample pipeline
-docker compose up -d  # postgres, redis, minio
+docker compose up -d  # postgres, redis
 ```
 
 **Before finishing any task, run `pnpm typecheck && pnpm lint && pnpm test` and fix all failures.**
