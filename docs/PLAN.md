@@ -141,7 +141,7 @@ Decided:
 Still open (settle before the module that needs it):
 
 - [ ] Can a quotation have revisions, or is it edited in place? (M6)
-- [ ] Can one enquiry cover several services? (M4)
+- [x] Can one enquiry cover several services? (M4) Yes: see M4 Decision 2.
 - [ ] Are partial invoice payments needed? (M10)
 - [ ] Should reports convert USD and other currencies to INR, and at which rate: quote date or current? (M12)
 - [ ] Who can mark an invoice PAID: sales, PM, or admin only? (M10)
