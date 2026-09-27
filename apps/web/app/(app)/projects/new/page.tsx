@@ -1,22 +1,16 @@
 import { DomainError, getProjectDraft, NotFoundError } from '@sales-tracker/core';
-import { formatMoney } from '@sales-tracker/core/schemas';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { Panel } from '@/components/charts/Panel';
+import { DateDisplay } from '@/components/display/DateDisplay';
+import { FieldGrid } from '@/components/display/FieldGrid';
+import { Money } from '@/components/display/Money';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { PipelineStrip } from '@/components/pipeline/PipelineStrip';
 import { requireUser } from '@/lib/auth';
-import { formatDate } from '@/lib/format';
 import { loadQuotationOr404 } from '../../quotations/load';
 
 export const metadata = { title: 'New project · Sales Tracker' };
-
-function Item({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-muted-foreground text-sm">{label}</dt>
-      <dd>{children}</dd>
-    </div>
-  );
-}
 
 /**
  * Placeholder until M8 builds the project form: shows the draft a PO_RECEIVED quotation
@@ -39,28 +33,49 @@ export default async function NewProjectPage({
   });
 
   return (
-    <section className="flex flex-col gap-6 py-8">
-      <h1 className="text-2xl font-semibold">New project</h1>
-      {draft instanceof DomainError ? (
-        <p>{draft.message}.</p>
-      ) : (
-        <>
-          <p className="text-muted-foreground">
-            Projects arrive in a later release. This is what the project will start from.
-          </p>
-          <dl className="grid max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
-            <Item label="Quotation">{draft.quotationNumber}</Item>
-            <Item label="Client">{quotation.client.name}</Item>
-            <Item label="Services">{quotation.services.map((s) => s.name).join(', ')}</Item>
-            <Item label="Revenue">{formatMoney(draft.revenueMinor, draft.currency)}</Item>
-            <Item label="PO received on">{formatDate(draft.poReceivedDate)}</Item>
-            <Item label="Owner">{quotation.owner.name}</Item>
-          </dl>
-        </>
-      )}
-      <Link className="underline-offset-4 hover:underline" href={`/quotations/${quotation.id}`}>
+    <div className="flex max-w-[880px] flex-col gap-4">
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Quotations', href: '/quotations' },
+          { label: quotation.number, href: `/quotations/${quotation.id}` },
+          { label: 'New project' },
+        ]}
+        title="New project"
+        description="Projects arrive in a later release. This is what the project will start from."
+      />
+      <PipelineStrip
+        current="project"
+        reached="quotation"
+        links={{
+          enquiry: `/enquiries/${quotation.enquiry.id}`,
+          quotation: `/quotations/${quotation.id}`,
+        }}
+      />
+      <Panel>
+        {draft instanceof DomainError ? (
+          <p>{draft.message}.</p>
+        ) : (
+          <FieldGrid
+            items={[
+              { label: 'Quotation', value: draft.quotationNumber },
+              { label: 'Client', value: quotation.client.name },
+              { label: 'Services', value: quotation.services.map((s) => s.name).join(', ') },
+              {
+                label: 'Revenue',
+                value: <Money amountMinor={draft.revenueMinor} currency={draft.currency} />,
+              },
+              { label: 'PO received on', value: <DateDisplay value={draft.poReceivedDate} /> },
+              { label: 'Owner', value: quotation.owner.name },
+            ]}
+          />
+        )}
+      </Panel>
+      <Link
+        className="text-primary self-start hover:underline"
+        href={`/quotations/${quotation.id}`}
+      >
         Back to {quotation.number}
       </Link>
-    </section>
+    </div>
   );
 }

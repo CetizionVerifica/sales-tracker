@@ -27,6 +27,8 @@ export type ResourceInstance =
   | { type: 'invoice'; projectManagerId: string | null; pipelineOwnerId: string }
   /** `canReadLinked`: whether the actor may read the record the follow-up is on (M5). */
   | { type: 'followUp'; userId: string; canReadLinked: boolean }
+  /** A document's permissions are its record's (M7 Decision 4). */
+  | { type: 'document'; canReadParent: boolean; canUpdateParent: boolean }
   | { type: 'dashboard'; scope: 'company' | 'personal' | 'project' };
 
 export type ResourceType = ResourceInstance['type'];

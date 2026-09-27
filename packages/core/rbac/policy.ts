@@ -92,6 +92,14 @@ export const policy: { [T in ResourceType]: Rule<T> } = {
     return mine;
   },
 
+  // M7 Decision 4: view with read on the record; upload, re-run, confirm and delete with
+  // update on it. Type-level create/list pass; the service checks the record.
+  document: (_user, action, i) => {
+    if (i === undefined) return action === 'create' || action === 'list';
+    if (action === 'read' || action === 'list') return i.canReadParent;
+    return i.canUpdateParent;
+  },
+
   dashboard: (user, action, i) =>
     action === 'read' && i !== undefined && i.scope === DASHBOARD_SCOPE[user.role],
 };

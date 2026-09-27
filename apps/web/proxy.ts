@@ -13,6 +13,8 @@ export function proxy(request: NextRequest) {
   return NextResponse.redirect(login);
 }
 
+// api/documents is excluded because the proxy buffers request bodies (10 MB by default) and
+// uploads are up to DOCUMENT_MAX_BYTES; those routes check the session themselves (M7).
 export const config = {
-  matcher: ['/((?!login|api/auth|api/health|_next/|favicon.ico).*)'],
+  matcher: ['/((?!login|api/auth|api/health|api/documents|_next/|favicon.ico).*)'],
 };

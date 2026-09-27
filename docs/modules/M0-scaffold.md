@@ -81,7 +81,7 @@ A working, empty monorepo. One command starts all three apps and their infrastru
 
 - Any Prisma models or migrations: User and the auth tables come in M1, the audit extension in M2.
 - Auth, `can()`, `ctx`: M1.
-- S3 client code: M7. M0 only provisions MinIO and validates the `S3_*` env.
+- File storage client code: M7 (Cloudinary; see the later-change note above). M0 originally provisioned MinIO and validated the `S3_*` env.
 - Production Dockerfiles, Sentry, rate limits: M14.
 
 ## Acceptance criteria

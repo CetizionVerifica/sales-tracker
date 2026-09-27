@@ -12,7 +12,7 @@ test('admin manages a user end to end, and the audit views show it', async ({ pa
   await signIn(page, admin.email, admin.password);
   await page.goto('/admin/users');
   await page.getByRole('button', { name: 'New user' }).click();
-  const create = page.getByRole('dialog');
+  const create = page.getByRole('dialog', { name: 'New user' });
   await create.getByLabel('Name').fill(REP.name);
   await create.getByLabel('Email').fill(REP.email);
   await create.getByLabel('Initial password').fill(REP.password);
@@ -30,12 +30,17 @@ test('admin manages a user end to end, and the audit views show it', async ({ pa
   // Admin changes the role and resets the password.
   await signIn(page, admin.email, admin.password);
   await page.goto('/admin/users');
-  await row.getByRole('button', { name: 'Edit' }).click();
-  await choose(page, 'Role', 'Project manager', page.getByRole('dialog'));
-  await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
+  // Row actions live in the ⋯ menu (UI guide §4.1); edit opens a side sheet.
+  await row.getByRole('button', { name: `Actions for ${REP.name}` }).click();
+  await page.getByRole('menuitem', { name: 'Edit user' }).click();
+  const edit = page.getByRole('dialog', { name: `Edit ${REP.name}` });
+  await choose(page, 'Role', 'Project manager', edit);
+  await edit.getByRole('button', { name: 'Save user' }).click();
+  await expect(page.getByText('User saved')).toBeVisible();
   await expect(row).toContainText('Project manager');
 
-  await row.getByRole('button', { name: 'Reset password' }).click();
+  await row.getByRole('button', { name: `Actions for ${REP.name}` }).click();
+  await page.getByRole('menuitem', { name: 'Reset password' }).click();
   const reset = page.getByRole('dialog');
   await reset.getByRole('button', { name: 'Generate' }).click();
   await reset.getByRole('button', { name: 'Reset password' }).click();
@@ -47,14 +52,14 @@ test('admin manages a user end to end, and the audit views show it', async ({ pa
   await page.goto('/admin/audit-log');
   const update = page
     .getByRole('row')
-    .filter({ hasText: 'UPDATE' })
-    .filter({ hasText: 'role' })
+    .filter({ hasText: 'Updated' })
+    .filter({ hasText: 'Role' })
     .first();
   await expect(update).toContainText('E2E Admin');
   await update.getByRole('button', { name: 'View' }).click();
   await expect(
     page.getByRole('table', { name: 'Changes' }).locator('tr[data-changed]'),
-  ).toContainText(['role']);
+  ).toContainText(['Role']);
   await page.keyboard.press('Escape');
   await signOut(page);
 

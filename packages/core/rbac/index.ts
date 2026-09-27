@@ -1,9 +1,11 @@
 export { can } from './can.ts';
 export {
+  documentResource,
   enquiryResource,
   followUpResource,
   quotationResource,
   scopeAuditLog,
+  scopeDocuments,
   scopeEnquiries,
   scopeFollowUps,
   scopeQuotations,

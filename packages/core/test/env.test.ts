@@ -12,6 +12,9 @@ const valid = {
   BETTER_AUTH_URL: 'http://localhost:3000',
 };
 
+// Production also needs the Claude API key (M7); these cases are about other rules.
+const prodKey = { NODE_ENV: 'production', ANTHROPIC_API_KEY: 'sk-test' };
+
 describe('parseEnv', () => {
   it('parses a valid environment and applies defaults', () => {
     const env = parseEnv(valid);
@@ -76,16 +79,14 @@ describe('parseEnv', () => {
   describe('BETTER_AUTH_URL in production (secure cookies)', () => {
     it('rejects a non-loopback http URL', () => {
       expect(() =>
-        parseEnv({ ...valid, NODE_ENV: 'production', BETTER_AUTH_URL: 'http://sales.example.com' }),
+        parseEnv({ ...valid, ...prodKey, BETTER_AUTH_URL: 'http://sales.example.com' }),
       ).toThrow(/BETTER_AUTH_URL: must use https in production/);
     });
 
     it.each(['https://sales.example.com', 'http://localhost:3000', 'http://127.0.0.1:3100'])(
       'accepts %s',
       (url) => {
-        expect(
-          parseEnv({ ...valid, NODE_ENV: 'production', BETTER_AUTH_URL: url }).BETTER_AUTH_URL,
-        ).toBe(url);
+        expect(parseEnv({ ...valid, ...prodKey, BETTER_AUTH_URL: url }).BETTER_AUTH_URL).toBe(url);
       },
     );
 
@@ -97,6 +98,52 @@ describe('parseEnv', () => {
           BETTER_AUTH_URL: 'http://sales.example.com',
         }),
       ).not.toThrow();
+    });
+  });
+  describe('M7 document settings', () => {
+    it('defaults to Cloudinary, the Claude extractor, claude-opus-5 and 20 MB', () => {
+      const env = parseEnv(valid);
+      expect(env).toMatchObject({
+        FILE_STORE: 'cloudinary',
+        EXTRACTOR: 'claude',
+        ANTHROPIC_MODEL: 'claude-opus-5',
+        DOCUMENT_MAX_BYTES: 20 * 1024 * 1024,
+      });
+      expect(env.ANTHROPIC_API_KEY).toBeUndefined();
+    });
+
+    it('treats an empty key as unset and caps the upload size at 30 MB', () => {
+      expect(parseEnv({ ...valid, ANTHROPIC_API_KEY: '' }).ANTHROPIC_API_KEY).toBeUndefined();
+      expect(() => parseEnv({ ...valid, DOCUMENT_MAX_BYTES: String(31 * 1024 * 1024) })).toThrow(
+        EnvError,
+      );
+    });
+
+    it('production requires the real store, the real extractor and an API key', () => {
+      const prod = { ...valid, NODE_ENV: 'production', BETTER_AUTH_URL: 'https://app.example.com' };
+      expect(() => parseEnv(prod)).toThrow(/ANTHROPIC_API_KEY/);
+      const withKey = { ...prod, ANTHROPIC_API_KEY: 'sk-test' };
+      expect(() => parseEnv(withKey)).not.toThrow();
+      expect(() => parseEnv({ ...withKey, FILE_STORE: 'local' })).toThrow(/FILE_STORE/);
+      expect(() => parseEnv({ ...withKey, EXTRACTOR: 'mock' })).toThrow(/EXTRACTOR/);
+    });
+
+    it('allows the test doubles in a production build served on loopback (CI E2E)', () => {
+      const ci = {
+        ...valid,
+        NODE_ENV: 'production',
+        BETTER_AUTH_URL: 'http://127.0.0.1:3100',
+        FILE_STORE: 'local',
+        EXTRACTOR: 'mock',
+      };
+      expect(() => parseEnv(ci)).not.toThrow();
+    });
+
+    it('the memory store is for tests only', () => {
+      expect(() => parseEnv({ ...valid, FILE_STORE: 'memory' })).not.toThrow();
+      expect(() => parseEnv({ ...valid, NODE_ENV: 'development', FILE_STORE: 'memory' })).toThrow(
+        /FILE_STORE/,
+      );
     });
   });
 });

@@ -4,7 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { clientFormSchema } from '@sales-tracker/core/schemas';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
-import { Button } from '@/components/ui/button';
+import { FormSheet } from '@/components/layout/FormSheet';
+import { SheetLauncher } from '@/components/layout/SheetLauncher';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -31,9 +32,13 @@ export interface ClientFormValues {
 export function ClientForm({
   client,
   sectors,
+  open,
+  onOpenChange,
 }: {
   client?: ClientFormValues;
   sectors: { id: string; name: string; note?: string }[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
   const form = useForm({
@@ -46,24 +51,36 @@ export function ClientForm({
       notes: client?.notes ?? '',
     },
   });
-  const { errors, isSubmitting } = form.formState;
+  const { errors, isSubmitting, isDirty } = form.formState;
 
   return (
-    <form
-      noValidate
-      className="max-w-xl"
+    <FormSheet
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) form.reset();
+        onOpenChange(next);
+      }}
+      title={client?.id ? `Edit ${client.name}` : 'New client'}
+      description={client?.id ? undefined : 'Contacts are added on the client record after saving.'}
+      submitLabel={client?.id ? 'Save client' : 'Create client'}
+      submitting={isSubmitting}
+      dirty={isDirty}
       onSubmit={form.handleSubmit(async (data) => {
         if (client?.id) {
           if (
             applyResult(await updateClientAction({ id: client.id, data }), form, 'Client saved')
           ) {
+            form.reset(data);
+            onOpenChange(false);
             router.refresh();
           }
           return;
         }
         const result = await createClientAction({ ...data, contacts: [] });
-        if (applyResult(result, form, 'Client created'))
+        if (applyResult(result, form, 'Client created')) {
+          // Navigate only (see EnquiryForm): leaving the page closes the sheet.
           router.push(`/admin/clients/${result.data.id}`);
+        }
       })}
     >
       <FieldGroup>
@@ -111,9 +128,36 @@ export function ClientForm({
           <FieldError errors={[errors.notes]} />
         </Field>
       </FieldGroup>
-      <Button type="submit" className="mt-6" disabled={isSubmitting}>
-        {client?.id ? 'Save client' : 'Create client'}
-      </Button>
-    </form>
+    </FormSheet>
+  );
+}
+
+type SectorOption = { id: string; name: string; note?: string };
+
+/** "New client" in the page header; also opens from `?new=1` (the + New menu). */
+export function NewClientButton({ sectors }: { sectors: SectorOption[] }) {
+  return (
+    <SheetLauncher param="new" label="New client">
+      {(open, onOpenChange) => (
+        <ClientForm sectors={sectors} open={open} onOpenChange={onOpenChange} />
+      )}
+    </SheetLauncher>
+  );
+}
+
+/** "Edit client" on the client record; also opens from `?edit=1`. */
+export function EditClientButton({
+  client,
+  sectors,
+}: {
+  client: ClientFormValues;
+  sectors: SectorOption[];
+}) {
+  return (
+    <SheetLauncher param="edit" label="Edit client" variant="outline">
+      {(open, onOpenChange) => (
+        <ClientForm client={client} sectors={sectors} open={open} onOpenChange={onOpenChange} />
+      )}
+    </SheetLauncher>
   );
 }

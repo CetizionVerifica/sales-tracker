@@ -11,6 +11,7 @@ import type {
 import {
   ArrowRightLeft,
   FilePlus,
+  FileText,
   Mail,
   MapPin,
   MessageCircle,
@@ -23,16 +24,19 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
-import { ConfirmButton } from '@/components/ConfirmButton';
-import { Badge } from '@/components/ui/badge';
+import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { MarkBadge } from '@/components/pipeline/StatusBadge';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { applyResult } from '@/lib/apply-result';
+import { fieldLabel } from '@/lib/document-labels';
 import { STATUS_LABELS } from '@/lib/enquiry-labels';
 import { QUOTATION_STATUS_LABELS } from '@/lib/quotation-labels';
 import { CHANNEL_LABELS, ENTITY_TYPE_LABELS, recordHref } from '@/lib/follow-up-labels';
 import { formatDate, formatTime } from '@/lib/format';
 import { deleteFollowUpAction, loadTimelineAction } from './actions';
-import { FollowUpDialog } from './FollowUpDialog';
+import { FollowUpSheet } from './FollowUpSheet';
 
 const CHANNEL_ICONS: Record<FollowUpChannelValue, LucideIcon> = {
   CALL: Phone,
@@ -48,7 +52,33 @@ const KIND_ICONS: Partial<Record<TimelineKind, LucideIcon>> = {
   STATUS_CHANGE: ArrowRightLeft,
   DELETED: Trash2,
   RESTORED: RotateCcw,
+  DOCUMENT: FileText,
 };
+
+const DOCUMENT_VERBS = {
+  UPLOADED: 'uploaded',
+  CONFIRMED: 'confirmed',
+  DELETED: 'deleted',
+  REPLACED: 'replaced',
+  RESTORED: 'restored',
+} as const;
+
+const STAGE_DOT: Partial<Record<FollowUpEntityTypeValue, string>> = {
+  ENQUIRY: 'bg-stage-enquiry',
+  QUOTATION: 'bg-stage-quotation',
+  PROJECT: 'bg-stage-project',
+  PURCHASE_ORDER: 'bg-stage-po',
+  INVOICE: 'bg-stage-invoice',
+};
+
+/** Follow-up = primary, record events = the record's stage colour, documents = neutral. */
+function dotClass(event: TimelineEvent): string {
+  if (event.kind === 'FOLLOW_UP') return 'bg-primary';
+  if (event.kind === 'DOCUMENT' || event.kind === 'DELETED' || event.kind === 'RESTORED') {
+    return 'bg-neutral';
+  }
+  return STAGE_DOT[event.entity.type] ?? 'bg-neutral';
+}
 
 const KIND_VERBS: Partial<Record<TimelineKind, string>> = {
   CREATED: 'created',
@@ -85,9 +115,9 @@ function RecordLabel({ entity }: { entity: TimelineEvent['entity'] }) {
         <span>{text}</span>
       )}
       {entity.deleted && entity.type !== 'CLIENT' && (
-        <Badge variant="outline" className="ml-1">
-          deleted
-        </Badge>
+        <span className="ml-1">
+          <MarkBadge tone="destructive">Deleted</MarkBadge>
+        </span>
       )}
     </>
   );
@@ -110,17 +140,32 @@ function EventItem({
   const Icon = followUp ? CHANNEL_ICONS[followUp.channel] : (KIND_ICONS[event.kind] ?? FilePlus);
 
   return (
-    <li className="flex gap-3" data-kind={event.kind}>
-      <span className="bg-muted mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full">
-        <Icon className="size-4" aria-hidden />
-      </span>
+    <li className="relative flex gap-3 pl-5" data-kind={event.kind}>
+      {/* 8px dot on the line, coloured by event type (UI guide §5 Timeline). */}
+      <span
+        className={cn(
+          'absolute top-1.5 -left-1 size-2 rounded-full ring-2 ring-card',
+          dotClass(event),
+        )}
+        aria-hidden
+      />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="text-sm">
+        <p>
+          <Icon
+            className="text-muted-foreground mr-1.5 inline size-4 align-[-3px]"
+            strokeWidth={1.75}
+            aria-hidden
+          />
           <span className="font-medium">{event.actor.name}</span>{' '}
           {followUp ? (
             <>
               logged {CHANNEL_LABELS[followUp.channel].toLowerCase()}
               {followUp.contact && <> with {followUp.contact.name}</>}
+            </>
+          ) : event.document ? (
+            <>
+              {DOCUMENT_VERBS[event.document.action]} {event.document.filename}
+              {' on'}
             </>
           ) : event.change ? (
             <>
@@ -136,27 +181,34 @@ function EventItem({
               <RecordLabel entity={event.entity} />
             </>
           )}
-          <span className="text-muted-foreground"> · {formatTime(event.at)}</span>
+          <span className="text-muted-foreground num"> · {formatTime(event.at)}</span>
         </p>
+        {event.document?.appliedFields && (
+          <p className="text-muted-foreground text-[13px]">
+            {event.document.appliedFields.length > 0
+              ? `Applied ${event.document.appliedFields.map(fieldLabel).join(', ')}`
+              : 'Confirmed without changes'}
+          </p>
+        )}
         {event.change?.lostReason && (
-          <p className="text-muted-foreground text-sm">Reason: {event.change.lostReason}</p>
+          <p className="text-muted-foreground text-[13px]">Reason: {event.change.lostReason}</p>
         )}
         {event.change?.poReceivedDate && (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-[13px]">
             PO received on {formatDate(event.change.poReceivedDate)}
           </p>
         )}
         {followUp && (
           <>
-            <p className="text-sm whitespace-pre-line">{followUp.notes}</p>
+            <p className="whitespace-pre-line">{followUp.notes}</p>
             {followUp.nextFollowUpDate && (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-muted-foreground text-[13px]">
                 Next follow-up: {formatDate(followUp.nextFollowUpDate)}
               </p>
             )}
             {canEdit && (
               <div className="flex gap-2">
-                <FollowUpDialog
+                <FollowUpSheet
                   mode="edit"
                   triggerLabel="Edit"
                   triggerVariant="ghost"
@@ -175,7 +227,7 @@ function EventItem({
                       : '',
                   }}
                 />
-                <ConfirmButton
+                <ConfirmDialog
                   label="Delete"
                   variant="ghost"
                   title="Delete this follow-up?"
@@ -225,7 +277,12 @@ export function Timeline({
 
   const events = [...initial.items, ...more];
   if (events.length === 0) {
-    return <p className="text-muted-foreground text-sm">Nothing here yet.</p>;
+    return (
+      <EmptyState
+        message="Nothing here yet. Log a follow-up to start the timeline."
+        className="py-6"
+      />
+    );
   }
 
   const days: { day: string; events: TimelineEvent[] }[] = [];
@@ -250,9 +307,14 @@ export function Timeline({
     <div className="flex flex-col gap-6">
       <ol aria-label="Timeline" className="flex flex-col gap-6">
         {days.map(({ day, events: dayEvents }) => (
-          <li key={day} className="flex flex-col gap-3">
-            <h3 className="text-muted-foreground text-sm font-medium">{formatDate(day)}</h3>
-            <ul className="flex flex-col gap-4">
+          <li
+            key={day}
+            className="grid grid-cols-1 gap-2 md:grid-cols-[112px_minmax(0,1fr)] md:gap-4"
+          >
+            <h3 className="text-muted-foreground num text-[13px] font-medium md:pt-0.5">
+              {formatDate(day)}
+            </h3>
+            <ul className="border-border ml-1 flex flex-col gap-4 border-l">
               {dayEvents.map((event) => (
                 <EventItem
                   key={`${event.kind}:${event.id}`}

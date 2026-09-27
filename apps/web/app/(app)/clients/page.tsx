@@ -1,9 +1,10 @@
 import { can, listClients, listSectorOptions } from '@sales-tracker/core';
 import { listClientsSchema } from '@sales-tracker/core/schemas';
-import { ListToolbar, type FilterDef } from '@/components/data-table/ListToolbar';
-import { Forbidden } from '@/components/Forbidden';
+import { FilterBar, type FilterDef } from '@/components/data/FilterBar';
+import { NoAccess } from '@/components/feedback/NoAccess';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { requireUser } from '@/lib/auth';
-import { parseListParams, type SearchParams } from '@/lib/list-params';
+import { filterKeys, parseListParams, type SearchParams } from '@/lib/list-params';
 import { ClientsDirectoryTable } from './ClientsDirectoryTable';
 
 export const metadata = { title: 'Clients · Sales Tracker' };
@@ -14,9 +15,10 @@ export default async function ClientsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const ctx = await requireUser();
-  if (!can(ctx.user, 'list', 'client')) return <Forbidden />;
+  if (!can(ctx.user, 'list', 'client')) return <NoAccess />;
   const isAdmin = can(ctx.user, 'list', 'user');
-  const params = parseListParams(await searchParams, listClientsSchema);
+  const raw = await searchParams;
+  const params = parseListParams(raw, listClientsSchema);
   // Deleted clients are for admins only (M5 spec: timeline of a deleted client).
   if (!isAdmin) params.status = 'live';
 
@@ -34,9 +36,12 @@ export default async function ClientsPage({
   ];
 
   return (
-    <section className="flex flex-col gap-4 py-8">
-      <h1 className="text-2xl font-semibold">Clients</h1>
-      <ListToolbar searchPlaceholder="Search clients" filters={filters} />
+    <>
+      <PageHeader
+        title="Clients"
+        description="Every client with its pipeline, contacts and timeline"
+      />
+      <FilterBar searchPlaceholder="Search clients" filters={filters} />
       <ClientsDirectoryTable
         rows={result.items.map((c) => ({
           id: c.id,
@@ -50,7 +55,8 @@ export default async function ClientsPage({
         pageSize={result.pageSize}
         sort={params.sort}
         dir={params.dir}
+        filtered={filterKeys(raw).length > 0}
       />
-    </section>
+    </>
   );
 }

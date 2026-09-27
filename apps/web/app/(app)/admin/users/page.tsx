@@ -1,22 +1,29 @@
 import { listUsers } from '@sales-tracker/core';
 import { listUsersSchema } from '@sales-tracker/core/schemas';
-import { ListToolbar } from '@/components/data-table/ListToolbar';
+import { FilterBar } from '@/components/data/FilterBar';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { requireAdmin } from '@/lib/auth';
-import { parseListParams, type SearchParams } from '@/lib/list-params';
-import { UserDialog } from './UserDialog';
+import { filterKeys, parseListParams, type SearchParams } from '@/lib/list-params';
+import { NewUserButton } from './UserSheet';
 import { UsersTable } from './UsersTable';
 
 export const metadata = { title: 'Users · Sales Tracker' };
 
 export default async function UsersPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const ctx = await requireAdmin();
-  if (!ctx) return null; // non-admins: the layout shows Forbidden
-  const params = parseListParams(await searchParams, listUsersSchema);
+  if (!ctx) return null; // non-admins: the layout shows No access
+  const raw = await searchParams;
+  const params = parseListParams(raw, listUsersSchema);
   const result = await listUsers(ctx, params);
 
   return (
-    <section className="flex flex-col gap-4">
-      <ListToolbar
+    <>
+      <PageHeader
+        title="Users"
+        description="Who can sign in, and what each role can do"
+        actions={<NewUserButton />}
+      />
+      <FilterBar
         searchPlaceholder="Search name or email"
         filters={[
           {
@@ -37,9 +44,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
             ],
           },
         ]}
-      >
-        <UserDialog mode="create" />
-      </ListToolbar>
+      />
       <UsersTable
         currentUserId={ctx.user.id}
         rows={result.items.map((u) => ({ ...u, createdAt: u.createdAt.toISOString() }))}
@@ -48,7 +53,8 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
         pageSize={result.pageSize}
         sort={params.sort}
         dir={params.dir}
+        filtered={filterKeys(raw).length > 0}
       />
-    </section>
+    </>
   );
 }

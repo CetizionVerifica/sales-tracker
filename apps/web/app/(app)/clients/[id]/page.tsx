@@ -2,40 +2,33 @@ import {
   can,
   getClient,
   getClientTimeline,
+  listDocuments,
   listEnquiries,
   listFollowUpTargets,
   listQuotations,
   NotFoundError,
 } from '@sales-tracker/core';
-import {
-  clientTimelineSchema,
-  formatMoney,
-  todayInIST,
-  toCalendarDateString,
-} from '@sales-tracker/core/schemas';
+import { clientTimelineSchema } from '@sales-tracker/core/schemas';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import type { ReactNode } from 'react';
-import { ListToolbar } from '@/components/data-table/ListToolbar';
-import { FollowUpDialog } from '@/components/timeline/FollowUpDialog';
+import { Panel } from '@/components/charts/Panel';
+import { FilterBar } from '@/components/data/FilterBar';
+import { DateDisplay } from '@/components/display/DateDisplay';
+import { FieldGrid } from '@/components/display/FieldGrid';
+import { Money } from '@/components/display/Money';
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { DetailLayout } from '@/components/layout/DetailLayout';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { RecordTabs } from '@/components/layout/RecordTabs';
+import { MarkBadge, StatusBadge } from '@/components/pipeline/StatusBadge';
+import { FollowUpSheet } from '@/components/timeline/FollowUpSheet';
 import { Timeline, type TimelineQuery } from '@/components/timeline/Timeline';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { requireUser } from '@/lib/auth';
-import { STATUS_BADGE, STATUS_LABELS } from '@/lib/enquiry-labels';
+import { istToday } from '@/lib/display';
+import { EXTRACTION_STATUS_TEXT, formatBytes } from '@/lib/document-labels';
 import { ENTITY_TYPE_LABELS, KIND_LABELS } from '@/lib/follow-up-labels';
-import { formatDate } from '@/lib/format';
-import { QUOTATION_STATUS_BADGE, QUOTATION_STATUS_LABELS } from '@/lib/quotation-labels';
 import type { SearchParams } from '@/lib/list-params';
-
-function Item({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-muted-foreground text-sm">{label}</dt>
-      <dd>{children}</dd>
-    </div>
-  );
-}
 
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
@@ -52,6 +45,7 @@ function timelineQuery(clientId: string, params: SearchParams): TimelineQuery {
   return { clientId, kinds, entityType: type, entityId: id };
 }
 
+/** A client (UI guide §4.2): Overview, Pipeline, Timeline, Documents; no pipeline strip. */
 export default async function ClientPage({
   params,
   searchParams,
@@ -70,8 +64,9 @@ export default async function ClientPage({
   if (client.deletedAt && !isAdmin) notFound();
   const deleted = client.deletedAt !== null;
 
-  const query = timelineQuery(client.id, await searchParams);
-  const [timeline, targets, enquiries, quotations] = await Promise.all([
+  const search = await searchParams;
+  const query = timelineQuery(client.id, search);
+  const [timeline, targets, enquiries, quotations, documents] = await Promise.all([
     getClientTimeline(ctx, query).catch((error: unknown) => {
       if (error instanceof NotFoundError) notFound();
       throw error;
@@ -79,166 +74,244 @@ export default async function ClientPage({
     deleted ? [] : listFollowUpTargets(ctx, client.id),
     listEnquiries(ctx, { clientId: client.id, pageSize: 10 }),
     listQuotations(ctx, { clientId: client.id, pageSize: 10 }),
+    listDocuments(ctx, { clientId: client.id, pageSize: 25 }),
   ]);
   const primary = client.contacts.find((c) => c.isPrimary);
   const contacts = client.contacts.map((c) => ({ id: c.id, name: c.name }));
-  const today = toCalendarDateString(todayInIST());
+  const today = istToday();
+  const timelineFiltered = Boolean(first(search.kinds) || first(search.record));
+
+  const overview = (
+    <>
+      <Panel title="Details">
+        <FieldGrid
+          items={[
+            { label: 'Sector', value: client.sector.name },
+            { label: 'GSTIN', value: client.gstin ?? '—' },
+            { label: 'Address', value: client.address, wide: true, hidden: !client.address },
+            { label: 'Notes', value: client.notes, wide: true, hidden: !client.notes },
+          ]}
+        />
+      </Panel>
+      <Panel title="Contacts" bodyClassName="p-0">
+        {client.contacts.length === 0 ? (
+          <EmptyState message="No contacts yet. An admin can add them from the client record." />
+        ) : (
+          <ul className="divide-y">
+            {client.contacts.map((c) => (
+              <li key={c.id} className="flex flex-col gap-0.5 px-4 py-2.5">
+                <span className="flex items-center gap-2 font-medium">
+                  {c.name}
+                  {c.isPrimary && <MarkBadge tone="primary">Primary</MarkBadge>}
+                </span>
+                <span className="text-muted-foreground text-[13px]">
+                  {[c.designation, c.phone, c.email].filter(Boolean).join(' · ') || '—'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+    </>
+  );
+
+  const pipeline = (
+    <>
+      <Panel
+        title="Enquiries"
+        bodyClassName="p-0"
+        actions={
+          enquiries.total > enquiries.items.length && (
+            <Link
+              className="text-primary text-[13px] hover:underline"
+              href={`/enquiries?clientId=${client.id}`}
+            >
+              All {enquiries.total} enquiries
+            </Link>
+          )
+        }
+      >
+        {enquiries.items.length === 0 ? (
+          <EmptyState message="No enquiries you can see for this client." />
+        ) : (
+          <ul className="divide-y">
+            {enquiries.items.map((e) => (
+              <li key={e.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5">
+                <Link className="font-medium hover:underline" href={`/enquiries/${e.id}`}>
+                  {e.number}
+                </Link>
+                <StatusBadge entity="enquiry" status={e.status} />
+                <span className="text-muted-foreground ml-auto text-[13px]">
+                  Received <DateDisplay value={e.receivedDate} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+      <Panel
+        title="Quotations"
+        bodyClassName="p-0"
+        actions={
+          quotations.total > quotations.items.length && (
+            <Link
+              className="text-primary text-[13px] hover:underline"
+              href={`/quotations?clientId=${client.id}`}
+            >
+              All {quotations.total} quotations
+            </Link>
+          )
+        }
+      >
+        {quotations.items.length === 0 ? (
+          <EmptyState message="No quotations you can see for this client." />
+        ) : (
+          <ul className="divide-y">
+            {quotations.items.map((q) => (
+              <li key={q.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5">
+                <Link className="font-medium hover:underline" href={`/quotations/${q.id}`}>
+                  {q.number}
+                </Link>
+                <StatusBadge entity="quotation" status={q.status} />
+                <Money amountMinor={q.amountMinor} currency={q.currency} className="ml-auto" />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+    </>
+  );
+
+  const timelineTab = (
+    <Panel>
+      <div className="mb-4">
+        <FilterBar
+          filters={[
+            {
+              param: 'kinds',
+              label: 'Events',
+              multi: true,
+              options: Object.entries(KIND_LABELS).map(([value, label]) => ({ value, label })),
+            },
+            {
+              param: 'record',
+              label: 'Records',
+              options: targets.map((t) => ({
+                value: `${t.entityType}:${t.entityId}`,
+                label:
+                  t.entityType === 'CLIENT'
+                    ? 'Client only'
+                    : `${ENTITY_TYPE_LABELS[t.entityType]} ${t.label}`,
+              })),
+            },
+          ]}
+        />
+      </div>
+      <Timeline
+        query={query}
+        initial={timeline}
+        me={{ id: ctx.user.id, isAdmin }}
+        contacts={contacts}
+        today={today}
+      />
+    </Panel>
+  );
+
+  const documentsTab = (
+    <Panel bodyClassName="p-0">
+      {documents.items.length === 0 ? (
+        <EmptyState message="No documents yet. Upload them on the client’s quotations." />
+      ) : (
+        <ul className="divide-y">
+          {documents.items.map((d) => (
+            <li key={d.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5">
+              <a
+                className="font-medium hover:underline"
+                href={`/api/documents/${d.id}/file`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {d.originalFilename}
+              </a>
+              <Link
+                className="text-muted-foreground text-[13px] hover:underline"
+                href={`/quotations/${d.entityId}?tab=documents`}
+              >
+                {d.entityLabel}
+              </Link>
+              <span className="text-muted-foreground num text-[13px]">
+                {formatBytes(d.sizeBytes)}
+              </span>
+              <span className="ml-auto text-[13px]">
+                {d.reviewStatus === 'CONFIRMED'
+                  ? 'Confirmed'
+                  : EXTRACTION_STATUS_TEXT[d.extractionStatus]}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
 
   return (
-    <section className="flex flex-col gap-8 py-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">{client.name}</h1>
-          {deleted && <Badge variant="destructive">Deleted</Badge>}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {!deleted && (
-            <FollowUpDialog
-              mode="create"
-              triggerLabel="Log follow-up"
-              targets={targets}
-              contacts={contacts}
-              today={today}
-            />
-          )}
-          {isAdmin && (
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/admin/clients/${client.id}`}>Edit client</Link>
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <dl className="grid max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3">
-        <Item label="Sector">{client.sector.name}</Item>
-        <Item label="GSTIN">{client.gstin ?? '—'}</Item>
-        <Item label="Primary contact">
-          {primary ? [primary.name, primary.phone, primary.email].filter(Boolean).join(' · ') : '—'}
-        </Item>
-      </dl>
-
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <section className="flex flex-col gap-4 lg:col-span-2">
-          <h2 className="text-lg font-semibold">Timeline</h2>
-          <ListToolbar
-            filters={[
-              {
-                param: 'kinds',
-                label: 'Events',
-                multi: true,
-                options: Object.entries(KIND_LABELS).map(([value, label]) => ({ value, label })),
-              },
-              {
-                param: 'record',
-                label: 'Records',
-                options: targets.map((t) => ({
-                  value: `${t.entityType}:${t.entityId}`,
-                  label:
-                    t.entityType === 'CLIENT'
-                      ? 'Client only'
-                      : `${ENTITY_TYPE_LABELS[t.entityType]} ${t.label}`,
-                })),
-              },
+    <>
+      <PageHeader
+        breadcrumbs={[{ label: 'Clients', href: '/clients' }, { label: client.name }]}
+        title={client.name}
+        description={client.sector.name}
+        badge={deleted && <MarkBadge tone="destructive">Deleted</MarkBadge>}
+        actions={
+          <>
+            {!deleted && (
+              <FollowUpSheet
+                mode="create"
+                triggerLabel="Log follow-up"
+                triggerVariant="outline"
+                targets={targets}
+                contacts={contacts}
+                today={today}
+              />
+            )}
+            {isAdmin && (
+              <Button asChild variant="outline">
+                <Link href={`/admin/clients/${client.id}`}>Edit client</Link>
+              </Button>
+            )}
+          </>
+        }
+      />
+      <DetailLayout
+        main={
+          <RecordTabs
+            defaultTab={timelineFiltered ? 'timeline' : 'overview'}
+            tabs={[
+              { id: 'overview', label: 'Overview', content: overview },
+              { id: 'pipeline', label: 'Pipeline', content: pipeline },
+              { id: 'timeline', label: 'Timeline', content: timelineTab },
+              { id: 'documents', label: 'Documents', content: documentsTab },
             ]}
           />
-          <Timeline
-            query={query}
-            initial={timeline}
-            me={{ id: ctx.user.id, isAdmin }}
-            contacts={contacts}
-            today={today}
-          />
-        </section>
-
-        <aside className="flex flex-col gap-8">
-          <section className="flex flex-col gap-2">
-            <h2 className="text-lg font-semibold">Enquiries</h2>
-            {enquiries.items.length === 0 ? (
-              <p className="text-muted-foreground text-sm">None you can see.</p>
-            ) : (
-              <ul className="flex flex-col gap-2 text-sm">
-                {enquiries.items.map((e) => (
-                  <li key={e.id} className="flex flex-wrap items-center gap-2">
-                    <Link
-                      className="font-medium underline-offset-4 hover:underline"
-                      href={`/enquiries/${e.id}`}
-                    >
-                      {e.number}
-                    </Link>
-                    <Badge variant={STATUS_BADGE[e.status]}>{STATUS_LABELS[e.status]}</Badge>
-                    <span className="text-muted-foreground">{formatDate(e.receivedDate)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {enquiries.total > enquiries.items.length && (
-              <Link
-                className="text-sm underline-offset-4 hover:underline"
-                href={`/enquiries?clientId=${client.id}`}
-              >
-                All {enquiries.total} enquiries
-              </Link>
-            )}
-          </section>
-
-          <section className="flex flex-col gap-2">
-            <h2 className="text-lg font-semibold">Quotations</h2>
-            {quotations.items.length === 0 ? (
-              <p className="text-muted-foreground text-sm">None you can see.</p>
-            ) : (
-              <ul className="flex flex-col gap-2 text-sm">
-                {quotations.items.map((q) => (
-                  <li key={q.id} className="flex flex-wrap items-center gap-2">
-                    <Link
-                      className="font-medium underline-offset-4 hover:underline"
-                      href={`/quotations/${q.id}`}
-                    >
-                      {q.number}
-                    </Link>
-                    <Badge variant={QUOTATION_STATUS_BADGE[q.status]}>
-                      {QUOTATION_STATUS_LABELS[q.status]}
-                    </Badge>
-                    <span className="text-muted-foreground tabular-nums">
-                      {formatMoney(q.amountMinor, q.currency)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {quotations.total > quotations.items.length && (
-              <Link
-                className="text-sm underline-offset-4 hover:underline"
-                href={`/quotations?clientId=${client.id}`}
-              >
-                All {quotations.total} quotations
-              </Link>
-            )}
-          </section>
-
-          <section className="flex flex-col gap-2">
-            <h2 className="text-lg font-semibold">Contacts</h2>
-            {client.contacts.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No contacts.</p>
-            ) : (
-              <ul className="flex flex-col gap-2 text-sm">
-                {client.contacts.map((c) => (
-                  <li key={c.id}>
-                    <span className="font-medium">{c.name}</span>
-                    {c.isPrimary && (
-                      <Badge variant="secondary" className="ml-2">
-                        Primary
-                      </Badge>
-                    )}
-                    <div className="text-muted-foreground">
-                      {[c.designation, c.phone, c.email].filter(Boolean).join(' · ') || '—'}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </aside>
-      </div>
-    </section>
+        }
+        side={
+          <Panel title="Key facts">
+            <FieldGrid
+              columns={1}
+              items={[
+                {
+                  label: 'Primary contact',
+                  value: primary
+                    ? [primary.name, primary.phone, primary.email].filter(Boolean).join(' · ')
+                    : '—',
+                },
+                { label: 'Enquiries', value: <span className="num">{enquiries.total}</span> },
+                { label: 'Quotations', value: <span className="num">{quotations.total}</span> },
+                { label: 'Documents', value: <span className="num">{documents.total}</span> },
+              ]}
+            />
+          </Panel>
+        }
+      />
+    </>
   );
 }

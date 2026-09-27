@@ -5,6 +5,15 @@ export {
   ACTIVE_QUOTATION_STATUSES,
   assertQuotationTransition,
   canTransitionQuotation,
+  CLOSED_QUOTATION_EDITABLE,
   isActiveQuotation,
   QUOTATION_STATUS_LABELS,
 } from './quotation.ts';
+export {
+  assertCanConfirm,
+  assertCanRetry,
+  assertExtractionTransition,
+  canTransitionExtraction,
+  EXTRACTION_STATUS_LABELS,
+  FINISHED_EXTRACTION,
+} from './document.ts';

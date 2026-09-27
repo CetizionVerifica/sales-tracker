@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { signOut } from './helpers.ts';
 import { E2E_USERS } from './users.ts';
 
 async function signIn(page: Page, email: string, password: string) {
@@ -20,17 +21,19 @@ test('sign-in, admin access, sign-out and forbidden admin area', async ({ page }
   await expect(header).toContainText('Admin');
 
   await page.goto('/admin');
-  await expect(page.getByRole('heading', { name: 'Administration' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Users' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main' })).toContainText('Audit log');
 
-  await page.getByRole('button', { name: 'Sign out' }).click();
-  await expect(page).toHaveURL(/\/login/);
+  await signOut(page);
   await page.goto('/');
   await expect(page).toHaveURL(/\/login/);
 
   await signIn(page, E2E_USERS.sales.email, E2E_USERS.sales.password);
   await expect(page).toHaveURL(/\/$/);
+  // The Admin group is hidden, and the page itself says so (UI guide §6).
+  await expect(page.getByRole('navigation', { name: 'Main' })).not.toContainText('Audit log');
   await page.goto('/admin');
-  await expect(page.getByRole('heading', { name: 'Forbidden' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No access' })).toBeVisible();
 });
 
 test('a wrong password shows one generic error', async ({ page }) => {

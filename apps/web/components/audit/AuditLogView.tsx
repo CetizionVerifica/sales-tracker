@@ -1,9 +1,10 @@
 import { auditedModels, listAuditLog, listUsers, type Ctx } from '@sales-tracker/core';
 import { listAuditLogSchema } from '@sales-tracker/core/schemas';
-import { ListToolbar } from '@/components/data-table/ListToolbar';
+import { FilterBar } from '@/components/data/FilterBar';
 import { parseListParams, type SearchParams } from '@/lib/list-params';
+import { humanize } from '@/lib/audit-labels';
 import { AuditLogTable } from './AuditLogTable';
-import { DateRangeFilter } from './DateRangeFilter';
+import { DateRangeFilter } from '@/components/data/DateRangeFilter';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -39,13 +40,13 @@ export async function AuditLogView({
   ]);
 
   return (
-    <section className="flex flex-col gap-4">
-      <ListToolbar
+    <>
+      <FilterBar
         filters={[
           {
             param: 'entityType',
             label: 'Records',
-            options: auditedModels().map((model) => ({ value: model, label: model })),
+            options: auditedModels().map((model) => ({ value: model, label: humanize(model) })),
           },
           ...(users
             ? [
@@ -59,7 +60,7 @@ export async function AuditLogView({
         ]}
       >
         <DateRangeFilter />
-      </ListToolbar>
+      </FilterBar>
       <AuditLogTable
         showActor={showActor}
         rows={result.items.map((row) => ({
@@ -78,6 +79,6 @@ export async function AuditLogView({
         page={result.page}
         pageSize={result.pageSize}
       />
-    </section>
+    </>
   );
 }

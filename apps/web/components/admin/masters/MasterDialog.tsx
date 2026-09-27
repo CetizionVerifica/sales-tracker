@@ -24,9 +24,25 @@ import type { MasterRowView } from './MastersTable';
 const LABEL = { sector: 'sector', service: 'service' };
 
 /** Create (no row) or edit (row) a sector/service: name and the active flag. */
-export function MasterDialog({ kind, row }: { kind: 'sector' | 'service'; row?: MasterRowView }) {
+export function MasterDialog({
+  kind,
+  row,
+  open: controlledOpen,
+  onOpenChange,
+}: {
+  kind: 'sector' | 'service';
+  row?: MasterRowView;
+  /** Controlled from a row's ⋯ menu: no trigger button. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : ownOpen;
+  const setOpen = (next: boolean) => (controlled ? onOpenChange?.(next) : setOwnOpen(next));
+  const noun = LABEL[kind];
+  const Noun = noun.charAt(0).toUpperCase() + noun.slice(1);
   const form = useForm({
     resolver: zodResolver(createMasterSchema),
     defaultValues: { name: row?.name ?? '', active: row?.active ?? true },
@@ -35,14 +51,14 @@ export function MasterDialog({ kind, row }: { kind: 'sector' | 'service'; row?: 
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant={row ? 'outline' : 'default'}>
-          {row ? 'Edit' : `New ${LABEL[kind]}`}
-        </Button>
-      </DialogTrigger>
+      {!controlled && (
+        <DialogTrigger asChild>
+          <Button variant={row ? 'outline' : 'default'}>{row ? 'Edit' : `New ${noun}`}</Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{row ? `Edit “${row.name}”` : `New ${LABEL[kind]}`}</DialogTitle>
+          <DialogTitle>{row ? `Edit “${row.name}”` : `New ${noun}`}</DialogTitle>
         </DialogHeader>
         <form
           noValidate
@@ -50,7 +66,7 @@ export function MasterDialog({ kind, row }: { kind: 'sector' | 'service'; row?: 
             const result = row
               ? await updateMasterAction({ kind, id: row.id, data })
               : await createMasterAction({ kind, data });
-            if (applyResult(result, form, row ? 'Saved' : 'Created')) {
+            if (applyResult(result, form, row ? `${Noun} saved` : `${Noun} created`)) {
               setOpen(false);
               if (!row) form.reset();
               router.refresh();
@@ -82,7 +98,7 @@ export function MasterDialog({ kind, row }: { kind: 'sector' | 'service'; row?: 
           </FieldGroup>
           <DialogFooter className="mt-6">
             <Button type="submit" disabled={isSubmitting}>
-              {row ? 'Save' : 'Create'}
+              {row ? `Save ${noun}` : `Create ${noun}`}
             </Button>
           </DialogFooter>
         </form>

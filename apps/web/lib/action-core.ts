@@ -18,7 +18,8 @@ export const ACTION_ERRORS = {
   unexpected: 'Something went wrong. Please try again.',
 } as const;
 
-function toResult(error: unknown): ActionResult<never> {
+/** Maps a service error to the result shape actions and route handlers return. */
+export function toResult(error: unknown): ActionResult<never> {
   if (error instanceof UnauthenticatedError)
     return { ok: false, error: ACTION_ERRORS.unauthenticated };
   if (error instanceof ForbiddenError) return { ok: false, error: ACTION_ERRORS.forbidden };
