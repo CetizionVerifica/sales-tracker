@@ -106,6 +106,27 @@ async function assertContactUsable(db: Db, contactId: string, clientId: string) 
   if (!contact) throw new DomainError('Choose a contact at this client', { field: 'contactId' });
 }
 
+/** Open quotations always need a next follow-up date, so each follow-up on one carries it. */
+async function assertNextNotRequired(
+  db: Db,
+  entityType: FollowUpEntityTypeValue,
+  entityId: string,
+) {
+  if (await targetFor(entityType).requiresNextFollowUp?.(db, entityId)) {
+    throw new DomainError('An open quotation needs a next follow-up date', {
+      field: 'nextFollowUpDate',
+    });
+  }
+}
+
+/** Lets the linked record react in the same transaction (M6: quotation sync). */
+async function afterChange(
+  db: Db,
+  row: { id: string; entityType: FollowUpEntityTypeValue; entityId: string },
+) {
+  await targetFor(row.entityType).afterChange?.(db, { id: row.id, entityId: row.entityId });
+}
+
 // ─── Writes ─────────────────────────────────────────────────────────────────────────
 
 export const CONCURRENT_FOLLOW_UP_CHANGE =
@@ -145,12 +166,13 @@ export async function logFollowUp(ctx: Ctx, input: CreateFollowUpInput): Promise
     }
     assertCan(ctx, 'create', followUpResource({ userId: ctx.user.id }, true));
     if (fields.contactId) await assertContactUsable(tx, fields.contactId, record.clientId);
+    if (!fields.nextFollowUpDate) await assertNextNotRequired(tx, entityType, entityId);
 
     const { id } = await tx.followUp.create({
       data: { ...fields, entityType, entityId, clientId: record.clientId, userId: ctx.user.id },
       select: { id: true },
     });
-    await target.afterLog?.(tx, { id, entityId });
+    await target.afterChange?.(tx, { id, entityId });
     return loadDetail(tx, id);
   });
 }
@@ -168,27 +190,33 @@ export async function updateFollowUp(
     const next =
       fields.nextFollowUpDate !== undefined ? fields.nextFollowUpDate : current.nextFollowUpDate;
     if (next && next < date) throw new DomainError(NEXT_BEFORE_DATE, { field: 'nextFollowUpDate' });
+    if (!next) await assertNextNotRequired(tx, current.entityType, current.entityId);
     if (fields.contactId && fields.contactId !== current.contactId) {
       await assertContactUsable(tx, fields.contactId, current.clientId);
     }
     // The date rule on merged values is also a DB CHECK, which catches a concurrent edit.
-    if (Object.keys(fields).length > 0) await guardedUpdate(tx, id, false, fields);
+    if (Object.keys(fields).length > 0) {
+      await guardedUpdate(tx, id, false, fields);
+      await afterChange(tx, current);
+    }
     return loadDetail(tx, id);
   });
 }
 
 export async function softDeleteFollowUp(ctx: Ctx, id: string): Promise<FollowUpDetail> {
   return withTx(ctx, async (tx) => {
-    await findAccessible(tx, ctx, id, 'delete');
+    const current = await findAccessible(tx, ctx, id, 'delete');
     await guardedUpdate(tx, id, false, { deletedAt: new Date() });
+    await afterChange(tx, current);
     return loadDetail(tx, id);
   });
 }
 
 export async function restoreFollowUp(ctx: Ctx, id: string): Promise<FollowUpDetail> {
   return withTx(ctx, async (tx) => {
-    await findAccessible(tx, ctx, id, 'delete', 'deleted');
+    const current = await findAccessible(tx, ctx, id, 'delete', 'deleted');
     await guardedUpdate(tx, id, true, { deletedAt: null });
+    await afterChange(tx, current);
     return loadDetail(tx, id);
   });
 }

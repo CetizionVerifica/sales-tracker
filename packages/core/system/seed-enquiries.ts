@@ -6,6 +6,9 @@ import { systemCtx, withTx, type Ctx } from '../context.ts';
 import { createClient } from '../services/client.service.ts';
 import { convertEnquiry, createEnquiry, markEnquiryLost } from '../services/enquiry.service.ts';
 import { logFollowUp } from '../services/follow-up.service.ts';
+import { changeQuotationStatus, createQuotation } from '../services/quotation.service.ts';
+import { updateSettings } from '../services/settings.service.ts';
+import { parseAmount } from '../schemas/money.ts';
 
 /** Dev-only sample clients, created when there are none. */
 const SAMPLE_CLIENTS = [
@@ -144,13 +147,108 @@ const SAMPLE_CLIENT_NOTES: { client: ClientName; followUp: SampleFollowUp }[] = 
   },
 ];
 
+/** Which sample enquiry a sample quotation belongs to: (client, owner, source) is unique. */
+interface EnquiryKey {
+  client: ClientName;
+  owner: SampleEnquiry['owner'];
+  source: EnquirySourceValue;
+}
+
+interface SampleQuotation {
+  enquiry: EnquiryKey;
+  quotedDaysAgo: number;
+  amount: string;
+  currency: 'INR' | 'USD';
+  /** The next follow-up date it is created with (days from today; negative = past). */
+  nextInDays: number;
+  description?: string;
+  outcome?: 'UNDER_NEGOTIATION' | { poDaysAgo: number } | { lostReason: string };
+  followUps?: SampleFollowUp[];
+}
+
+const TRAINING: EnquiryKey = {
+  client: 'Acme Pharma',
+  owner: 'sales@example.com',
+  source: 'REFERRAL',
+};
+const INSPECTION: EnquiryKey = {
+  client: 'Acme Pharma',
+  owner: 'sales2@example.com',
+  source: 'OTHER',
+};
+
+/**
+ * M6 samples on the two converted enquiries (several per enquiry, as AC15 allows): every
+ * status, INR and USD, ₹45,000 up to ₹3.5 crore (beyond 32-bit Int, M6 Decision 3), and
+ * next follow-up dates due today, missed and upcoming (M11).
+ */
+const SAMPLE_QUOTATIONS: SampleQuotation[] = [
+  {
+    enquiry: TRAINING,
+    quotedDaysAgo: 50,
+    amount: '45000.00',
+    currency: 'INR',
+    nextInDays: -45,
+    description: 'Two-day GMP training for the QA team',
+    followUps: [
+      {
+        daysAgo: 10,
+        channel: 'CALL',
+        notes: 'Awaiting budget approval from plant head',
+        nextInDays: 0,
+      },
+    ],
+  },
+  {
+    enquiry: TRAINING,
+    quotedDaysAgo: 45,
+    amount: '1,20,000',
+    currency: 'INR',
+    nextInDays: 7,
+    description: 'Refresher training for new hires',
+  },
+  {
+    enquiry: TRAINING,
+    quotedDaysAgo: 48,
+    amount: '2,40,000.00',
+    currency: 'INR',
+    nextInDays: -40,
+    outcome: { poDaysAgo: 20 },
+  },
+  {
+    enquiry: INSPECTION,
+    quotedDaysAgo: 100,
+    amount: '12500.00',
+    currency: 'USD',
+    nextInDays: -90,
+    outcome: 'UNDER_NEGOTIATION',
+    followUps: [
+      {
+        daysAgo: 30,
+        channel: 'EMAIL',
+        notes: 'Client asked for revised payment terms',
+        nextInDays: -3,
+      },
+    ],
+  },
+  {
+    enquiry: INSPECTION,
+    quotedDaysAgo: 95,
+    amount: '3,50,00,000.00',
+    currency: 'INR',
+    nextInDays: -80,
+    outcome: { lostReason: 'Budget cut for FY27' },
+    followUps: [{ daysAgo: 60, channel: 'MEETING', notes: 'Board deferred the capex decision' }],
+  },
+];
+
 const daysAgo = (days: number) =>
   toCalendarDateString(new Date(todayInIST().getTime() - days * 86_400_000));
 
 /** The sample's follow-up as its author: the enquiry owner, audited as `system`. */
 async function logSample(
   author: { id: string; role: Ctx['user']['role'] },
-  link: { entityType: 'CLIENT' | 'ENQUIRY'; entityId: string },
+  link: { entityType: 'CLIENT' | 'ENQUIRY' | 'QUOTATION'; entityId: string },
   { daysAgo: ago, nextInDays, ...fields }: SampleFollowUp,
 ) {
   const ctx: Ctx = { user: { ...author, active: true }, source: 'system' };
@@ -162,17 +260,59 @@ async function logSample(
   });
 }
 
+async function devUser(tx: Db, email: string) {
+  const row = await tx.user.findUnique({ where: { email }, select: { id: true, role: true } });
+  if (!row) throw new Error(`Dev user ${email} is missing`);
+  return row;
+}
+
+async function findSampleEnquiry(tx: Db, key: EnquiryKey) {
+  const owner = await devUser(tx, key.owner);
+  const enquiry = await tx.enquiry.findFirst({
+    where: { ownerId: owner.id, source: key.source, client: { name: key.client } },
+    select: { id: true, status: true },
+  });
+  return enquiry && { ...enquiry, owner };
+}
+
+/** A sample quotation, found by its enquiry, amount and currency (unique among them). */
+async function findSampleQuotation(tx: Db, sample: SampleQuotation) {
+  const enquiry = await findSampleEnquiry(tx, sample.enquiry);
+  const amount = parseAmount(sample.amount, sample.currency);
+  if (!enquiry || !amount.ok) return null;
+  const quotation = await tx.quotation.findFirst({
+    where: { enquiryId: enquiry.id, amountMinor: amount.value, currency: sample.currency },
+    select: { id: true },
+  });
+  return quotation && { id: quotation.id, owner: enquiry.owner };
+}
+
+/** M6 sample follow-ups on the sample quotations, as their owners. */
+async function addSampleQuotationFollowUps(tx: Db): Promise<number> {
+  let count = 0;
+  for (const sample of SAMPLE_QUOTATIONS) {
+    if (!sample.followUps) continue;
+    const quotation = await findSampleQuotation(tx, sample);
+    if (!quotation) continue;
+    for (const followUp of sample.followUps) {
+      await logSample(
+        quotation.owner,
+        { entityType: 'QUOTATION', entityId: quotation.id },
+        followUp,
+      );
+      count += 1;
+    }
+  }
+  return count;
+}
+
 /**
  * M5 sample follow-ups, attached to the sample enquiries found by (client, owner, source),
- * which is unique among them. Samples a developer has since deleted are skipped. Runs
- * inside the caller's transaction.
+ * which is unique among them, plus M6's on the sample quotations. Samples a developer has
+ * since deleted are skipped. Runs inside the caller's transaction.
  */
 async function addSampleFollowUps(tx: Db): Promise<number> {
-  const user = async (email: string) => {
-    const row = await tx.user.findUnique({ where: { email }, select: { id: true, role: true } });
-    if (!row) throw new Error(`Dev user ${email} is missing`);
-    return row;
-  };
+  const user = (email: string) => devUser(tx, email);
   let count = 0;
   for (const sample of SAMPLE_ENQUIRIES) {
     if (!sample.followUps) continue;
@@ -197,13 +337,67 @@ async function addSampleFollowUps(tx: Db): Promise<number> {
     await logSample(author, { entityType: 'CLIENT', entityId: client.id }, note.followUp);
     count += 1;
   }
+  return count + (await addSampleQuotationFollowUps(tx));
+}
+
+/**
+ * M6 sample quotations on the converted sample enquiries, created by the system user for the
+ * enquiry owners, then moved to their sample status. Enables USD in settings if needed.
+ */
+async function createSampleQuotations(ctx: Ctx, tx: Db): Promise<number> {
+  const settings = await tx.companySettings.findUnique({ where: { id: 1 } });
+  if (!settings) throw new Error('Company settings are missing; seed them first');
+  if (!settings.enabledCurrencies.includes('USD')) {
+    await updateSettings(ctx, {
+      companyName: settings.companyName,
+      defaultInvoiceDueDays: settings.defaultInvoiceDueDays,
+      enabledCurrencies: [...settings.enabledCurrencies, 'USD'],
+    });
+  }
+
+  let count = 0;
+  for (const sample of SAMPLE_QUOTATIONS) {
+    const enquiry = await findSampleEnquiry(tx, sample.enquiry);
+    if (!enquiry || enquiry.status !== 'CONVERTED') continue;
+    const links = await tx.enquiryService.findMany({
+      where: { enquiryId: enquiry.id },
+      select: { serviceId: true, enquiry: { select: { sectorId: true } } },
+    });
+    const quotation = await createQuotation(ctx, {
+      enquiryId: enquiry.id,
+      quotationDate: daysAgo(sample.quotedDaysAgo),
+      amount: sample.amount,
+      currency: sample.currency,
+      sectorId: links[0]!.enquiry.sectorId,
+      serviceIds: links.map((link) => link.serviceId),
+      nextFollowUpDate: daysAgo(-sample.nextInDays),
+      description: sample.description,
+    });
+    const { outcome } = sample;
+    if (outcome === 'UNDER_NEGOTIATION') {
+      await changeQuotationStatus(ctx, { id: quotation.id, to: 'UNDER_NEGOTIATION' });
+    } else if (outcome && 'poDaysAgo' in outcome) {
+      await changeQuotationStatus(ctx, {
+        id: quotation.id,
+        to: 'PO_RECEIVED',
+        poReceivedDate: daysAgo(outcome.poDaysAgo),
+      });
+    } else if (outcome) {
+      await changeQuotationStatus(ctx, {
+        id: quotation.id,
+        to: 'LOST',
+        lostReason: outcome.lostReason,
+      });
+    }
+    count += 1;
+  }
   return count;
 }
 
 /**
  * Dev-only sample pipeline, written through the services (audited as `system`).
- * Idempotent: enquiries are created only when there are none, follow-ups only when there
- * are none (so a database seeded before M5 gets them too). Each part runs in one
+ * Idempotent: enquiries are created only when there are none, and likewise quotations and
+ * follow-ups (so a database seeded before M5 or M6 gets them too). Each part runs in one
  * transaction (the services join it), so a failure part-way leaves nothing behind and the
  * next seed starts over instead of skipping a half-made pipeline.
  */
@@ -215,11 +409,20 @@ export async function ensureSampleEnquiries(log: (message: string) => void): Pro
     await withTx(ctx, async (tx) => {
       await createSampleEnquiries(ctx, tx);
       log(`created ${SAMPLE_ENQUIRIES.length} sample enquiries`);
+      log(`created ${await createSampleQuotations(ctx, tx)} sample quotations`);
       log(`created ${await addSampleFollowUps(tx)} sample follow-ups`);
     });
     return;
   }
-  if ((await db.followUp.count({ where: { deletedAt: undefined } })) === 0) {
+  const hasFollowUps = (await db.followUp.count({ where: { deletedAt: undefined } })) > 0;
+  if ((await db.quotation.count({ where: { deletedAt: undefined } })) === 0) {
+    await withTx(ctx, async (tx) => {
+      log(`created ${await createSampleQuotations(ctx, tx)} sample quotations`);
+      // Pre-M6 databases already have their other follow-ups; add the quotations' ones.
+      if (hasFollowUps) log(`created ${await addSampleQuotationFollowUps(tx)} sample follow-ups`);
+    });
+  }
+  if (!hasFollowUps) {
     await withTx(ctx, async (tx) =>
       log(`created ${await addSampleFollowUps(tx)} sample follow-ups`),
     );

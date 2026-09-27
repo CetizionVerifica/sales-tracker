@@ -47,12 +47,15 @@ test('enquiry: create → convert → quotation draft; RBAC and reassignment', a
   await expect(page.getByText('Converted', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mark lost' })).toHaveCount(0);
 
+  // M6 replaced the placeholder with the real form, pre-filled from the draft.
   await page.getByRole('link', { name: 'Create quotation' }).click();
   await expect(page.getByRole('heading', { name: 'New quotation' })).toBeVisible();
-  await expect(page.getByText(number, { exact: true })).toBeVisible();
-  await expect(page.getByText(client)).toBeVisible();
-  await expect(page.getByText('Certification, Inspection')).toBeVisible();
-  await expect(page.getByText('Quotation date')).toBeVisible();
+  await expect(page.getByRole('link', { name: number })).toBeVisible();
+  await expect(page.getByLabel('Client', { exact: true })).toHaveValue(client);
+  await expect(page.getByLabel('Certification')).toBeChecked();
+  await expect(page.getByLabel('Inspection')).toBeChecked();
+  await expect(page.getByLabel('Audit')).not.toBeChecked();
+  await expect(page.getByLabel('Quotation date')).not.toHaveValue('');
   await signOut(page);
 
   // AC15: another rep neither lists nor opens it.

@@ -167,7 +167,7 @@ describe('follow-ups (integration)', () => {
 
     it('rejects a record type whose module has not shipped', async () => {
       const error = await rejection(
-        logFollowUp(sales, { ...onEnquiry('x'), entityType: 'QUOTATION' }),
+        logFollowUp(sales, { ...onEnquiry('x'), entityType: 'PROJECT' }),
       );
       expect(fieldOf(error)).toBe('entityType');
     });

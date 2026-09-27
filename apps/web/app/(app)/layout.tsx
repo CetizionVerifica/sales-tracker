@@ -19,6 +19,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             </Link>
             {can(ctx.user, 'list', 'client') && <Link href="/clients">Clients</Link>}
             {can(ctx.user, 'list', 'enquiry') && <Link href="/enquiries">Enquiries</Link>}
+            {can(ctx.user, 'list', 'quotation') && <Link href="/quotations">Quotations</Link>}
             {can(ctx.user, 'list', 'user') && <Link href="/admin">Admin</Link>}
             <Link href="/activity">My activity</Link>
             <Link href="/account/password">Change password</Link>

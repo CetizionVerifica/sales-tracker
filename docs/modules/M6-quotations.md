@@ -249,3 +249,17 @@ None new. Reuses M3/M4/M5 table, dialog, badge, toast and timeline components, `
 Settled by the product owner: edit in place with the audit log as history (Decision 2), `BigInt` money (Decision 3), client fixed to the enquiry's (Decision 6), and a `LOST` status with a reason (Decision 11).
 
 - [ ] Should admins be able to reopen a `PO_RECEIVED` or `LOST` quotation entered by mistake (before a project exists)? Recommended: not in v1; settle before the build if it matters.
+
+## Implementation notes (decided during the build)
+
+- **Two schemas per quotation input.** `createQuotationFormSchema` / `updateQuotationFormSchema` validate and keep `amount` as typed; forms and server actions use them. `createQuotationSchema` / `updateQuotationSchema` add the conversion to `amountMinor`, and the service parses with those. A server action parses once and the service parses again (the `calendarDateSchema` idea), which a single transforming schema could not survive. `closedQuotationFormSchema` backs the description-and-highlights form for closed quotations.
+- **`requiredDay(message)`** wraps `calendarDateSchema` for required dates (`nextFollowUpDate` on create, `poReceivedDate`), because an empty value in a union is reported as "Invalid input".
+- **Sync rule for hand edits.** `syncQuotationFromFollowUps` runs only when the latest follow-up differs from `lastFollowUpId` or is the follow-up that just changed. Editing or back-dating an older follow-up therefore leaves a hand-edited highlight alone; deleting the latest one falls back to the previous one.
+- **Registry hooks.** `afterLog` became `afterChange` (log, edit, delete, restore) plus `requiresNextFollowUp`, which the follow-up service checks on log and on edits that clear the next date. Only quotations implement them.
+- **Closed quotations** reject any field other than `description` and `lastFollowUpHighlights` with a `DomainError`. The field is `amount` when the amount is among them, since that is the field people try to change.
+- **Project managers creating a quotation** get `ForbiddenError` from the type-level `create` check, which runs before the enquiry lookup (as `createEnquiry` does).
+- **Timeline.** Status changes carry `poReceivedDate` (whitelisted, like `lostReason`). Follow-up syncs write `Quotation UPDATE` rows without `status`, so they never appear as status changes.
+- **Client page.** M5 shipped the client page with sidebar sections rather than tabs, so quotations are a sidebar section there (the ten latest, linking to the filtered list), not a tab.
+- **Follow-up dialog.** The next-date label reads "Next follow-up (optional)" everywhere except on open quotations, where it is required.
+- **Seed.** Only two sample enquiries are converted, so the five sample quotations sit on those two (AC15), covering all four statuses. A database seeded before M6 gets the quotations and their follow-ups on the next `pnpm db:seed`, and USD is enabled in settings if missing.
+- **`@sales-tracker/db`** now exports the `QuotationStatus` enum.

@@ -18,26 +18,27 @@ enum Role {
 
 /// Users are deactivated (`active = false`), never deleted.
 model User {
-  id            String     @id
+  id            String      @id
   name          String
-  email         String     @unique
-  emailVerified Boolean    @default(false)
+  email         String      @unique
+  emailVerified Boolean     @default(false)
   image         String?
-  role          Role       @default(SALES)
-  active        Boolean    @default(true)
+  role          Role        @default(SALES)
+  active        Boolean     @default(true)
   /// The non-login actor for jobs and imports (see M1 spec, Decision 5).
-  isSystem      Boolean    @default(false)
+  isSystem      Boolean     @default(false)
   /// Required by the Better Auth admin plugin; unused — deactivation uses `active`.
-  banned        Boolean?   @default(false)
+  banned        Boolean?    @default(false)
   banReason     String?
   banExpires    DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
   sessions      Session[]
   accounts      Account[]
   auditLogs     AuditLog[]
   enquiries     Enquiry[]
   followUps     FollowUp[]
+  quotations    Quotation[]
 
   @@map("user")
 }
@@ -141,46 +142,49 @@ model AuditLog {
 
 /// `active = false` retires a sector (hidden from pickers); `deletedAt` removes mistakes.
 model Sector {
-  id        String    @id @default(uuid())
-  name      String
-  active    Boolean   @default(true)
-  clients   Client[]
-  enquiries Enquiry[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id         String      @id @default(uuid())
+  name       String
+  active     Boolean     @default(true)
+  clients    Client[]
+  enquiries  Enquiry[]
+  quotations Quotation[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  deletedAt  DateTime?
 
   @@map("sector")
 }
 
 /// A service the company sells (e.g. Inspection). Same lifecycle as Sector.
 model Service {
-  id        String           @id @default(uuid())
-  name      String
-  active    Boolean          @default(true)
-  enquiries EnquiryService[]
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  deletedAt DateTime?
+  id         String             @id @default(uuid())
+  name       String
+  active     Boolean            @default(true)
+  enquiries  EnquiryService[]
+  quotations QuotationService[]
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  deletedAt  DateTime?
 
   @@map("service")
 }
 
 model Client {
-  id        String          @id @default(uuid())
-  name      String
-  sectorId  String
-  sector    Sector          @relation(fields: [sectorId], references: [id])
+  id         String          @id @default(uuid())
+  name       String
+  sectorId   String
+  sector     Sector          @relation(fields: [sectorId], references: [id])
   /// Indian GST identification number (15 characters), optional.
-  gstin     String?
-  address   String?
-  notes     String?
-  contacts  ClientContact[]
-  enquiries Enquiry[]
-  followUps FollowUp[]
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  deletedAt DateTime?
+  gstin      String?
+  address    String?
+  notes      String?
+  contacts   ClientContact[]
+  enquiries  Enquiry[]
+  followUps  FollowUp[]
+  quotations Quotation[]
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  deletedAt  DateTime?
 
   @@index([sectorId])
   @@map("client")
@@ -188,17 +192,17 @@ model Client {
 
 /// At most one non-deleted primary contact per client (partial unique index).
 model ClientContact {
-  id          String    @id @default(uuid())
+  id          String     @id @default(uuid())
   clientId    String
-  client      Client    @relation(fields: [clientId], references: [id])
+  client      Client     @relation(fields: [clientId], references: [id])
   name        String
   designation String?
   email       String?
   phone       String?
-  isPrimary   Boolean   @default(false)
+  isPrimary   Boolean    @default(false)
   followUps   FollowUp[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
   deletedAt   DateTime?
 
   @@index([clientId])
@@ -251,6 +255,7 @@ model Enquiry {
   ownerId          String
   owner            User             @relation(fields: [ownerId], references: [id])
   services         EnquiryService[]
+  quotations       Quotation[]
   receivedDate     DateTime         @db.Date
   proposalSentDate DateTime?        @db.Date
   source           EnquirySource
@@ -348,4 +353,76 @@ model FollowUp {
   @@index([entityType, entityId, date])
   @@index([userId, nextFollowUpDate])
   @@map("follow_up")
+}
+
+// ─── M6: quotations ─────────────────────────────────────────────────────────
+
+/// Changed only by the status machine in packages/core/status/quotation.ts (CLAUDE.md rule 8).
+/// PO_RECEIVED and LOST are terminal (M6 Decisions 9 and 11).
+enum QuotationStatus {
+  SENT
+  UNDER_NEGOTIATION
+  PO_RECEIVED
+  LOST
+}
+
+/// A priced proposal for a converted enquiry. Edited in place; the audit log is the revision
+/// history (M6 Decision 2). The client is always the enquiry's (M6 Decision 6). CHECKs in
+/// migration m6_quotations: non-negative amount, ISO currency, next follow-up date while
+/// active, PO received date when PO_RECEIVED (not before quotationDate), reason when LOST.
+model Quotation {
+  id                     String             @id @default(uuid())
+  /// Human-readable reference, e.g. QUO-2026-0042 (M6 Decision 7). Immutable, never reused.
+  number                 String             @unique
+  enquiryId              String
+  enquiry                Enquiry            @relation(fields: [enquiryId], references: [id])
+  clientId               String
+  client                 Client             @relation(fields: [clientId], references: [id])
+  sectorId               String
+  sector                 Sector             @relation(fields: [sectorId], references: [id])
+  ownerId                String
+  owner                  User               @relation(fields: [ownerId], references: [id])
+  services               QuotationService[]
+  quotationDate          DateTime           @db.Date
+  /// Integer minor units (M6 Decision 3: BigInt, since Int caps paise at ~₹2.1 crore).
+  amountMinor            BigInt
+  /// ISO 4217 code; one of CompanySettings.enabledCurrencies when set.
+  currency               String
+  status                 QuotationStatus    @default(SENT)
+  /// Required while SENT or UNDER_NEGOTIATION; synced from the latest follow-up.
+  nextFollowUpDate       DateTime?          @db.Date
+  /// Synced from the latest follow-up's notes (M6 Decision 5); editable by hand.
+  lastFollowUpHighlights String?
+  /// The follow-up the two fields above were last synced from (no FK).
+  lastFollowUpId         String?
+  /// Required when PO_RECEIVED (M6 Decision 8).
+  poReceivedDate         DateTime?          @db.Date
+  /// Required when LOST (M6 Decision 11).
+  lostReason             String?
+  description            String?
+  statusChangedAt        DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  deletedAt              DateTime?
+
+  @@index([ownerId, status, nextFollowUpDate])
+  @@index([enquiryId])
+  @@index([clientId])
+  @@index([status, quotationDate])
+  @@map("quotation")
+}
+
+/// Explicit join, as EnquiryService: each added or removed service is audited. Not
+/// soft-deletable: removing a service is a hard DELETE with its `before` row.
+model QuotationService {
+  id          String    @id @default(uuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id])
+  serviceId   String
+  service     Service   @relation(fields: [serviceId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@unique([quotationId, serviceId])
+  @@index([serviceId])
+  @@map("quotation_service")
 }

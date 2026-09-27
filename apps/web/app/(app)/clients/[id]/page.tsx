@@ -4,10 +4,12 @@ import {
   getClientTimeline,
   listEnquiries,
   listFollowUpTargets,
+  listQuotations,
   NotFoundError,
 } from '@sales-tracker/core';
 import {
   clientTimelineSchema,
+  formatMoney,
   todayInIST,
   toCalendarDateString,
 } from '@sales-tracker/core/schemas';
@@ -23,6 +25,7 @@ import { requireUser } from '@/lib/auth';
 import { STATUS_BADGE, STATUS_LABELS } from '@/lib/enquiry-labels';
 import { ENTITY_TYPE_LABELS, KIND_LABELS } from '@/lib/follow-up-labels';
 import { formatDate } from '@/lib/format';
+import { QUOTATION_STATUS_BADGE, QUOTATION_STATUS_LABELS } from '@/lib/quotation-labels';
 import type { SearchParams } from '@/lib/list-params';
 
 function Item({ label, children }: { label: string; children: ReactNode }) {
@@ -68,13 +71,14 @@ export default async function ClientPage({
   const deleted = client.deletedAt !== null;
 
   const query = timelineQuery(client.id, await searchParams);
-  const [timeline, targets, enquiries] = await Promise.all([
+  const [timeline, targets, enquiries, quotations] = await Promise.all([
     getClientTimeline(ctx, query).catch((error: unknown) => {
       if (error instanceof NotFoundError) notFound();
       throw error;
     }),
     deleted ? [] : listFollowUpTargets(ctx, client.id),
     listEnquiries(ctx, { clientId: client.id, pageSize: 10 }),
+    listQuotations(ctx, { clientId: client.id, pageSize: 10 }),
   ]);
   const primary = client.contacts.find((c) => c.isPrimary);
   const contacts = client.contacts.map((c) => ({ id: c.id, name: c.name }));
@@ -173,6 +177,40 @@ export default async function ClientPage({
                 href={`/enquiries?clientId=${client.id}`}
               >
                 All {enquiries.total} enquiries
+              </Link>
+            )}
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold">Quotations</h2>
+            {quotations.items.length === 0 ? (
+              <p className="text-muted-foreground text-sm">None you can see.</p>
+            ) : (
+              <ul className="flex flex-col gap-2 text-sm">
+                {quotations.items.map((q) => (
+                  <li key={q.id} className="flex flex-wrap items-center gap-2">
+                    <Link
+                      className="font-medium underline-offset-4 hover:underline"
+                      href={`/quotations/${q.id}`}
+                    >
+                      {q.number}
+                    </Link>
+                    <Badge variant={QUOTATION_STATUS_BADGE[q.status]}>
+                      {QUOTATION_STATUS_LABELS[q.status]}
+                    </Badge>
+                    <span className="text-muted-foreground tabular-nums">
+                      {formatMoney(q.amountMinor, q.currency)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {quotations.total > quotations.items.length && (
+              <Link
+                className="text-sm underline-offset-4 hover:underline"
+                href={`/quotations?clientId=${client.id}`}
+              >
+                All {quotations.total} quotations
               </Link>
             )}
           </section>
