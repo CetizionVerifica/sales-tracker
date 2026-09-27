@@ -2,9 +2,14 @@ import type { Db } from '../clients.ts';
 import { DomainError } from '../errors.ts';
 import { can } from '../rbac/can.ts';
 import {
+  enquiryManagersSelect,
   enquiryResource,
+  projectAccessSelect,
+  projectResource,
+  quotationManagersSelect,
   quotationResource,
   scopeEnquiries,
+  scopeProjects,
   scopeQuotations,
 } from '../rbac/scope.ts';
 import type { Actor, Resource } from '../rbac/types.ts';
@@ -83,6 +88,7 @@ const enquiryTarget: FollowUpTarget = {
         clientId: true,
         deletedAt: true,
         client: { select: { deletedAt: true } },
+        ...enquiryManagersSelect,
       },
     });
     if (!row) return null;
@@ -184,6 +190,7 @@ const quotationTarget: FollowUpTarget = {
         clientId: true,
         deletedAt: true,
         client: { select: { deletedAt: true } },
+        ...quotationManagersSelect,
       },
     });
     if (!row) return null;
@@ -228,10 +235,62 @@ const quotationTarget: FollowUpTarget = {
   },
 };
 
+/** Projects keep no follow-up fields, so there is no sync hook (M8). */
+const projectTarget: FollowUpTarget = {
+  auditModel: 'Project',
+  async load(db, id) {
+    const row = await db.project.findFirst({
+      where: { id, deletedAt: undefined },
+      select: {
+        number: true,
+        name: true,
+        clientId: true,
+        deletedAt: true,
+        client: { select: { deletedAt: true } },
+        ...projectAccessSelect,
+      },
+    });
+    if (!row) return null;
+    return {
+      clientId: row.clientId,
+      label: projectLabel(row),
+      deleted: !!row.deletedAt || !!row.client.deletedAt,
+      resource: projectResource(row),
+    };
+  },
+  async visibleIds(db, user, clientId) {
+    const rows = await db.project.findMany({
+      where: { deletedAt: undefined, ...(clientId && { clientId }), AND: [scopeProjects(user)] },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
+  },
+  async labels(db, ids) {
+    const rows = await db.project.findMany({
+      where: { id: { in: ids }, deletedAt: undefined },
+      select: { id: true, number: true, name: true, deletedAt: true },
+    });
+    return new Map(rows.map((r) => [r.id, { label: projectLabel(r), deleted: !!r.deletedAt }]));
+  },
+  async pickable(db, user, clientId) {
+    const rows = await db.project.findMany({
+      where: { clientId, AND: [scopeProjects(user)] },
+      select: { id: true, number: true, name: true },
+      orderBy: { number: 'desc' },
+    });
+    return rows.map((r) => ({ id: r.id, label: projectLabel(r) }));
+  },
+};
+
+function projectLabel(row: { number: string; name: string }): string {
+  return `${row.number} · ${row.name}`;
+}
+
 export const FOLLOW_UP_TARGETS: Partial<Record<FollowUpEntityTypeValue, FollowUpTarget>> = {
   CLIENT: clientTarget,
   ENQUIRY: enquiryTarget,
   QUOTATION: quotationTarget,
+  PROJECT: projectTarget,
 };
 
 /** The registry entry, or a field error for a type whose module has not shipped. */
@@ -254,17 +313,22 @@ export function canReadRecord(user: Actor, record: LinkedRecord): boolean {
   return can(user, 'read', record.resource);
 }
 
+/** Record types a follow-up can sit on, other than the client itself. */
+export type LinkedRecordType = Exclude<FollowUpEntityTypeValue, 'CLIENT'>;
+
 /** Readable ids per type, for scopeFollowUps. Admins are unscoped, so nothing is resolved. */
 export async function visibleRecordIds(
   db: Db,
   user: Actor,
   clientId?: string,
-): Promise<{ ENQUIRY: string[]; QUOTATION: string[] }> {
-  if (user.role === 'ADMIN') return { ENQUIRY: [], QUOTATION: [] };
-  return {
-    ENQUIRY: await enquiryTarget.visibleIds(db, user, clientId),
-    QUOTATION: await quotationTarget.visibleIds(db, user, clientId),
-  };
+): Promise<Partial<Record<LinkedRecordType, string[]>>> {
+  const visible: Partial<Record<LinkedRecordType, string[]>> = {};
+  if (user.role === 'ADMIN') return visible;
+  for (const [type, target] of supportedTargets()) {
+    if (type === 'CLIENT') continue;
+    visible[type] = await target.visibleIds(db, user, clientId);
+  }
+  return visible;
 }
 
 /** Labels for a mixed list of (type, id) pairs, one query per type. */

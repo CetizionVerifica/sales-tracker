@@ -5,6 +5,7 @@ import {
   listDocuments,
   listEnquiries,
   listFollowUpTargets,
+  listProjects,
   listQuotations,
   NotFoundError,
 } from '@sales-tracker/core';
@@ -16,6 +17,7 @@ import { FilterBar } from '@/components/data/FilterBar';
 import { DateDisplay } from '@/components/display/DateDisplay';
 import { FieldGrid } from '@/components/display/FieldGrid';
 import { Money } from '@/components/display/Money';
+import { Progress } from '@/components/display/Progress';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { DetailLayout } from '@/components/layout/DetailLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -66,7 +68,7 @@ export default async function ClientPage({
 
   const search = await searchParams;
   const query = timelineQuery(client.id, search);
-  const [timeline, targets, enquiries, quotations, documents] = await Promise.all([
+  const [timeline, targets, enquiries, quotations, projects, documents] = await Promise.all([
     getClientTimeline(ctx, query).catch((error: unknown) => {
       if (error instanceof NotFoundError) notFound();
       throw error;
@@ -74,6 +76,7 @@ export default async function ClientPage({
     deleted ? [] : listFollowUpTargets(ctx, client.id),
     listEnquiries(ctx, { clientId: client.id, pageSize: 10 }),
     listQuotations(ctx, { clientId: client.id, pageSize: 10 }),
+    listProjects(ctx, { clientId: client.id, pageSize: 10 }),
     listDocuments(ctx, { clientId: client.id, pageSize: 25 }),
   ]);
   const primary = client.contacts.find((c) => c.isPrimary);
@@ -174,6 +177,37 @@ export default async function ClientPage({
                 </Link>
                 <StatusBadge entity="quotation" status={q.status} />
                 <Money amountMinor={q.amountMinor} currency={q.currency} className="ml-auto" />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+      <Panel
+        title="Projects"
+        bodyClassName="p-0"
+        actions={
+          projects.total > projects.items.length && (
+            <Link
+              className="text-primary text-[13px] hover:underline"
+              href={`/projects?clientId=${client.id}`}
+            >
+              All {projects.total} projects
+            </Link>
+          )
+        }
+      >
+        {projects.items.length === 0 ? (
+          <EmptyState message="No projects you can see for this client." />
+        ) : (
+          <ul className="divide-y">
+            {projects.items.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5">
+                <Link className="font-medium hover:underline" href={`/projects/${p.id}`}>
+                  {p.number}
+                </Link>
+                <span className="text-muted-foreground max-w-56 truncate">{p.name}</span>
+                <StatusBadge entity="project" status={p.status} />
+                <Progress value={p.completionPct} className="ml-auto" />
               </li>
             ))}
           </ul>
@@ -306,6 +340,7 @@ export default async function ClientPage({
                 },
                 { label: 'Enquiries', value: <span className="num">{enquiries.total}</span> },
                 { label: 'Quotations', value: <span className="num">{quotations.total}</span> },
+                { label: 'Projects', value: <span className="num">{projects.total}</span> },
                 { label: 'Documents', value: <span className="num">{documents.total}</span> },
               ]}
             />

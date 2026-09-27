@@ -1,8 +1,9 @@
-import type { EnquiryStatus, QuotationStatus } from '@sales-tracker/db';
+import type { EnquiryStatus, ProjectStatus, QuotationStatus } from '@sales-tracker/db';
 import { getDb } from '../clients.ts';
 import { assertCan, type Ctx } from '../context.ts';
-import { scopeEnquiries, scopeQuotations } from '../rbac/scope.ts';
+import { scopeEnquiries, scopeProjects, scopeQuotations } from '../rbac/scope.ts';
 import { todayInIST } from '../schemas/common.ts';
+import { ACTIVE_PROJECT_STATUSES } from '../status/project.ts';
 import { ACTIVE_QUOTATION_STATUSES } from '../status/quotation.ts';
 
 /*
@@ -39,6 +40,34 @@ export async function quotationStatusCounts(
     }),
   ]);
   const counts = { SENT: 0, UNDER_NEGOTIATION: 0, PO_RECEIVED: 0, LOST: 0, followUpDue };
+  for (const row of rows) counts[row.status] = row._count._all;
+  return counts;
+}
+
+export async function projectStatusCounts(
+  ctx: Ctx,
+): Promise<Record<ProjectStatus, number> & { behindSchedule: number }> {
+  assertCan(ctx, 'list', 'project');
+  const db = getDb();
+  const scope = scopeProjects(ctx.user);
+  const [rows, behindSchedule] = await Promise.all([
+    db.project.groupBy({ by: ['status'], where: { AND: [scope] }, _count: { _all: true } }),
+    db.project.count({
+      where: {
+        AND: [scope],
+        status: { in: [...ACTIVE_PROJECT_STATUSES] },
+        endDate: { lt: todayInIST() },
+      },
+    }),
+  ]);
+  const counts = {
+    NOT_STARTED: 0,
+    IN_PROGRESS: 0,
+    ON_HOLD: 0,
+    COMPLETED: 0,
+    CANCELLED: 0,
+    behindSchedule,
+  };
   for (const row of rows) counts[row.status] = row._count._all;
   return counts;
 }

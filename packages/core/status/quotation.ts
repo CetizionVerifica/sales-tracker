@@ -23,10 +23,15 @@ export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
   LOST: 'Lost',
 };
 
-/** The only fields a PO_RECEIVED or LOST quotation still takes (M6 Decisions 9 and 11). */
+/**
+ * The only fields a PO_RECEIVED or LOST quotation still takes (M6 Decisions 9 and 11). The
+ * owner stays changeable (admins only, as always) so a won deal can move to another rep and
+ * its project's Sales visibility moves with it (M8 Decision 4).
+ */
 export const CLOSED_QUOTATION_EDITABLE: readonly string[] = [
   'description',
   'lastFollowUpHighlights',
+  'ownerId',
 ];
 
 export function isActiveQuotation(status: QuotationStatus): boolean {

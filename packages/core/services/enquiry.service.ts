@@ -3,7 +3,7 @@ import { getDb, type Db } from '../clients.ts';
 import { assertCan, withTx, type Ctx } from '../context.ts';
 import { DomainError, NotFoundError } from '../errors.ts';
 import { can } from '../rbac/can.ts';
-import { enquiryResource, scopeEnquiries } from '../rbac/scope.ts';
+import { enquiryManagersSelect, enquiryResource, scopeEnquiries } from '../rbac/scope.ts';
 import type { Action } from '../rbac/types.ts';
 import type { Page } from '../schemas/common.ts';
 import {
@@ -34,6 +34,8 @@ const enquiryInclude = {
     select: { service: { select: { id: true, name: true } } },
     orderBy: { service: { name: 'asc' } },
   },
+  // For enquiryResource on the detail and list pages (M8: PMs of its live projects).
+  ...enquiryManagersSelect,
 } satisfies Prisma.EnquiryInclude;
 
 type EnquiryRow = Prisma.EnquiryGetPayload<{ include: typeof enquiryInclude }>;
@@ -69,6 +71,7 @@ const accessSelect = {
   source: true,
   sourceDetail: true,
   services: { select: { id: true, serviceId: true } },
+  ...enquiryManagersSelect,
 } satisfies Prisma.EnquirySelect;
 
 const ROW_FILTER = {

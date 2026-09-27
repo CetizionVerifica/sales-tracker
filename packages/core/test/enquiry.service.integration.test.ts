@@ -278,7 +278,7 @@ describe('enquiries (integration)', () => {
       expect((await getEnquiry(sales2, theirs)).description).toBeNull(); // unchanged
     });
 
-    it('a project manager sees no enquiries until M8 wires project links', async () => {
+    it('a project manager sees no enquiries without a live project of theirs (M8; see project-rbac)', async () => {
       expect(await rejection(getEnquiry(pm, theirs))).toBeInstanceOf(NotFoundError);
       expect((await listEnquiries(pm, {})).total).toBe(0);
     });
@@ -319,7 +319,10 @@ describe('enquiries (integration)', () => {
     it('scopeEnquiries returns the row filter per role', () => {
       expect(scopeEnquiries(admin.user)).toEqual({});
       expect(scopeEnquiries(sales.user)).toEqual({ ownerId: sales.user.id });
-      expect(scopeEnquiries(pm.user)).toEqual({ id: { in: [] } });
+      // M8: enquiries behind the live projects the PM manages.
+      expect(scopeEnquiries(pm.user)).toEqual({
+        quotations: { some: { projects: { some: { managerId: pm.user.id, deletedAt: null } } } },
+      });
     });
   });
 

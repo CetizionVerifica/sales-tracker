@@ -1,7 +1,7 @@
 import { getDb } from '../clients.ts';
 import { assertCan, type Ctx } from '../context.ts';
 import { can } from '../rbac/can.ts';
-import { scopeEnquiries, scopeQuotations } from '../rbac/scope.ts';
+import { scopeEnquiries, scopeProjects, scopeQuotations } from '../rbac/scope.ts';
 import {
   searchRecordsSchema,
   type SearchRecordsInput,
@@ -13,13 +13,14 @@ export interface SearchResult {
   id: string;
   /** The record's identifier or the client's name. */
   label: string;
-  /** Secondary text: the client for pipeline records, the sector for clients. */
+  /** Secondary text: the client for enquiries and quotations, the name for projects, the
+   * sector for clients. */
   detail: string;
 }
 
 /**
  * The ⌘K palette's search (UI guide §3): enquiries and quotations by number or client name,
- * clients by name. Each type is scoped exactly like its list, so a rep never sees another
+ * projects by number, name or client name (M8), clients by name. Each type is scoped exactly like its list, so a rep never sees another
  * rep's records; types the user cannot list are skipped. Live records only.
  */
 export async function searchRecords(ctx: Ctx, input: SearchRecordsInput): Promise<SearchResult[]> {
@@ -29,7 +30,7 @@ export async function searchRecords(ctx: Ctx, input: SearchRecordsInput): Promis
   const contains = { contains: q, mode: 'insensitive' as const };
   const byNumberOrClient = { OR: [{ number: contains }, { client: { name: contains } }] };
 
-  const [enquiries, quotations, clients] = await Promise.all([
+  const [enquiries, quotations, projects, clients] = await Promise.all([
     can(ctx.user, 'list', 'enquiry')
       ? db.enquiry.findMany({
           where: { AND: [scopeEnquiries(ctx.user), byNumberOrClient] },
@@ -42,6 +43,16 @@ export async function searchRecords(ctx: Ctx, input: SearchRecordsInput): Promis
       ? db.quotation.findMany({
           where: { AND: [scopeQuotations(ctx.user), byNumberOrClient] },
           select: { id: true, number: true, client: { select: { name: true } } },
+          orderBy: { number: 'desc' },
+          take: limit,
+        })
+      : [],
+    can(ctx.user, 'list', 'project')
+      ? db.project.findMany({
+          where: {
+            AND: [scopeProjects(ctx.user), { OR: [...byNumberOrClient.OR, { name: contains }] }],
+          },
+          select: { id: true, number: true, name: true },
           orderBy: { number: 'desc' },
           take: limit,
         })
@@ -66,6 +77,12 @@ export async function searchRecords(ctx: Ctx, input: SearchRecordsInput): Promis
       id: x.id,
       label: x.number,
       detail: x.client.name,
+    })),
+    ...projects.map((p) => ({
+      type: 'PROJECT' as const,
+      id: p.id,
+      label: p.number,
+      detail: p.name,
     })),
     ...clients.map((c) => ({
       type: 'CLIENT' as const,

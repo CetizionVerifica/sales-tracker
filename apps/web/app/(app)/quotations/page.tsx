@@ -62,6 +62,15 @@ export default async function QuotationsPage({
       options: toOptions(QUOTATION_STATUS_LABELS),
       multi: true,
     },
+    // M8: the "+ New → Project" entry lands on PO_RECEIVED quotations waiting for one.
+    {
+      param: 'hasProject',
+      label: 'Project',
+      options: [
+        { value: 'false', label: 'Waiting for a project' },
+        { value: 'true', label: 'Has a project' },
+      ],
+    },
     {
       param: 'followUpDue',
       label: 'Follow-up',

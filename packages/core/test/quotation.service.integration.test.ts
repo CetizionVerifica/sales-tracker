@@ -410,16 +410,17 @@ describe('quotations (integration)', () => {
       expect(await ids(sales)).toContain(mine.id);
       expect(await ids(sales)).not.toContain(theirs.id);
       expect(await ids(admin)).toEqual(expect.arrayContaining([mine.id, theirs.id]));
+      // A PM sees only quotations behind live projects they manage (M8; see project-rbac).
       expect(await ids(pm)).toEqual([]);
-      expect(scopeQuotations(pm.user)).toEqual({ id: { in: [] } });
-      expect(quotationResource({ ownerId: 'u' })).toEqual({
-        type: 'quotation',
-        ownerId: 'u',
-        projectManagerIds: [],
+      expect(scopeQuotations(pm.user)).toEqual({
+        projects: { some: { managerId: pm.user.id, deletedAt: null } },
       });
+      expect(
+        quotationResource({ ownerId: 'u', projects: [{ managerId: 'pm' }, { managerId: null }] }),
+      ).toEqual({ type: 'quotation', ownerId: 'u', projectManagerIds: ['pm'] });
     });
 
-    it('project managers cannot read a quotation (pinned until M8)', async () => {
+    it('project managers cannot read a quotation with no project of theirs', async () => {
       const q = await quotation();
       expect(await rejection(getQuotation(pm, q.id))).toBeInstanceOf(NotFoundError);
     });

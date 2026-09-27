@@ -8,5 +8,5 @@ export const searchRecordsSchema = z.object({
 
 export type SearchRecordsInput = z.input<typeof searchRecordsSchema>;
 
-export const SEARCH_RESULT_TYPES = ['ENQUIRY', 'QUOTATION', 'CLIENT'] as const;
+export const SEARCH_RESULT_TYPES = ['ENQUIRY', 'QUOTATION', 'PROJECT', 'CLIENT'] as const;
 export type SearchResultType = (typeof SEARCH_RESULT_TYPES)[number];

@@ -9,6 +9,7 @@ export * from './follow-up.ts';
 export * from './list-params.ts';
 export * from './master.ts';
 export * from './money.ts';
+export * from './project.ts';
 export * from './quotation.ts';
 export * from './search.ts';
 export * from './settings.ts';

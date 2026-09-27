@@ -22,6 +22,7 @@ const STYLES: Record<StatusEntity, Record<string, { tone: StatusTone; label: str
     IN_PROGRESS: { tone: 'primary', label: 'In progress' },
     ON_HOLD: { tone: 'warning', label: 'On hold' },
     COMPLETED: { tone: 'success', label: 'Completed' },
+    CANCELLED: { tone: 'destructive', label: 'Cancelled' },
   },
   po: {
     PENDING: { tone: 'neutral', label: 'Pending' },

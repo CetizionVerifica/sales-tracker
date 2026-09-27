@@ -4,10 +4,11 @@ import {
   clearable,
   idOnlySchema,
   optionalText,
+  requiredDay,
   todayInIST,
   withId,
 } from './common.ts';
-import { listParamsSchema, multi, recordStatusSchema } from './list-params.ts';
+import { flag, listParamsSchema, multi, recordStatusSchema } from './list-params.ts';
 import { currencySchema, isIsoCurrency, parseAmount } from './money.ts';
 
 export const QUOTATION_STATUSES = ['SENT', 'UNDER_NEGOTIATION', 'PO_RECEIVED', 'LOST'] as const;
@@ -20,25 +21,6 @@ const pastDate = calendarDateSchema.refine(
   (date) => date <= todayInIST(),
   'The date cannot be in the future',
 );
-
-/**
- * A required calendar day with a readable message when it is left empty (a union alone
- * reports "Invalid input"). Accepts what calendarDateSchema accepts, so it parses twice.
- */
-function requiredDay(message: string) {
-  return z.unknown().transform((value, context): Date => {
-    if (value === undefined || value === null || value === '') {
-      context.addIssue({ code: 'custom', message });
-      return z.NEVER;
-    }
-    const parsed = calendarDateSchema.safeParse(value);
-    if (!parsed.success) {
-      context.addIssue({ code: 'custom', message: 'Enter a date as YYYY-MM-DD' });
-      return z.NEVER;
-    }
-    return parsed.data;
-  });
-}
 
 const serviceIdsSchema = z
   .array(z.string().min(1))
@@ -143,10 +125,14 @@ export const updateQuotationSchema = updateQuotationFormSchema.transform(
   (input) => withMinorUnits(input) as Omit<typeof input, 'amount'> & { amountMinor?: bigint },
 );
 
-/** The only fields a closed (PO received or lost) quotation's form edits; others are dropped. */
+/**
+ * The only fields a closed (PO received or lost) quotation's form edits; others are dropped.
+ * The owner stays changeable, by admins only (M8 Decision 4: a won deal can change hands).
+ */
 export const closedQuotationFormSchema = z.object({
   description: quotationFields.description,
   lastFollowUpHighlights: quotationFields.lastFollowUpHighlights,
+  ownerId: quotationFields.ownerId,
 });
 
 export const changeQuotationStatusSchema = z.discriminatedUnion('to', [
@@ -175,14 +161,6 @@ export const QUOTATION_SORTS = [
   'updatedAt',
 ] as const;
 
-/** `true`/`false` from a URL, or a boolean. */
-const flag = z
-  .union([
-    z.boolean(),
-    z.enum(['true', 'false', '1', '0', '']).transform((v) => v === 'true' || v === '1'),
-  ])
-  .default(false);
-
 export const listQuotationsSchema = listParamsSchema.extend({
   status: multi(QUOTATION_STATUSES),
   currency: z.preprocess((value) => {
@@ -202,6 +180,10 @@ export const listQuotationsSchema = listParamsSchema.extend({
   nextFollowUpTo: calendarDateSchema.optional(),
   /** Active, with a next follow-up date on or before today (Asia/Kolkata). */
   followUpDue: flag,
+  /** PO_RECEIVED quotations with (true) or without (false) a live project (M8). */
+  hasProject: z
+    .union([z.boolean(), z.enum(['true', 'false']).transform((v) => v === 'true')])
+    .optional(),
   recordStatus: recordStatusSchema,
   sort: z.enum(QUOTATION_SORTS).optional(),
 });

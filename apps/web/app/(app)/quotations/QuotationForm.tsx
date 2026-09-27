@@ -104,7 +104,8 @@ function OptionSelect({
 /**
  * New and edit share one form. An open quotation is validated with the shared create schema
  * (the enquiry id rides along and is dropped on update); a closed one (PO received or lost)
- * only edits its description and highlights (M6 Decisions 9 and 11). Raw values are
+ * only edits its description and highlights, and its owner for admins (M6 Decisions 9 and
+ * 11, M8 Decision 4). Raw values are
  * submitted: dates stay YYYY-MM-DD and the amount stays as typed until the service
  * converts it to minor units.
  */
@@ -164,7 +165,11 @@ export function QuotationForm({
       return;
     }
     const data = closed
-      ? { description: fields.description, lastFollowUpHighlights: fields.lastFollowUpHighlights }
+      ? {
+          description: fields.description,
+          lastFollowUpHighlights: fields.lastFollowUpHighlights,
+          ...owner,
+        }
       : { ...fields, ...owner };
     const result = await updateQuotationAction({ id: quotation.id, data });
     if (applyResult(result, form, 'Quotation saved')) {
@@ -185,7 +190,7 @@ export function QuotationForm({
       description={
         quotation
           ? closed
-            ? 'A quotation with a PO received or marked lost only takes notes.'
+            ? 'A quotation with a PO received or marked lost only takes notes and, for admins, a new owner.'
             : undefined
           : enquiryNumber
             ? `From ${enquiryNumber}. Client, sector and services come from the enquiry.`
@@ -349,7 +354,7 @@ export function QuotationForm({
           <FieldError errors={[errors.lastFollowUpHighlights]} />
         </Field>
 
-        {!closed && options.owners && (
+        {options.owners && (
           <Field data-invalid={Boolean(errors.ownerId)}>
             <FieldLabel htmlFor="quotation-owner">Owner</FieldLabel>
             <Controller

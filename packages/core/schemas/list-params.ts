@@ -30,3 +30,11 @@ export function multi<T extends readonly [string, ...string[]]>(values: T) {
     z.array(z.enum(values)).optional(),
   );
 }
+
+/** `true`/`false` from a URL, or a boolean. */
+export const flag = z
+  .union([
+    z.boolean(),
+    z.enum(['true', 'false', '1', '0', '']).transform((v) => v === 'true' || v === '1'),
+  ])
+  .default(false);
