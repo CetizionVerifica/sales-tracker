@@ -25,7 +25,8 @@ export type ResourceInstance =
   | { type: 'project'; managerId: string | null; quotationOwnerId: string }
   | { type: 'purchaseOrder'; projectManagerId: string | null; pipelineOwnerId: string }
   | { type: 'invoice'; projectManagerId: string | null; pipelineOwnerId: string }
-  | { type: 'followUp'; userId: string }
+  /** `canReadLinked`: whether the actor may read the record the follow-up is on (M5). */
+  | { type: 'followUp'; userId: string; canReadLinked: boolean }
   | { type: 'dashboard'; scope: 'company' | 'personal' | 'project' };
 
 export type ResourceType = ResourceInstance['type'];

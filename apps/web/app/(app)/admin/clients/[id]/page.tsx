@@ -1,6 +1,8 @@
 import { getClient, listSectorOptions, NotFoundError } from '@sales-tracker/core';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ConfirmButton } from '@/components/ConfirmButton';
+import { Button } from '@/components/ui/button';
 import { requireAdmin } from '@/lib/auth';
 import { deleteClientAction } from '../actions';
 import { ClientForm } from '../ClientForm';
@@ -32,19 +34,24 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     <section className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">{client.name}</h2>
-        {client.deletedAt === null && (
-          <ConfirmButton
-            label="Delete client"
-            variant="destructive"
-            title={`Delete “${client.name}”?`}
-            description="It disappears from lists and pickers. You can restore it from the Deleted filter."
-            success="Client deleted"
-            run={async () => {
-              'use server';
-              return deleteClientAction({ id: client.id });
-            }}
-          />
-        )}
+        <div className="flex gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/clients/${client.id}`}>View timeline</Link>
+          </Button>
+          {client.deletedAt === null && (
+            <ConfirmButton
+              label="Delete client"
+              variant="destructive"
+              title={`Delete “${client.name}”?`}
+              description="It disappears from lists and pickers. You can restore it from the Deleted filter."
+              success="Client deleted"
+              run={async () => {
+                'use server';
+                return deleteClientAction({ id: client.id });
+              }}
+            />
+          )}
+        </div>
       </div>
       <ClientForm
         sectors={sectors}

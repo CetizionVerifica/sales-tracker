@@ -81,7 +81,16 @@ export const policy: { [T in ResourceType]: Rule<T> } = {
       ? owned(action, i, CRUD, (row) => row.pipelineOwnerId === user.id)
       : owned(action, i, CRUD, (row) => row.projectManagerId === user.id),
 
-  followUp: (user, action, i) => owned(action, i, CRUD, (row) => row.userId === user.id),
+  // M5 Decision 4: read follows the linked record; logging needs read access to it
+  // (Decision 10); only the author edits or deletes.
+  followUp: (user, action, i) => {
+    if (action === 'list') return true;
+    if (i === undefined) return action === 'create';
+    const mine = i.userId === user.id;
+    if (action === 'read') return mine || i.canReadLinked;
+    if (action === 'create') return mine && i.canReadLinked;
+    return mine;
+  },
 
   dashboard: (user, action, i) =>
     action === 'read' && i !== undefined && i.scope === DASHBOARD_SCOPE[user.role],
