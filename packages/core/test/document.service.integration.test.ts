@@ -505,7 +505,7 @@ describe('documents (integration)', () => {
       expect((await listDocuments(sales2, {})).items.map((d) => d.id)).not.toContain(doc.id);
     });
 
-    it('project managers see no quotation documents until M8', async () => {
+    it('project managers see no documents on quotations without a project of theirs (M8; see project-rbac)', async () => {
       const { doc } = await extracted(sales);
       expect(await rejection(getDocument(pm, doc.id))).toBeInstanceOf(NotFoundError);
       expect((await listDocuments(pm, {})).total).toBe(0);

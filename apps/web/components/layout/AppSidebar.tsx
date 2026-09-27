@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Briefcase,
   Building2,
   ClipboardList,
   FileText,
@@ -34,6 +35,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   home: House,
   enquiries: Inbox,
   quotations: FileText,
+  projects: Briefcase,
   clients: Building2,
   users: Users,
   sectors: Layers,

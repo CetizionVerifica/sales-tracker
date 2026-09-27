@@ -13,12 +13,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const isAdmin = can(user, 'list', 'user');
 
   // Only modules that exist, and only what the role can use (UI guide §3). My today,
-  // Dashboard, Projects, POs, Invoices and MCP access join as M8–M13 ship.
+  // Dashboard, POs, Invoices and MCP access join as M9–M13 ship.
+  const projects = can(user, 'list', 'project')
+    ? [{ href: '/projects', label: 'Projects', icon: 'projects', stage: 'project' } as const]
+    : [];
   const groups: NavGroup[] = [
     { items: [{ href: '/', label: 'Home', icon: 'home', exact: true }] },
     {
       label: 'Pipeline',
       items: [
+        // Projects lead for project managers, whose work starts there (M8).
+        ...(user.role === 'PROJECT_MANAGER' ? projects : []),
         ...(can(user, 'list', 'enquiry')
           ? [
               {
@@ -39,6 +44,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               } as const,
             ]
           : []),
+        ...(user.role === 'PROJECT_MANAGER' ? [] : projects),
         ...(can(user, 'list', 'client')
           ? [{ href: '/clients', label: 'Clients', icon: 'clients' } as const]
           : []),
@@ -62,9 +68,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   ];
 
   // + New: records that start on their own. Quotations start from a converted enquiry
-  // (M6 Decision 1) and follow-ups from a record, so they are not here.
+  // (M6 Decision 1) and follow-ups from a record, so they are not here. A project starts
+  // from a quotation with a PO received (M8 Decision 1): the item opens those still waiting.
   const newItems: NewMenuItem[] = [
     ...(can(user, 'create', 'enquiry') ? [{ href: '/enquiries/new', label: 'Enquiry' }] : []),
+    ...(can(user, 'create', 'project')
+      ? [{ href: '/quotations?status=PO_RECEIVED&hasProject=false', label: 'Project' }]
+      : []),
     ...(isAdmin ? [{ href: '/admin/clients/new', label: 'Client' }] : []),
   ];
 

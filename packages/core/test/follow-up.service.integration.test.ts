@@ -167,7 +167,7 @@ describe('follow-ups (integration)', () => {
 
     it('rejects a record type whose module has not shipped', async () => {
       const error = await rejection(
-        logFollowUp(sales, { ...onEnquiry('x'), entityType: 'PROJECT' }),
+        logFollowUp(sales, { ...onEnquiry('x'), entityType: 'PURCHASE_ORDER' }),
       );
       expect(fieldOf(error)).toBe('entityType');
     });
@@ -261,7 +261,7 @@ describe('follow-ups (integration)', () => {
       );
     });
 
-    it('a project manager cannot log on an enquiry (pinned until M8)', async () => {
+    it('a project manager cannot log on an enquiry with no project of theirs (M8; see project-rbac)', async () => {
       const client = await newClient();
       const enquiry = await newEnquiry(sales, client.id);
       expect(await rejection(logFollowUp(pm, onEnquiry(enquiry.id)))).toBeInstanceOf(NotFoundError);

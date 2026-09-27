@@ -88,7 +88,7 @@ describe('AC8: seed (integration)', () => {
     const followUps = await db.followUp.findMany();
     expect(new Set(followUps.map((f) => f.channel)).size).toBe(6);
     expect(new Set(followUps.map((f) => f.entityType))).toEqual(
-      new Set(['CLIENT', 'ENQUIRY', 'QUOTATION']),
+      new Set(['CLIENT', 'ENQUIRY', 'QUOTATION', 'PROJECT']),
     );
 
     const today = todayInIST().getTime();
@@ -150,13 +150,55 @@ describe('AC8: seed (integration)', () => {
     const db = getDb();
     const quotations = await db.quotation.count();
     const followUps = await db.followUp.count();
-    // Test-only reset of the fixture: quotations are soft-delete only in app code.
-    await db.$executeRawUnsafe(`DELETE FROM "follow_up" WHERE "entityType" = 'QUOTATION'`);
+    // Test-only reset of the fixture: quotations are soft-delete only in app code. Projects
+    // (M8) point at quotations, so they go first; the seed recreates both.
+    await db.$executeRawUnsafe(
+      `DELETE FROM "follow_up" WHERE "entityType" IN ('QUOTATION', 'PROJECT')`,
+    );
+    await db.$executeRawUnsafe('DELETE FROM "project_service"');
+    await db.$executeRawUnsafe('DELETE FROM "project"');
     await db.$executeRawUnsafe('DELETE FROM "quotation_service"');
     await db.$executeRawUnsafe('DELETE FROM "quotation"');
     await seed({ ...options, devUsers: true });
     expect(await db.quotation.count()).toBe(quotations);
     expect(await db.followUp.count()).toBe(followUps);
+  });
+
+  it('M8: dev seed adds projects in every status, one unassigned and one behind schedule, once', async () => {
+    const db = getDb();
+    const projects = await db.project.findMany({ include: { manager: true } });
+    expect(new Set(projects.map((p) => p.status))).toEqual(
+      new Set(['NOT_STARTED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CANCELLED']),
+    );
+    expect(projects.some((p) => p.managerId === null)).toBe(true);
+    expect(
+      projects.filter((p) => p.managerId).every((p) => p.manager?.email === 'pm@example.com'),
+    ).toBe(true);
+    const today = todayInIST().getTime();
+    expect(
+      projects.some(
+        (p) =>
+          ['NOT_STARTED', 'IN_PROGRESS', 'ON_HOLD'].includes(p.status) &&
+          p.endDate &&
+          p.endDate.getTime() < today,
+      ),
+    ).toBe(true);
+    expect(projects.find((p) => p.status === 'ON_HOLD')?.holdReason).toBeTruthy();
+    expect(projects.find((p) => p.status === 'CANCELLED')?.cancelReason).toBeTruthy();
+    expect(projects.find((p) => p.status === 'COMPLETED')?.completionPct).toBe(100);
+
+    // At least one PO_RECEIVED quotation is left for the create flow.
+    const waiting = await db.quotation.count({
+      where: { status: 'PO_RECEIVED', projects: { none: { deletedAt: null } } },
+    });
+    expect(waiting).toBeGreaterThanOrEqual(1);
+    expect(await db.followUp.count({ where: { entityType: 'PROJECT' } })).toBeGreaterThanOrEqual(1);
+
+    const audit = await db.auditLog.findMany({ where: { entityType: 'Project' } });
+    expect(audit.every((row) => row.source === 'system')).toBe(true);
+
+    await seed({ ...options, devUsers: true });
+    expect(await db.project.count()).toBe(projects.length);
   });
 
   it('fails clearly when the admin credentials are missing', async () => {

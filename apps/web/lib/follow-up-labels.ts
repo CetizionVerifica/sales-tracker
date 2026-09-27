@@ -36,5 +36,6 @@ export const ENTITY_TYPE_LABELS: Record<FollowUpEntityTypeValue, string> = {
 export function recordHref(type: FollowUpEntityTypeValue, id: string): string | null {
   if (type === 'ENQUIRY') return `/enquiries/${id}`;
   if (type === 'QUOTATION') return `/quotations/${id}`;
+  if (type === 'PROJECT') return `/projects/${id}`;
   return null;
 }

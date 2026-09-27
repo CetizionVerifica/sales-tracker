@@ -39,6 +39,7 @@ model User {
   enquiries         Enquiry[]
   followUps         FollowUp[]
   quotations        Quotation[]
+  managedProjects   Project[]
   uploadedDocuments Document[]  @relation("DocumentUploader")
   reviewedDocuments Document[]  @relation("DocumentReviewer")
 
@@ -164,6 +165,7 @@ model Service {
   active     Boolean            @default(true)
   enquiries  EnquiryService[]
   quotations QuotationService[]
+  projects   ProjectService[]
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
   deletedAt  DateTime?
@@ -184,6 +186,7 @@ model Client {
   enquiries  Enquiry[]
   followUps  FollowUp[]
   quotations Quotation[]
+  projects   Project[]
   documents  Document[]
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
@@ -388,6 +391,8 @@ model Quotation {
   ownerId                String
   owner                  User               @relation(fields: [ownerId], references: [id])
   services               QuotationService[]
+  /// At most one live project (partial unique index in m8_projects; M8 Decision 2).
+  projects               Project[]
   quotationDate          DateTime           @db.Date
   /// Integer minor units (M6 Decision 3: BigInt, since Int caps paise at ~₹2.1 crore).
   amountMinor            BigInt
@@ -433,6 +438,76 @@ model QuotationService {
   @@unique([quotationId, serviceId])
   @@index([serviceId])
   @@map("quotation_service")
+}
+
+// ─── M8: projects ───────────────────────────────────────────────────────────
+
+enum ProjectStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+/// The work delivered after a quotation's PO arrives. Created from a PO_RECEIVED quotation
+/// (M8 Decision 1); the client is always the quotation's (Decision 3). CHECKs in migration
+/// m8_projects: non-negative revenue, ISO currency, completion 0–100, 100% and a completed
+/// date when COMPLETED, a start date once started, reasons for ON_HOLD and CANCELLED, and
+/// dates in order. The partial unique index "project_live_quotation_key" (one live project
+/// per quotation) is SQL only: Prisma cannot express it, so keep it when editing this model.
+model Project {
+  id              String           @id @default(uuid())
+  /// Human-readable reference, e.g. PRJ-2026-0007 (M8 Decision 8). Immutable, never reused.
+  number          String           @unique
+  quotationId     String
+  quotation       Quotation        @relation(fields: [quotationId], references: [id])
+  clientId        String
+  client          Client           @relation(fields: [clientId], references: [id])
+  /// An active PROJECT_MANAGER, or null while unassigned (M8 Decision 5).
+  managerId       String?
+  manager         User?            @relation(fields: [managerId], references: [id])
+  services        ProjectService[]
+  name            String
+  /// Integer minor units (M6 Decision 3). Defaults to the quotation amount (M8 Decision 9).
+  revenueMinor    BigInt
+  currency        String
+  status          ProjectStatus    @default(NOT_STARTED)
+  statusChangedAt DateTime?
+  completionPct   Int              @default(0)
+  startDate       DateTime?        @db.Date
+  /// The planned end.
+  endDate         DateTime?        @db.Date
+  /// The actual end, required when COMPLETED (M8 Decision 7).
+  completedDate   DateTime?        @db.Date
+  /// Required when ON_HOLD; kept after resuming (M8 Decision 11).
+  holdReason      String?
+  /// Required when CANCELLED (M8 Decision 12).
+  cancelReason    String?
+  description     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+
+  @@index([quotationId])
+  @@index([managerId, status])
+  @@index([clientId])
+  @@index([status, endDate])
+  @@map("project")
+}
+
+/// Explicit join, as QuotationService: each added or removed service is audited.
+model ProjectService {
+  id        String   @id @default(uuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  serviceId String
+  service   Service  @relation(fields: [serviceId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, serviceId])
+  @@index([serviceId])
+  @@map("project_service")
 }
 
 // ─── M7: documents and extraction ───────────────────────────────────────────

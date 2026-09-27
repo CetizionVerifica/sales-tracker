@@ -3,7 +3,12 @@ import { getDb, type Db } from '../clients.ts';
 import { assertCan, withTx, type Ctx } from '../context.ts';
 import { DomainError, NotFoundError } from '../errors.ts';
 import { can } from '../rbac/can.ts';
-import { enquiryResource, quotationResource, scopeQuotations } from '../rbac/scope.ts';
+import {
+  enquiryManagersSelect,
+  enquiryResource,
+  quotationResource,
+  scopeQuotations,
+} from '../rbac/scope.ts';
 import type { Action } from '../rbac/types.ts';
 import { todayInIST, type Page } from '../schemas/common.ts';
 import {
@@ -38,6 +43,11 @@ const quotationInclude = {
   services: {
     select: { service: { select: { id: true, name: true } } },
     orderBy: { service: { name: 'asc' } },
+  },
+  // The live project (at most one, M8 Decision 2): its link, and quotationResource's PMs.
+  projects: {
+    where: { deletedAt: null },
+    select: { id: true, number: true, status: true, managerId: true },
   },
 } satisfies Prisma.QuotationInclude;
 
@@ -77,6 +87,8 @@ const accessSelect = {
   poReceivedDate: true,
   enquiry: { select: { receivedDate: true } },
   services: { select: { id: true, serviceId: true } },
+  // The live project (M8): quotationResource's PMs, and getProjectDraft's one-project check.
+  projects: { where: { deletedAt: null }, select: { id: true, number: true, managerId: true } },
 } satisfies Prisma.QuotationSelect;
 
 const ROW_FILTER = {
@@ -201,6 +213,13 @@ export async function listQuotations(
       }),
     },
   ];
+  if (p.hasProject !== undefined) {
+    // A live project, if any (M8 Decision 2); relation filters skip the soft-delete extension.
+    const live = { some: { deletedAt: null } };
+    filters.push(
+      p.hasProject ? { projects: live } : { status: 'PO_RECEIVED', NOT: { projects: live } },
+    );
+  }
   if (p.followUpDue) {
     filters.push({
       status: { in: [...ACTIVE_QUOTATION_STATUSES] },
@@ -243,7 +262,7 @@ export async function listQuotationsForEnquiry(
   const db = getDb();
   const enquiry = await db.enquiry.findFirst({
     where: { id: enquiryId, deletedAt: undefined },
-    select: { ownerId: true },
+    select: { ownerId: true, ...enquiryManagersSelect },
   });
   if (!enquiry || !can(ctx.user, 'read', enquiryResource(enquiry))) {
     throw new NotFoundError('enquiry');
@@ -283,6 +302,7 @@ export async function createQuotation(
         status: true,
         receivedDate: true,
         client: { select: { deletedAt: true } },
+        ...enquiryManagersSelect,
       },
     });
     if (!enquiry || enquiry.client.deletedAt || !can(ctx.user, 'read', enquiryResource(enquiry))) {
@@ -299,7 +319,7 @@ export async function createQuotation(
 
     const ownerId = requestedOwner ?? enquiry.ownerId;
     await assertOwnerAllowed(tx, ctx, ownerId);
-    assertCan(ctx, 'create', quotationResource({ ownerId }));
+    assertCan(ctx, 'create', quotationResource({ ownerId, projects: [] }));
     await assertCurrencyEnabled(tx, fields.currency);
     await assertSectorUsable(tx, fields.sectorId);
     await assertServicesUsable(tx, serviceIds);
@@ -346,9 +366,12 @@ export async function updateQuotation(
       if (locked.length > 0) {
         // The amount (with its currency) is the field people try to change; point at it.
         const field = locked.includes('amountMinor') ? 'amount' : locked[0];
-        throw new DomainError('A closed quotation only takes description and highlights changes', {
-          field,
-        });
+        throw new DomainError(
+          'A closed quotation only takes description, highlights and owner changes',
+          {
+            field,
+          },
+        );
       }
     }
 
@@ -505,11 +528,26 @@ export async function restoreQuotation(ctx: Ctx, id: string): Promise<QuotationD
   });
 }
 
-/** The project draft for a PO_RECEIVED quotation (the M8 form reads this). */
+/** getProjectDraft on a quotation that already has a live project (M8 Decision 2). */
+export class ProjectExistsError extends DomainError {
+  constructor(
+    readonly projectId: string,
+    projectNumber: string,
+  ) {
+    super(`This quotation already has a project (${projectNumber})`, { field: 'quotationId' });
+  }
+}
+
+/** The project draft for a PO_RECEIVED quotation without a live project (the M8 form). */
 export async function getProjectDraft(ctx: Ctx, quotationId: string): Promise<ProjectDraft> {
   const row = await findAccessible(getDb(), ctx, quotationId, 'read');
   if (row.status !== 'PO_RECEIVED') {
     throw new DomainError('Only a quotation with a PO received can start a project');
+  }
+  const [project] = row.projects;
+  if (project) {
+    // M8 Decision 2: one live project per quotation. The id lets the form page redirect.
+    throw new ProjectExistsError(project.id, project.number);
   }
   return draftFrom({ ...row, serviceIds: row.services.map((link) => link.serviceId) });
 }

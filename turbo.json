@@ -10,7 +10,8 @@
       "dependsOn": ["^typecheck"]
     },
     "test:e2e": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": ["CI", "TEST_DATABASE_URL", "BETTER_AUTH_*"]
     },
     "dev": {
       "cache": false,

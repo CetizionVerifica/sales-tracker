@@ -86,3 +86,22 @@ export function todayInIST(now: Date = new Date()): Date {
 export function toCalendarDateString(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
+
+/**
+ * A required calendar day with a readable message when it is left empty (a union alone
+ * reports "Invalid input"). Accepts what calendarDateSchema accepts, so it parses twice.
+ */
+export function requiredDay(message: string) {
+  return z.unknown().transform((value, context): Date => {
+    if (value === undefined || value === null || value === '') {
+      context.addIssue({ code: 'custom', message });
+      return z.NEVER;
+    }
+    const parsed = calendarDateSchema.safeParse(value);
+    if (!parsed.success) {
+      context.addIssue({ code: 'custom', message: 'Enter a date as YYYY-MM-DD' });
+      return z.NEVER;
+    }
+    return parsed.data;
+  });
+}

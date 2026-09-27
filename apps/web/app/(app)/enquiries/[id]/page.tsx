@@ -69,6 +69,9 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
   const contacts = client.contacts.map((c) => ({ id: c.id, name: c.name }));
   const canLog = !deleted && client.deletedAt === null;
   const latestQuotation = quotations[0];
+  // The pipeline strip links a project only when there is exactly one under the enquiry.
+  const projects = quotations.flatMap((q) => q.projects);
+  const onlyProject = projects.length === 1 ? projects[0] : undefined;
 
   const menu: RecordMenuItem[] = [];
   if (canDelete && !deleted && !converted) {
@@ -140,6 +143,15 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
                   </Link>
                   <DateDisplay value={q.quotationDate} className="text-muted-foreground" />
                   <StatusBadge entity="quotation" status={q.status} />
+                  {q.projects.map((p) => (
+                    <Link
+                      key={p.id}
+                      className="text-muted-foreground text-[13px] hover:underline"
+                      href={`/projects/${p.id}`}
+                    >
+                      {p.number}
+                    </Link>
+                  ))}
                   <Money amountMinor={q.amountMinor} currency={q.currency} className="ml-auto" />
                 </li>
               ))}
@@ -236,8 +248,11 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
       />
       <PipelineStrip
         current="enquiry"
-        reached={latestQuotation ? 'quotation' : 'enquiry'}
-        links={latestQuotation ? { quotation: `/quotations/${latestQuotation.id}` } : {}}
+        reached={projects.length > 0 ? 'project' : latestQuotation ? 'quotation' : 'enquiry'}
+        links={{
+          ...(latestQuotation && { quotation: `/quotations/${latestQuotation.id}` }),
+          ...(onlyProject && { project: `/projects/${onlyProject.id}` }),
+        }}
       />
       <DetailLayout
         main={

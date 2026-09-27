@@ -1,7 +1,7 @@
 'use client';
 
 import type { SearchResult } from '@sales-tracker/core';
-import { Building2, CornerDownLeft, FileText, Inbox, Loader2 } from 'lucide-react';
+import { Briefcase, Building2, CornerDownLeft, FileText, Inbox, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -31,11 +31,17 @@ export interface PaletteAction {
 const RECORD_HREF: Record<SearchResult['type'], (id: string) => string> = {
   ENQUIRY: (id) => `/enquiries/${id}`,
   QUOTATION: (id) => `/quotations/${id}`,
+  PROJECT: (id) => `/projects/${id}`,
   CLIENT: (id) => `/clients/${id}`,
 };
 
-const RECORD_ICON = { ENQUIRY: Inbox, QUOTATION: FileText, CLIENT: Building2 };
-const RECORD_GROUP = { ENQUIRY: 'Enquiries', QUOTATION: 'Quotations', CLIENT: 'Clients' };
+const RECORD_ICON = { ENQUIRY: Inbox, QUOTATION: FileText, PROJECT: Briefcase, CLIENT: Building2 };
+const RECORD_GROUP = {
+  ENQUIRY: 'Enquiries',
+  QUOTATION: 'Quotations',
+  PROJECT: 'Projects',
+  CLIENT: 'Clients',
+};
 
 const DEBOUNCE_MS = 200;
 

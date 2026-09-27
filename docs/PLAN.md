@@ -74,7 +74,7 @@ Status rules:
 - **Enquiry:** IN\_PROGRESS → CONVERTED or LOST. CONVERTED requires a proposal sent date and prompts quotation creation.
 - **Quotation:** SENT ⇄ UNDER\_NEGOTIATION → PO\_RECEIVED or LOST. Next follow-up date is required in SENT and UNDER\_NEGOTIATION. PO\_RECEIVED prompts project creation. LOST requires a reason (M6 Decision 11).
 - **Invoice:** PENDING → PAID, or PENDING → OVERDUE (nightly job, once past due date) → PAID.
-- **PurchaseOrder:** derived, never set by hand. PAID when all invoices are paid, OVERDUE when any is overdue, otherwise PENDING.
+- **PurchaseOrder:** derived, never set by hand. OVERDUE when any invoice is overdue; PAID when it has invoices, all are paid and they cover the PO amount (M9 Decision 5); otherwise PENDING.
 
 ## Modules and build order
 
@@ -92,7 +92,7 @@ Build in this order: each module depends only on those above it. Each gets a spe
 | M7  | Documents and extraction   | Upload to Cloudinary, queue job, Claude extracts fields to a Zod schema, review-and-confirm screen                                        | Extracted values never save without user confirmation            |
 | M8  | Projects                   | CRUD, PM assignment, completion %, linked POs                                                                                             | PM sees only assigned projects                                   |
 | M9  | Purchase orders            | Upload PO, extract amount and payment terms, derived status                                                                               | Status updates when invoices change                              |
-| M10 | Invoices                   | Upload, extract number/date/client, client mismatch warning, due date from settings, nightly overdue job                                  | Past-due unpaid invoices become OVERDUE                          |
+| M10 | Invoices                   | Upload, extract number/date/client, client mismatch warning, due date from PO terms or settings, nightly overdue job                      | Past-due unpaid invoices become OVERDUE                          |
 | M11 | My Today                   | Per-user view: follow-ups due or missed, quotations awaiting reply, invoices due or overdue, stale enquiries                              | Shows correct items for seeded data                              |
 | M12 | Dashboards and reports     | Funnel, conversion by sector/service/owner, quoted vs won, receivables ageing, revenue by client, CSV export                              | Numbers match seeded fixtures                                    |
 | M13 | MCP server and bulk import | Token auth, read tools, write tools, CSV/Excel import with dry run                                                                        | Claude can query and import via MCP; writes are audited as `mcp` |

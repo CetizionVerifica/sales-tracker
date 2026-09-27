@@ -1,7 +1,7 @@
 import type { Prisma, QuotationStatus } from '@sales-tracker/db';
 import type { Db } from '../clients.ts';
 import type { Ctx } from '../context.ts';
-import { quotationResource } from '../rbac/scope.ts';
+import { quotationManagersSelect, quotationResource } from '../rbac/scope.ts';
 import type { Actor, Resource } from '../rbac/types.ts';
 import { toCalendarDateString } from '../schemas/common.ts';
 import type { DocumentKindValue } from '../schemas/document.ts';
@@ -129,6 +129,7 @@ const quotationKind: DocumentKindSpec = {
         description: true,
         documentId: true,
         client: { select: { name: true } },
+        ...quotationManagersSelect,
       },
     });
     if (!row) return null;

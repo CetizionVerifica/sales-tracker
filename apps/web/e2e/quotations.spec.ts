@@ -15,7 +15,7 @@ import {
 import { E2E_USERS } from './users.ts';
 
 // AC16: create from a converted enquiry, follow up (highlights and next date sync),
-// negotiate, receive the PO and reach the project hand-off; lose a second quotation and
+// negotiate, receive the PO and reach the project form (M8); lose a second quotation and
 // see it leave the follow-up-due list.
 test('quotation: create → follow up → negotiate → PO received → project draft; lost', async ({
   page,
@@ -72,11 +72,14 @@ test('quotation: create → follow up → negotiate → PO received → project 
   await expect(page.getByRole('button', { name: 'Mark lost' })).toHaveCount(0);
   await expect(detail(page, 'PO received on')).toHaveText(shown(istDay()));
   await createProject.click();
+  // M8's create-project form, pre-filled from the draft (the full flow is projects.spec.ts).
   await expect(page.getByRole('heading', { name: 'New project' })).toBeVisible();
-  await expect(detail(page, 'Quotation')).toHaveText(number);
-  await expect(detail(page, 'Client')).toHaveText(client);
-  await expect(detail(page, 'Services')).toHaveText('Audit, Inspection');
-  await expect(detail(page, 'Revenue')).toHaveText('₹1,25,000.50');
+  await expect(page.getByText(`${client} · from ${number}`)).toBeVisible();
+  await expect(page.getByTestId('project-client')).toHaveText(client);
+  await expect(page.getByLabel('Inspection')).toBeChecked();
+  await expect(page.getByLabel('Audit')).toBeChecked();
+  await expect(page.getByLabel('Revenue')).toHaveValue('125000.50');
+  await expect(page.getByText('₹1,25,000.50')).toBeVisible();
 
   // A second quotation, due today, is lost and leaves the follow-up-due list.
   await page.goto(enquiryUrl);

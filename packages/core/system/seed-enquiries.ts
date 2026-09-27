@@ -6,6 +6,7 @@ import { systemCtx, withTx, type Ctx } from '../context.ts';
 import { createClient } from '../services/client.service.ts';
 import { convertEnquiry, createEnquiry, markEnquiryLost } from '../services/enquiry.service.ts';
 import { logFollowUp } from '../services/follow-up.service.ts';
+import { changeProjectStatus, createProject, updateProject } from '../services/project.service.ts';
 import { changeQuotationStatus, createQuotation } from '../services/quotation.service.ts';
 import { updateSettings } from '../services/settings.service.ts';
 import { parseAmount } from '../schemas/money.ts';
@@ -248,7 +249,7 @@ const daysAgo = (days: number) =>
 /** The sample's follow-up as its author: the enquiry owner, audited as `system`. */
 async function logSample(
   author: { id: string; role: Ctx['user']['role'] },
-  link: { entityType: 'CLIENT' | 'ENQUIRY' | 'QUOTATION'; entityId: string },
+  link: { entityType: 'CLIENT' | 'ENQUIRY' | 'QUOTATION' | 'PROJECT'; entityId: string },
   { daysAgo: ago, nextInDays, ...fields }: SampleFollowUp,
 ) {
   const ctx: Ctx = { user: { ...author, active: true }, source: 'system' };
@@ -337,7 +338,7 @@ async function addSampleFollowUps(tx: Db): Promise<number> {
     await logSample(author, { entityType: 'CLIENT', entityId: client.id }, note.followUp);
     count += 1;
   }
-  return count + (await addSampleQuotationFollowUps(tx));
+  return count + (await addSampleQuotationFollowUps(tx)) + (await addSampleProjectFollowUps(tx));
 }
 
 /**
@@ -357,37 +358,247 @@ async function createSampleQuotations(ctx: Ctx, tx: Db): Promise<number> {
 
   let count = 0;
   for (const sample of SAMPLE_QUOTATIONS) {
-    const enquiry = await findSampleEnquiry(tx, sample.enquiry);
-    if (!enquiry || enquiry.status !== 'CONVERTED') continue;
-    const links = await tx.enquiryService.findMany({
-      where: { enquiryId: enquiry.id },
-      select: { serviceId: true, enquiry: { select: { sectorId: true } } },
+    if (await createSampleQuotation(ctx, tx, sample)) count += 1;
+  }
+  return count;
+}
+
+/** One sample quotation, moved to its sample status; null when its enquiry is missing. */
+async function createSampleQuotation(
+  ctx: Ctx,
+  tx: Db,
+  sample: SampleQuotation,
+): Promise<{ id: string } | null> {
+  const enquiry = await findSampleEnquiry(tx, sample.enquiry);
+  if (!enquiry || enquiry.status !== 'CONVERTED') return null;
+  const links = await tx.enquiryService.findMany({
+    where: { enquiryId: enquiry.id },
+    select: { serviceId: true, enquiry: { select: { sectorId: true } } },
+  });
+  const quotation = await createQuotation(ctx, {
+    enquiryId: enquiry.id,
+    quotationDate: daysAgo(sample.quotedDaysAgo),
+    amount: sample.amount,
+    currency: sample.currency,
+    sectorId: links[0]!.enquiry.sectorId,
+    serviceIds: links.map((link) => link.serviceId),
+    nextFollowUpDate: daysAgo(-sample.nextInDays),
+    description: sample.description,
+  });
+  const { outcome } = sample;
+  if (outcome === 'UNDER_NEGOTIATION') {
+    await changeQuotationStatus(ctx, { id: quotation.id, to: 'UNDER_NEGOTIATION' });
+  } else if (outcome && 'poDaysAgo' in outcome) {
+    await changeQuotationStatus(ctx, {
+      id: quotation.id,
+      to: 'PO_RECEIVED',
+      poReceivedDate: daysAgo(outcome.poDaysAgo),
     });
-    const quotation = await createQuotation(ctx, {
-      enquiryId: enquiry.id,
-      quotationDate: daysAgo(sample.quotedDaysAgo),
-      amount: sample.amount,
-      currency: sample.currency,
-      sectorId: links[0]!.enquiry.sectorId,
+  } else if (outcome) {
+    await changeQuotationStatus(ctx, {
+      id: quotation.id,
+      to: 'LOST',
+      lostReason: outcome.lostReason,
+    });
+  }
+  return quotation;
+}
+
+// ─── M8 sample projects ─────────────────────────────────────────────────────────────
+
+interface SampleProject {
+  /** A PO_RECEIVED quotation made for this project (one live project per quotation). */
+  quotation: SampleQuotation & { outcome: { poDaysAgo: number } };
+  name: string;
+  /** Unassigned when false (M8 Decision 5). */
+  managed: boolean;
+  startDaysAgo?: number;
+  /** Planned end, days from today (negative = past, behind schedule while open). */
+  endInDays?: number;
+  completionPct?: number;
+  status?:
+    | 'IN_PROGRESS'
+    | { holdReason: string }
+    | { completedDaysAgo: number }
+    | { cancelReason: string };
+  followUp?: SampleFollowUp;
+}
+
+const PM_EMAIL = 'pm@example.com';
+
+/**
+ * Every project status, one unassigned and one behind schedule, on quotations made for them.
+ * M6's own PO_RECEIVED sample stays without a project, so the create flow can be tried.
+ */
+const SAMPLE_PROJECTS: SampleProject[] = [
+  {
+    quotation: {
+      enquiry: TRAINING,
+      quotedDaysAgo: 55,
+      amount: '3,60,000.00',
+      currency: 'INR',
+      nextInDays: -50,
+      outcome: { poDaysAgo: 40 },
+    },
+    name: 'Onboarding training programme',
+    managed: false,
+    endInDays: 90,
+  },
+  {
+    quotation: {
+      enquiry: TRAINING,
+      quotedDaysAgo: 52,
+      amount: '4,50,000.00',
+      currency: 'INR',
+      nextInDays: -45,
+      outcome: { poDaysAgo: 35 },
+    },
+    name: 'Plant QA training, phase 1',
+    managed: true,
+    startDaysAgo: 30,
+    endInDays: 30,
+    completionPct: 40,
+    status: 'IN_PROGRESS',
+    followUp: {
+      daysAgo: 7,
+      channel: 'MEETING',
+      notes: 'Reviewed attendance and the next batch dates',
+      nextInDays: 7,
+    },
+  },
+  {
+    quotation: {
+      enquiry: TRAINING,
+      quotedDaysAgo: 58,
+      amount: '1,80,000.00',
+      currency: 'INR',
+      nextInDays: -55,
+      outcome: { poDaysAgo: 50 },
+    },
+    name: 'SOP writing workshop',
+    managed: true,
+    startDaysAgo: 45,
+    endInDays: -12,
+    status: { completedDaysAgo: 10 },
+  },
+  {
+    quotation: {
+      enquiry: INSPECTION,
+      quotedDaysAgo: 110,
+      amount: '8,000.00',
+      currency: 'USD',
+      nextInDays: -100,
+      outcome: { poDaysAgo: 90 },
+    },
+    name: 'Export line inspection',
+    managed: true,
+    startDaysAgo: 80,
+    endInDays: -5,
+    completionPct: 70,
+    status: 'IN_PROGRESS',
+    followUp: { daysAgo: 3, channel: 'CALL', notes: 'Final report delayed by lab results' },
+  },
+  {
+    quotation: {
+      enquiry: INSPECTION,
+      quotedDaysAgo: 105,
+      amount: '9,75,000.00',
+      currency: 'INR',
+      nextInDays: -95,
+      outcome: { poDaysAgo: 85 },
+    },
+    name: 'Warehouse audit',
+    managed: true,
+    startDaysAgo: 70,
+    endInDays: 20,
+    completionPct: 25,
+    status: { holdReason: 'Client plant shut for annual maintenance' },
+  },
+  {
+    quotation: {
+      enquiry: INSPECTION,
+      quotedDaysAgo: 100,
+      amount: '5,40,000.00',
+      currency: 'INR',
+      nextInDays: -90,
+      outcome: { poDaysAgo: 88 },
+    },
+    name: 'Second-site inspection',
+    managed: true,
+    endInDays: 60,
+    status: { cancelReason: 'Client sold the second site' },
+  },
+];
+
+/** M8 sample follow-ups on existing sample projects (found by name), as the dev PM. */
+async function addSampleProjectFollowUps(tx: Db): Promise<number> {
+  const pm = await devUser(tx, PM_EMAIL);
+  let count = 0;
+  for (const sample of SAMPLE_PROJECTS) {
+    if (!sample.followUp) continue;
+    const project = await tx.project.findFirst({
+      where: { name: sample.name },
+      select: { id: true },
+    });
+    if (!project) continue;
+    await logSample(pm, { entityType: 'PROJECT', entityId: project.id }, sample.followUp);
+    count += 1;
+  }
+  return count;
+}
+
+/**
+ * M8 sample projects, each on a PO_RECEIVED quotation made for it: created by the quotation's
+ * owner, moved along by the dev PM, cancelled by the system user (admin-only), all audited as
+ * `system`.
+ */
+async function createSampleProjects(ctx: Ctx, tx: Db): Promise<number> {
+  const as = (user: { id: string; role: Ctx['user']['role'] }): Ctx => ({
+    user: { ...user, active: true },
+    source: 'system',
+  });
+  const pm = as(await devUser(tx, PM_EMAIL));
+
+  let count = 0;
+  for (const sample of SAMPLE_PROJECTS) {
+    const quotation = await createSampleQuotation(ctx, tx, sample.quotation);
+    if (!quotation) continue;
+    const owner = as((await findSampleEnquiry(tx, sample.quotation.enquiry))!.owner);
+    const links = await tx.quotationService.findMany({
+      where: { quotationId: quotation.id },
+      select: { serviceId: true },
+    });
+    const project = await createProject(owner, {
+      quotationId: quotation.id,
+      name: sample.name,
+      managerId: sample.managed ? pm.user.id : '',
       serviceIds: links.map((link) => link.serviceId),
-      nextFollowUpDate: daysAgo(-sample.nextInDays),
-      description: sample.description,
+      revenue: sample.quotation.amount,
+      currency: sample.quotation.currency,
+      ...(sample.endInDays !== undefined && { endDate: daysAgo(-sample.endInDays) }),
     });
-    const { outcome } = sample;
-    if (outcome === 'UNDER_NEGOTIATION') {
-      await changeQuotationStatus(ctx, { id: quotation.id, to: 'UNDER_NEGOTIATION' });
-    } else if (outcome && 'poDaysAgo' in outcome) {
-      await changeQuotationStatus(ctx, {
-        id: quotation.id,
-        to: 'PO_RECEIVED',
-        poReceivedDate: daysAgo(outcome.poDaysAgo),
-      });
-    } else if (outcome) {
-      await changeQuotationStatus(ctx, {
-        id: quotation.id,
-        to: 'LOST',
-        lostReason: outcome.lostReason,
-      });
+
+    const { status } = sample;
+    const startDate = sample.startDaysAgo !== undefined ? daysAgo(sample.startDaysAgo) : undefined;
+    if (status && typeof status === 'object' && 'cancelReason' in status) {
+      await changeProjectStatus(ctx, { id: project.id, ...status, to: 'CANCELLED' });
+    } else if (status) {
+      await changeProjectStatus(pm, { id: project.id, to: 'IN_PROGRESS', startDate });
+      if (sample.completionPct) {
+        await updateProject(pm, project.id, { completionPct: sample.completionPct });
+      }
+      if (typeof status === 'object' && 'holdReason' in status) {
+        await changeProjectStatus(pm, { id: project.id, to: 'ON_HOLD', ...status });
+      } else if (typeof status === 'object' && 'completedDaysAgo' in status) {
+        await changeProjectStatus(pm, {
+          id: project.id,
+          to: 'COMPLETED',
+          completedDate: daysAgo(status.completedDaysAgo),
+        });
+      }
+    }
+    if (sample.followUp) {
+      await logSample(pm.user, { entityType: 'PROJECT', entityId: project.id }, sample.followUp);
     }
     count += 1;
   }
@@ -397,7 +608,8 @@ async function createSampleQuotations(ctx: Ctx, tx: Db): Promise<number> {
 /**
  * Dev-only sample pipeline, written through the services (audited as `system`).
  * Idempotent: enquiries are created only when there are none, and likewise quotations and
- * follow-ups (so a database seeded before M5 or M6 gets them too). Each part runs in one
+ * follow-ups, and projects with the quotations made for them (so a database seeded before
+ * M5, M6 or M8 gets them too). Each part runs in one
  * transaction (the services join it), so a failure part-way leaves nothing behind and the
  * next seed starts over instead of skipping a half-made pipeline.
  */
@@ -411,6 +623,7 @@ export async function ensureSampleEnquiries(log: (message: string) => void): Pro
       log(`created ${SAMPLE_ENQUIRIES.length} sample enquiries`);
       log(`created ${await createSampleQuotations(ctx, tx)} sample quotations`);
       log(`created ${await addSampleFollowUps(tx)} sample follow-ups`);
+      log(`created ${await createSampleProjects(ctx, tx)} sample projects`);
     });
     return;
   }
@@ -425,6 +638,11 @@ export async function ensureSampleEnquiries(log: (message: string) => void): Pro
   if (!hasFollowUps) {
     await withTx(ctx, async (tx) =>
       log(`created ${await addSampleFollowUps(tx)} sample follow-ups`),
+    );
+  }
+  if ((await db.project.count({ where: { deletedAt: undefined } })) === 0) {
+    await withTx(ctx, async (tx) =>
+      log(`created ${await createSampleProjects(ctx, tx)} sample projects`),
     );
   }
 }

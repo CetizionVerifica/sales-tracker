@@ -5,6 +5,7 @@ import {
   getCurrentDocument,
   getEnv,
   getLatestFollowUp,
+  projectResource,
   quotationResource,
 } from '@sales-tracker/core';
 import { toAmountString, toCalendarDateString } from '@sales-tracker/core/schemas';
@@ -46,6 +47,13 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
   const canDelete = can(ctx.user, 'delete', resource);
   const open = isOpenQuotation(quotation.status);
   const won = quotation.status === 'PO_RECEIVED';
+  // The live project, if any (M8 Decision 2); anyone who reads the quotation sees its link.
+  const [project] = quotation.projects;
+  const canCreateProject =
+    won &&
+    !project &&
+    !deleted &&
+    can(ctx.user, 'create', projectResource({ managerId: null, quotation }));
   const today = istToday();
   const quotationDate = toCalendarDateString(quotation.quotationDate);
   const next = quotation.nextFollowUpDate ? toCalendarDateString(quotation.nextFollowUpDate) : '';
@@ -119,7 +127,7 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
 
   const overview = (
     <>
-      {won && !deleted && (
+      {canCreateProject && (
         <div
           role="status"
           className="bg-success-soft flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius)] border p-4"
@@ -130,6 +138,20 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
           </p>
           <Button asChild size="sm">
             <Link href={`/projects/new?quotationId=${quotation.id}`}>Create project</Link>
+          </Button>
+        </div>
+      )}
+      {project && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius)] border p-4">
+          <p className="flex flex-wrap items-center gap-2">
+            Project
+            <Link className="font-medium hover:underline" href={`/projects/${project.id}`}>
+              {project.number}
+            </Link>
+            <StatusBadge entity="project" status={project.status} />
+          </p>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/projects/${project.id}`}>Open project</Link>
           </Button>
         </div>
       )}
@@ -238,7 +260,11 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
       />
       <PipelineStrip
         current="quotation"
-        links={{ enquiry: `/enquiries/${quotation.enquiry.id}` }}
+        reached={project ? 'project' : 'quotation'}
+        links={{
+          enquiry: `/enquiries/${quotation.enquiry.id}`,
+          ...(project && { project: `/projects/${project.id}` }),
+        }}
       />
       <DetailLayout
         main={
@@ -326,6 +352,15 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
                       {quotation.enquiry.number}
                     </Link>
                   ),
+                },
+                {
+                  label: 'Project',
+                  value: project && (
+                    <Link className="hover:underline" href={`/projects/${project.id}`}>
+                      {project.number}
+                    </Link>
+                  ),
+                  hidden: !project,
                 },
                 {
                   label: 'Document',

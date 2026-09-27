@@ -28,7 +28,16 @@ export interface TimelineEvent {
   actor: { id: string; name: string };
   entity: { type: FollowUpEntityTypeValue; id: string; label: string; deleted: boolean };
   summary: string;
-  change?: { from: string; to: string; lostReason?: string; poReceivedDate?: string };
+  change?: {
+    from: string;
+    to: string;
+    lostReason?: string;
+    poReceivedDate?: string;
+    /** Project moves (M8). */
+    holdReason?: string;
+    completedDate?: string;
+    cancelReason?: string;
+  };
   /** DOCUMENT events: which file and what happened (never its values). */
   document?: {
     id: string;
@@ -220,10 +229,12 @@ export async function getClientTimeline(
           clientId: p.clientId,
           ...(p.entityType && { entityType: p.entityType, entityId: p.entityId }),
           AND: [
-            scopeFollowUps(ctx.user, {
-              ENQUIRY: records.find((r) => r.entityType === 'ENQUIRY')?.ids ?? [],
-              QUOTATION: records.find((r) => r.entityType === 'QUOTATION')?.ids ?? [],
-            }),
+            scopeFollowUps(
+              ctx.user,
+              Object.fromEntries(
+                records.filter((r) => r.entityType !== 'CLIENT').map((r) => [r.entityType, r.ids]),
+              ),
+            ),
             ...(p.cursor ? [followUpsAfter(p.cursor)] : []),
           ],
         },
@@ -397,9 +408,12 @@ export async function getClientTimeline(
         status?: unknown;
         lostReason?: unknown;
         poReceivedDate?: unknown;
+        holdReason?: unknown;
+        completedDate?: unknown;
+        cancelReason?: unknown;
       };
       const to = String(after.status ?? '');
-      // Whitelisted fields only; amounts never reach the timeline (M6).
+      // Whitelisted fields only; amounts and revenue never reach the timeline (M6, M8).
       event.change = {
         from,
         to,
@@ -408,6 +422,15 @@ export async function getClientTimeline(
           : {}),
         ...(to === 'PO_RECEIVED' && typeof after.poReceivedDate === 'string'
           ? { poReceivedDate: after.poReceivedDate.slice(0, 10) }
+          : {}),
+        ...(to === 'ON_HOLD' && typeof after.holdReason === 'string'
+          ? { holdReason: after.holdReason }
+          : {}),
+        ...(to === 'COMPLETED' && typeof after.completedDate === 'string'
+          ? { completedDate: after.completedDate.slice(0, 10) }
+          : {}),
+        ...(to === 'CANCELLED' && typeof after.cancelReason === 'string'
+          ? { cancelReason: after.cancelReason }
           : {}),
       };
       event.summary = `${from} → ${to}`;

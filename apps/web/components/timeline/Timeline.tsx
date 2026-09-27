@@ -5,6 +5,7 @@ import type {
   EnquiryStatusValue,
   FollowUpChannelValue,
   FollowUpEntityTypeValue,
+  ProjectStatusValue,
   QuotationStatusValue,
   TimelineKind,
 } from '@sales-tracker/core/schemas';
@@ -32,6 +33,7 @@ import { Button } from '@/components/ui/button';
 import { applyResult } from '@/lib/apply-result';
 import { fieldLabel } from '@/lib/document-labels';
 import { STATUS_LABELS } from '@/lib/enquiry-labels';
+import { PROJECT_STATUS_LABELS } from '@/lib/project-labels';
 import { QUOTATION_STATUS_LABELS } from '@/lib/quotation-labels';
 import { CHANNEL_LABELS, ENTITY_TYPE_LABELS, recordHref } from '@/lib/follow-up-labels';
 import { formatDate, formatTime } from '@/lib/format';
@@ -91,6 +93,7 @@ function statusLabel(type: FollowUpEntityTypeValue, status: string): string {
   if (type === 'QUOTATION') {
     return QUOTATION_STATUS_LABELS[status as QuotationStatusValue] ?? status;
   }
+  if (type === 'PROJECT') return PROJECT_STATUS_LABELS[status as ProjectStatusValue] ?? status;
   return status.toLowerCase();
 }
 
@@ -197,6 +200,17 @@ function EventItem({
           <p className="text-muted-foreground text-[13px]">
             PO received on {formatDate(event.change.poReceivedDate)}
           </p>
+        )}
+        {event.change?.holdReason && (
+          <p className="text-muted-foreground text-[13px]">On hold: {event.change.holdReason}</p>
+        )}
+        {event.change?.completedDate && (
+          <p className="text-muted-foreground text-[13px]">
+            Completed on {formatDate(event.change.completedDate)}
+          </p>
+        )}
+        {event.change?.cancelReason && (
+          <p className="text-muted-foreground text-[13px]">Reason: {event.change.cancelReason}</p>
         )}
         {followUp && (
           <>

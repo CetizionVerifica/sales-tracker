@@ -201,9 +201,11 @@ export function DataTable<T>(props: DataTableProps<T>) {
         </ul>
       )}
       {rows.length > 0 && (
+        // `relative` makes this the containing block for absolutely positioned cell content
+        // (the `sr-only` labels): otherwise they escape the scroll box and widen the page.
         <div
           className={cn(
-            'bg-card max-h-[70vh] overflow-auto rounded-[var(--radius)] border',
+            'bg-card relative max-h-[70vh] overflow-auto rounded-[var(--radius)] border',
             props.mobileCard && 'hidden md:block',
           )}
         >
