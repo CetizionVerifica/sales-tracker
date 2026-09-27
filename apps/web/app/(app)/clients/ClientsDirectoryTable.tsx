@@ -2,8 +2,9 @@
 
 import { createColumnHelper } from '@tanstack/react-table';
 import Link from 'next/link';
-import { DataTable } from '@/components/data-table/DataTable';
-import { Badge } from '@/components/ui/badge';
+import { DataTable } from '@/components/data/DataTable';
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { MarkBadge } from '@/components/pipeline/StatusBadge';
 
 export interface ClientDirectoryRow {
   id: string;
@@ -19,18 +20,14 @@ const column = createColumnHelper<ClientDirectoryRow>();
 const columns = [
   column.accessor('name', {
     header: 'Name',
+    meta: { fixed: true },
     cell: ({ row: { original } }) => (
-      <Link
-        className="font-medium underline-offset-4 hover:underline"
-        href={`/clients/${original.id}`}
-      >
-        {original.name}
-        {original.deleted && (
-          <Badge variant="destructive" className="ml-2">
-            Deleted
-          </Badge>
-        )}
-      </Link>
+      <span className="inline-flex items-center gap-2">
+        <Link className="font-medium hover:underline" href={`/clients/${original.id}`}>
+          {original.name}
+        </Link>
+        {original.deleted && <MarkBadge tone="destructive">Deleted</MarkBadge>}
+      </span>
     ),
   }),
   column.accessor('sector', { header: 'Sector' }),
@@ -45,15 +42,44 @@ export function ClientsDirectoryTable(props: {
   pageSize: number;
   sort?: string;
   dir?: 'asc' | 'desc';
+  filtered: boolean;
 }) {
-  const { rows, ...paging } = props;
+  const { rows, filtered, ...paging } = props;
   return (
     <DataTable
+      id="clients"
       columns={columns}
       data={rows}
       getRowId={(c) => c.id}
+      rowHref={(c) => `/clients/${c.id}`}
       sortable={['name']}
-      emptyText="No clients match these filters."
+      empty={
+        <EmptyState
+          message={
+            filtered
+              ? 'No clients match these filters.'
+              : 'No clients yet. They are added with their first enquiry.'
+          }
+          action={
+            filtered ? (
+              <Link className="text-primary text-sm hover:underline" href="/clients">
+                Clear filters
+              </Link>
+            ) : undefined
+          }
+        />
+      }
+      mobileCard={(c) => (
+        <div className="flex flex-col gap-1">
+          <Link className="font-medium" href={`/clients/${c.id}`}>
+            {c.name}
+          </Link>
+          <p className="text-muted-foreground text-[13px]">
+            {c.sector}
+            {c.gstin ? ` · ${c.gstin}` : ''}
+          </p>
+        </div>
+      )}
       {...paging}
     />
   );

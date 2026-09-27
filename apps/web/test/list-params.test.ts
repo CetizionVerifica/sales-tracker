@@ -43,3 +43,16 @@ describe('parseListParams (URL search params → list input)', () => {
     expect(parsed.q).toBe('acme');
   });
 });
+
+describe('filter helpers (summary chips, empty states)', async () => {
+  const { filterKeys, isOnlyFilter } = await import('../lib/list-params.ts');
+  it('ignores paging and sorting', () => {
+    expect(filterKeys({ page: '2', sort: 'number', dir: 'asc' })).toEqual([]);
+    expect(filterKeys({ status: 'SENT', page: '2' })).toEqual(['status']);
+  });
+  it('knows when one chip is the only filter', () => {
+    expect(isOnlyFilter({ status: 'SENT', page: '3' }, 'status', 'SENT')).toBe(true);
+    expect(isOnlyFilter({ status: 'SENT', q: 'acme' }, 'status', 'SENT')).toBe(false);
+    expect(isOnlyFilter({ status: 'LOST' }, 'status', 'SENT')).toBe(false);
+  });
+});

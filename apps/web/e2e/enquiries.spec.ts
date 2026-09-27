@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { choose, signIn, signOut } from './helpers.ts';
+import { choose, mainNav, sheet, signIn, signOut } from './helpers.ts';
 import { E2E_USERS } from './users.ts';
 
 const NUMBER = /^ENQ-\d{4}-\d{4,}$/;
@@ -10,35 +10,36 @@ test('enquiry: create → convert → quotation draft; RBAC and reassignment', a
   const client = `Tender Co ${Date.now()}`;
 
   await signIn(page, E2E_USERS.sales.email, E2E_USERS.sales.password);
-  await page.getByRole('link', { name: 'Enquiries' }).click();
-  await page.getByRole('link', { name: 'New enquiry' }).click();
+  await mainNav(page).getByRole('link', { name: 'Enquiries' }).click();
+  await page.getByRole('button', { name: 'New enquiry' }).click();
+  const form = sheet(page, 'New enquiry');
 
   // New client inline, with a primary contact.
-  await page.getByRole('button', { name: 'New client' }).click();
-  const dialog = page.getByRole('dialog');
+  await form.getByRole('button', { name: 'New client' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New client' });
   await dialog.getByLabel('Client name').fill(client);
   await choose(page, 'Client sector', 'Energy', dialog);
   await dialog.getByLabel('Primary contact (optional)').fill('Meera');
   await dialog.getByLabel('Contact email').fill('meera@tender.example');
   await dialog.getByRole('button', { name: 'Create client' }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByLabel('Client', { exact: true })).toContainText(client);
-  await expect(page.getByLabel('Sector', { exact: true })).toContainText('Energy');
+  await expect(form.getByLabel('Client', { exact: true })).toContainText(client);
+  await expect(form.getByLabel('Sector', { exact: true })).toContainText('Energy');
 
-  await page.getByLabel('Inspection').click();
-  await page.getByLabel('Certification').click();
-  await choose(page, 'Source', 'Tender portal');
+  await form.getByLabel('Inspection').click();
+  await form.getByLabel('Certification').click();
+  await choose(page, 'Source', 'Tender portal', form);
   // Tender portal needs its details (M4 Decision 10).
-  await page.getByRole('button', { name: 'Create enquiry' }).click();
-  await expect(page.getByText('Add the details for this source')).toBeVisible();
-  await page.getByLabel('Portal and tender ID').fill('GeM GEM/2026/B/7777');
-  await page.getByRole('button', { name: 'Create enquiry' }).click();
+  await form.getByRole('button', { name: 'Create enquiry' }).click();
+  await expect(form.getByText('Add the details for this source')).toBeVisible();
+  await form.getByLabel('Portal and tender ID').fill('GeM GEM/2026/B/7777');
+  await form.getByRole('button', { name: 'Create enquiry' }).click();
 
   const heading = page.getByRole('heading', { level: 1 });
   await expect(heading).toHaveText(NUMBER);
   const number = (await heading.textContent())!.trim();
   const url = page.url();
-  await expect(page.getByText('In progress')).toBeVisible();
+  await expect(page.getByText('In progress', { exact: true })).toBeVisible();
   await expect(page.getByText('GeM GEM/2026/B/7777')).toBeVisible();
 
   // Convert: the dialog records the proposal sent date (defaults to today).
@@ -47,21 +48,22 @@ test('enquiry: create → convert → quotation draft; RBAC and reassignment', a
   await expect(page.getByText('Converted', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mark lost' })).toHaveCount(0);
 
-  // M6 replaced the placeholder with the real form, pre-filled from the draft.
-  await page.getByRole('link', { name: 'Create quotation' }).click();
-  await expect(page.getByRole('heading', { name: 'New quotation' })).toBeVisible();
-  await expect(page.getByRole('link', { name: number })).toBeVisible();
-  await expect(page.getByLabel('Client', { exact: true })).toHaveValue(client);
-  await expect(page.getByLabel('Certification')).toBeChecked();
-  await expect(page.getByLabel('Inspection')).toBeChecked();
-  await expect(page.getByLabel('Audit')).not.toBeChecked();
-  await expect(page.getByLabel('Quotation date')).not.toHaveValue('');
+  // The quotation form opens in a sheet on the enquiry, pre-filled from the draft.
+  await page.getByRole('button', { name: 'Create quotation' }).click();
+  const quote = sheet(page, 'New quotation');
+  await expect(quote).toContainText(`From ${number}`);
+  await expect(quote.getByTestId('quotation-client')).toHaveText(client);
+  await expect(quote.getByLabel('Certification')).toBeChecked();
+  await expect(quote.getByLabel('Inspection')).toBeChecked();
+  await expect(quote.getByLabel('Audit')).not.toBeChecked();
+  await expect(quote.getByLabel('Quotation date')).not.toHaveValue('');
+  await page.keyboard.press('Escape');
   await signOut(page);
 
   // AC15: another rep neither lists nor opens it.
   await signIn(page, E2E_USERS.sales2.email, E2E_USERS.sales2.password);
   await page.goto('/enquiries');
-  await expect(page.getByRole('heading', { name: 'Enquiries' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Enquiries' })).toBeVisible();
   await expect(page.getByRole('link', { name: number })).toHaveCount(0);
   await page.goto(url);
   await expect(page.getByText('This page could not be found')).toBeVisible();
@@ -70,18 +72,20 @@ test('enquiry: create → convert → quotation draft; RBAC and reassignment', a
   // The admin finds it by number and reassigns it.
   await signIn(page, E2E_USERS.admin.email, E2E_USERS.admin.password);
   await page.goto('/enquiries');
-  await page.getByLabel('Search').fill(number);
-  await page.getByLabel('Search').press('Enter');
+  await page.getByLabel('Search', { exact: true }).fill(number);
+  await page.getByLabel('Search', { exact: true }).press('Enter');
   await page.getByRole('link', { name: number }).click();
-  await page.getByRole('link', { name: 'Edit' }).click();
-  await choose(page, 'Owner', 'Sita Sales');
-  await page.getByRole('button', { name: 'Save enquiry' }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  const edit = sheet(page, `Edit ${number}`);
+  await choose(page, 'Owner', 'Sita Sales', edit);
+  await edit.getByRole('button', { name: 'Save enquiry' }).click();
+  await expect(page.getByText('Enquiry saved')).toBeVisible();
   await expect(page).toHaveURL(url);
-  await expect(page.getByText('Sita Sales', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Key facts')).toContainText('Sita Sales');
   // M5 replaced the History panel with the timeline (status changes only); field edits
   // stay in the audit log, where the admin sees their own change.
   await page.goto('/activity');
   await expect(
-    page.getByRole('row').filter({ hasText: 'Enquiry' }).filter({ hasText: 'UPDATE' }).first(),
-  ).toContainText('ownerId');
+    page.getByRole('row').filter({ hasText: 'Enquiry' }).filter({ hasText: 'Updated' }).first(),
+  ).toContainText('Owner id');
 });

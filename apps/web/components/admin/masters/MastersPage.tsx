@@ -1,7 +1,8 @@
 import { listSectors, listServices, type Ctx } from '@sales-tracker/core';
 import { listMastersSchema } from '@sales-tracker/core/schemas';
-import { ListToolbar } from '@/components/data-table/ListToolbar';
-import { parseListParams, type SearchParams } from '@/lib/list-params';
+import { FilterBar } from '@/components/data/FilterBar';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { filterKeys, parseListParams, type SearchParams } from '@/lib/list-params';
 import { MasterDialog } from './MasterDialog';
 import { MastersTable } from './MastersTable';
 
@@ -27,8 +28,17 @@ export async function MastersPage({
   const result = await LIST[kind](ctx, params);
 
   return (
-    <section className="flex flex-col gap-4">
-      <ListToolbar
+    <>
+      <PageHeader
+        title={MASTER_LABEL[kind].many}
+        description={
+          kind === 'sector'
+            ? 'Industries clients belong to; used to group reports'
+            : 'What the company sells; enquiries and quotations pick from these'
+        }
+        actions={<MasterDialog kind={kind} />}
+      />
+      <FilterBar
         searchPlaceholder={`Search ${MASTER_LABEL[kind].many.toLowerCase()}`}
         filters={[
           {
@@ -41,9 +51,7 @@ export async function MastersPage({
             ],
           },
         ]}
-      >
-        <MasterDialog kind={kind} />
-      </ListToolbar>
+      />
       <MastersTable
         kind={kind}
         rows={result.items.map((row) => ({
@@ -58,7 +66,8 @@ export async function MastersPage({
         pageSize={result.pageSize}
         sort={params.sort}
         dir={params.dir}
+        filtered={filterKeys(searchParams).length > 0}
       />
-    </section>
+    </>
   );
 }

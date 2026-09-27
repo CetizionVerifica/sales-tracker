@@ -83,8 +83,15 @@ function MultiFilter({
   );
 }
 
-/** Search box and filters that write to the URL (page resets to 1 on change). */
-export function ListToolbar({
+/** Params that are view state, not filters (Clear keeps them). */
+const NOT_FILTERS = new Set(['page', 'pageSize', 'sort', 'dir']);
+
+/**
+ * Search box and filters that write to the URL, so views are shareable and survive refresh
+ * (UI guide §4.1). The page resets to 1 on change; Clear removes every filter. `children`
+ * holds extra filters (date ranges) on the same bar.
+ */
+export function FilterBar({
   searchPlaceholder,
   filters = [],
   children,
@@ -122,7 +129,7 @@ export function ListToolbar({
             aria-label="Search"
             placeholder={searchPlaceholder}
             defaultValue={searchParams.get('q') ?? ''}
-            className="w-64"
+            className="w-full sm:w-64"
           />
         </form>
       )}
@@ -154,7 +161,24 @@ export function ListToolbar({
           </Select>
         ),
       )}
-      <div className="ml-auto flex gap-2">{children}</div>
+      {children}
+      {[...searchParams.keys()].some((key) => !NOT_FILTERS.has(key)) && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            const params = new URLSearchParams();
+            for (const key of NOT_FILTERS) {
+              const value = searchParams.get(key);
+              if (value && key !== 'page') params.set(key, value);
+            }
+            const query = params.toString();
+            router.push(query ? `${pathname}?${query}` : pathname);
+          }}
+        >
+          Clear
+        </Button>
+      )}
     </div>
   );
 }

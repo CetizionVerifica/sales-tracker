@@ -1,8 +1,10 @@
 import { getDocument, getSettings, NotFoundError } from '@sales-tracker/core';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { requireUser } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
+import { Skeleton } from '@/components/ui/skeleton';
 import { AutoRefresh } from './AutoRefresh';
 import { ReviewForm, type ReviewFormRow } from './ReviewForm';
 
@@ -49,25 +51,17 @@ export default async function ReviewDocumentPage({ params }: { params: Promise<{
   }));
 
   return (
-    <section className="flex flex-col gap-6 py-8">
+    <>
       <AutoRefresh active={reading} />
-      <div className="flex flex-col gap-1">
-        <nav aria-label="Breadcrumb" className="text-muted-foreground text-[13px]">
-          <Link className="hover:underline" href={`/${KIND_PATHS[document.kind]}`}>
-            {KIND_LISTS[document.kind]}
-          </Link>
-          {' / '}
-          <Link className="hover:underline" href={recordHref}>
-            {document.entityLabel}
-          </Link>
-          {' / Review document'}
-        </nav>
-        <h1 className="text-[22px] leading-7 font-semibold">Review {document.originalFilename}</h1>
-        <p className="text-muted-foreground text-sm">
-          Check the values read from the document. Nothing changes on {document.entityLabel} until
-          you confirm.
-        </p>
-      </div>
+      <PageHeader
+        breadcrumbs={[
+          { label: KIND_LISTS[document.kind], href: `/${KIND_PATHS[document.kind]}` },
+          { label: document.entityLabel, href: recordHref },
+          { label: 'Review document' },
+        ]}
+        title={`Review ${document.originalFilename}`}
+        description={`Check the values read from the document. Nothing changes on ${document.entityLabel} until you confirm.`}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="bg-card min-h-[480px] overflow-hidden rounded-[var(--radius)] border">
@@ -95,7 +89,7 @@ export default async function ReviewDocumentPage({ params }: { params: Promise<{
             <div role="status" className="flex flex-col gap-3">
               <p className="text-sm font-medium">Reading document…</p>
               {[0, 1, 2].map((i) => (
-                <div key={i} className="bg-muted h-9 animate-pulse rounded-[var(--radius-md)]" />
+                <Skeleton key={i} className="h-9" />
               ))}
             </div>
           )}
@@ -133,6 +127,6 @@ export default async function ReviewDocumentPage({ params }: { params: Promise<{
           )}
         </div>
       </div>
-    </section>
+    </>
   );
 }

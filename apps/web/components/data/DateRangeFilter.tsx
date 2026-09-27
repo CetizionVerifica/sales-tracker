@@ -30,23 +30,23 @@ export function DateRangeFilter({
   }
 
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <label className="flex items-center gap-1">
+    <div className="flex flex-wrap items-center gap-2 text-[13px]">
+      <label className="flex min-w-0 items-center gap-1 whitespace-nowrap">
         {label ? `${label} from` : 'From'}
         <Input
           type="date"
           aria-label={label ? `${label} from` : 'From date'}
-          className="w-40"
+          className="w-36 sm:w-40"
           defaultValue={searchParams.get(fromParam) ?? ''}
           onChange={(event) => update(fromParam, event.target.value)}
         />
       </label>
-      <label className="flex items-center gap-1">
+      <label className="flex min-w-0 items-center gap-1 whitespace-nowrap">
         {label ? 'to' : 'To'}
         <Input
           type="date"
           aria-label={label ? `${label} to` : 'To date'}
-          className="w-40"
+          className="w-36 sm:w-40"
           defaultValue={searchParams.get(toParam) ?? ''}
           onChange={(event) => update(toParam, event.target.value)}
         />

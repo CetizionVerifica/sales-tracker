@@ -3,11 +3,13 @@
 import type { EnquirySourceValue, EnquiryStatusValue } from '@sales-tracker/core/schemas';
 import { createColumnHelper } from '@tanstack/react-table';
 import Link from 'next/link';
-import { ConfirmButton } from '@/components/ConfirmButton';
-import { DataTable } from '@/components/data-table/DataTable';
-import { Badge } from '@/components/ui/badge';
-import { SOURCE_LABELS, STATUS_BADGE, STATUS_LABELS } from '@/lib/enquiry-labels';
-import { formatDate, formatDateTime } from '@/lib/format';
+import { DataTable } from '@/components/data/DataTable';
+import { DateDisplay } from '@/components/display/DateDisplay';
+import { UserAvatar } from '@/components/display/UserAvatar';
+import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { MarkBadge, StatusBadge } from '@/components/pipeline/StatusBadge';
+import { SOURCE_LABELS } from '@/lib/enquiry-labels';
 import { restoreEnquiryAction } from './actions';
 
 export interface EnquiryRow {
@@ -28,51 +30,56 @@ export interface EnquiryRow {
 
 const column = createColumnHelper<EnquiryRow>();
 
+// Guide §5 column order: identifier → client → descriptors → status → dates → owner → ⋯.
 // Defined once at module level: inline cell renderers remount on every refresh (M3 bug).
 const columns = [
   column.accessor('number', {
     header: 'Number',
-    cell: ({ row: { original } }) =>
-      original.deleted ? (
-        <span className="text-muted-foreground">
-          {original.number} <Badge variant="destructive">Deleted</Badge>
-        </span>
-      ) : (
-        <Link
-          className="font-medium whitespace-nowrap underline-offset-4 hover:underline"
-          href={`/enquiries/${original.id}`}
-        >
+    meta: { fixed: true },
+    cell: ({ row: { original } }) => (
+      <span className="inline-flex items-center gap-2 whitespace-nowrap">
+        <Link className="font-medium hover:underline" href={`/enquiries/${original.id}`}>
           {original.number}
         </Link>
-      ),
-  }),
-  column.accessor('receivedDate', {
-    header: 'Received',
-    cell: (c) => <span className="whitespace-nowrap">{formatDate(c.getValue())}</span>,
+        {original.deleted && <MarkBadge tone="destructive">Deleted</MarkBadge>}
+      </span>
+    ),
   }),
   column.accessor('client', { header: 'Client' }),
   column.accessor('sector', { header: 'Sector' }),
-  column.accessor('services', { header: 'Services' }),
+  column.accessor('services', {
+    header: 'Services',
+    cell: (c) => (
+      <span className="block max-w-56 truncate" title={c.getValue()}>
+        {c.getValue()}
+      </span>
+    ),
+  }),
   column.accessor('source', { header: 'Source', cell: (c) => SOURCE_LABELS[c.getValue()] }),
-  column.accessor('owner', { header: 'Owner' }),
   column.accessor('status', {
     header: 'Status',
-    cell: (c) => <Badge variant={STATUS_BADGE[c.getValue()]}>{STATUS_LABELS[c.getValue()]}</Badge>,
+    cell: (c) => <StatusBadge entity="enquiry" status={c.getValue()} />,
+  }),
+  column.accessor('receivedDate', {
+    header: 'Received',
+    cell: (c) => <DateDisplay value={c.getValue()} />,
   }),
   column.accessor('proposalSentDate', {
     header: 'Proposal sent',
-    cell: (c) => <span className="whitespace-nowrap">{formatDate(c.getValue())}</span>,
+    cell: (c) => <DateDisplay value={c.getValue()} />,
   }),
+  column.accessor('owner', { header: 'Owner', cell: (c) => <UserAvatar name={c.getValue()} /> }),
   column.accessor('updatedAt', {
     header: 'Updated',
-    cell: (c) => formatDateTime(c.getValue()),
+    cell: (c) => <DateDisplay value={c.getValue()} withTime />,
   }),
   column.display({
     id: 'actions',
+    meta: { fixed: true },
     header: () => <span className="sr-only">Actions</span>,
     cell: ({ row: { original } }) =>
       original.deleted && original.canRestore ? (
-        <ConfirmButton
+        <ConfirmDialog
           label="Restore"
           title={`Restore ${original.number}?`}
           description="The enquiry comes back into the list."
@@ -90,13 +97,17 @@ export function EnquiriesTable(props: {
   pageSize: number;
   sort?: string;
   dir?: 'asc' | 'desc';
+  filtered: boolean;
+  canCreate: boolean;
 }) {
-  const { rows, ...paging } = props;
+  const { rows, filtered, canCreate, ...paging } = props;
   return (
     <DataTable
+      id="enquiries"
       columns={columns}
       data={rows}
       getRowId={(e) => e.id}
+      rowHref={(e) => (e.deleted ? null : `/enquiries/${e.id}`)}
       sortable={[
         'number',
         'receivedDate',
@@ -107,7 +118,43 @@ export function EnquiriesTable(props: {
         'proposalSentDate',
         'updatedAt',
       ]}
-      emptyText="No enquiries match these filters."
+      empty={
+        filtered ? (
+          <EmptyState
+            message="No enquiries match these filters."
+            action={
+              <Link className="text-primary text-sm hover:underline" href="/enquiries">
+                Clear filters
+              </Link>
+            }
+          />
+        ) : (
+          <EmptyState
+            message="No enquiries yet. Add the first one when a client gets in touch."
+            action={
+              canCreate ? (
+                <Link className="text-primary text-sm hover:underline" href="/enquiries/new">
+                  New enquiry
+                </Link>
+              ) : undefined
+            }
+          />
+        )
+      }
+      mobileCard={(e) => (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-2">
+            <Link className="font-medium" href={`/enquiries/${e.id}`}>
+              {e.number}
+            </Link>
+            <StatusBadge entity="enquiry" status={e.status} />
+          </div>
+          <p>{e.client}</p>
+          <p className="text-muted-foreground text-[13px]">
+            Received <DateDisplay value={e.receivedDate} />
+          </p>
+        </div>
+      )}
       {...paging}
     />
   );

@@ -1,37 +1,87 @@
 import { can, getCurrentUser } from '@sales-tracker/core';
-import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { SignOutButton } from '@/components/SignOutButton';
+import { AppShell } from '@/components/layout/AppShell';
+import type { PaletteAction } from '@/components/layout/CommandPalette';
+import type { NavGroup, NewMenuItem } from '@/components/layout/nav';
 import { requireUser } from '@/lib/auth';
 import { ROLE_LABELS } from '@/lib/roles';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const ctx = await requireUser();
   const me = await getCurrentUser(ctx);
+  const user = ctx.user;
+  const isAdmin = can(user, 'list', 'user');
+
+  // Only modules that exist, and only what the role can use (UI guide §3). My today,
+  // Dashboard, Projects, POs, Invoices and MCP access join as M8–M13 ship.
+  const groups: NavGroup[] = [
+    { items: [{ href: '/', label: 'Home', icon: 'home', exact: true }] },
+    {
+      label: 'Pipeline',
+      items: [
+        ...(can(user, 'list', 'enquiry')
+          ? [
+              {
+                href: '/enquiries',
+                label: 'Enquiries',
+                icon: 'enquiries',
+                stage: 'enquiry',
+              } as const,
+            ]
+          : []),
+        ...(can(user, 'list', 'quotation')
+          ? [
+              {
+                href: '/quotations',
+                label: 'Quotations',
+                icon: 'quotations',
+                stage: 'quotation',
+              } as const,
+            ]
+          : []),
+        ...(can(user, 'list', 'client')
+          ? [{ href: '/clients', label: 'Clients', icon: 'clients' } as const]
+          : []),
+      ],
+    },
+    ...(isAdmin
+      ? [
+          {
+            label: 'Admin',
+            items: [
+              { href: '/admin/users', label: 'Users', icon: 'users' },
+              { href: '/admin/clients', label: 'Client records', icon: 'clients' },
+              { href: '/admin/sectors', label: 'Sectors', icon: 'sectors' },
+              { href: '/admin/services', label: 'Services', icon: 'services' },
+              { href: '/admin/settings', label: 'Settings', icon: 'settings' },
+              { href: '/admin/audit-log', label: 'Audit log', icon: 'audit' },
+            ],
+          } satisfies NavGroup,
+        ]
+      : []),
+  ];
+
+  // + New: records that start on their own. Quotations start from a converted enquiry
+  // (M6 Decision 1) and follow-ups from a record, so they are not here.
+  const newItems: NewMenuItem[] = [
+    ...(can(user, 'create', 'enquiry') ? [{ href: '/enquiries/new', label: 'Enquiry' }] : []),
+    ...(isAdmin ? [{ href: '/admin/clients/new', label: 'Client' }] : []),
+  ];
+
+  const actions: PaletteAction[] = [
+    ...newItems.map((item) => ({ label: `New ${item.label.toLowerCase()}`, href: item.href })),
+    { label: 'Change password', href: '/account/password' },
+    { label: 'My activity', href: '/activity' },
+  ];
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <nav aria-label="Main" className="flex items-center gap-4 text-sm">
-            <Link href="/" className="font-semibold">
-              Sales Tracker
-            </Link>
-            {can(ctx.user, 'list', 'client') && <Link href="/clients">Clients</Link>}
-            {can(ctx.user, 'list', 'enquiry') && <Link href="/enquiries">Enquiries</Link>}
-            {can(ctx.user, 'list', 'quotation') && <Link href="/quotations">Quotations</Link>}
-            {can(ctx.user, 'list', 'user') && <Link href="/admin">Admin</Link>}
-            <Link href="/activity">My activity</Link>
-            <Link href="/account/password">Change password</Link>
-          </nav>
-          <div className="flex items-center gap-3 text-sm">
-            <span>{me.name}</span>
-            <span className="bg-muted rounded px-2 py-0.5 text-xs">{ROLE_LABELS[me.role]}</span>
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-4">{children}</main>
-    </div>
+    <AppShell
+      user={{ name: me.name, email: me.email, roleLabel: ROLE_LABELS[me.role] }}
+      groups={groups}
+      newItems={newItems}
+      actions={actions}
+    >
+      {children}
+    </AppShell>
   );
 }

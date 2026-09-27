@@ -1,4 +1,5 @@
 import { AuditLogView } from '@/components/audit/AuditLogView';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { requireUser } from '@/lib/auth';
 import type { SearchParams } from '@/lib/list-params';
 
@@ -11,9 +12,9 @@ export default async function ActivityPage({
   searchParams: Promise<SearchParams>;
 }) {
   return (
-    <div className="flex flex-col gap-4 py-8">
-      <h1 className="text-2xl font-semibold">My activity</h1>
+    <>
+      <PageHeader title="My activity" description="Every change you made, with before and after" />
       <AuditLogView ctx={await requireUser()} searchParams={await searchParams} showActor={false} />
-    </div>
+    </>
   );
 }

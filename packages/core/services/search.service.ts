@@ -1,0 +1,77 @@
+import { getDb } from '../clients.ts';
+import { assertCan, type Ctx } from '../context.ts';
+import { can } from '../rbac/can.ts';
+import { scopeEnquiries, scopeQuotations } from '../rbac/scope.ts';
+import {
+  searchRecordsSchema,
+  type SearchRecordsInput,
+  type SearchResultType,
+} from '../schemas/search.ts';
+
+export interface SearchResult {
+  type: SearchResultType;
+  id: string;
+  /** The record's identifier or the client's name. */
+  label: string;
+  /** Secondary text: the client for pipeline records, the sector for clients. */
+  detail: string;
+}
+
+/**
+ * The ⌘K palette's search (UI guide §3): enquiries and quotations by number or client name,
+ * clients by name. Each type is scoped exactly like its list, so a rep never sees another
+ * rep's records; types the user cannot list are skipped. Live records only.
+ */
+export async function searchRecords(ctx: Ctx, input: SearchRecordsInput): Promise<SearchResult[]> {
+  const { q, limit } = searchRecordsSchema.parse(input);
+  assertCan(ctx, 'read', 'client'); // everyone active can; an inactive user is refused
+  const db = getDb();
+  const contains = { contains: q, mode: 'insensitive' as const };
+  const byNumberOrClient = { OR: [{ number: contains }, { client: { name: contains } }] };
+
+  const [enquiries, quotations, clients] = await Promise.all([
+    can(ctx.user, 'list', 'enquiry')
+      ? db.enquiry.findMany({
+          where: { AND: [scopeEnquiries(ctx.user), byNumberOrClient] },
+          select: { id: true, number: true, client: { select: { name: true } } },
+          orderBy: { number: 'desc' },
+          take: limit,
+        })
+      : [],
+    can(ctx.user, 'list', 'quotation')
+      ? db.quotation.findMany({
+          where: { AND: [scopeQuotations(ctx.user), byNumberOrClient] },
+          select: { id: true, number: true, client: { select: { name: true } } },
+          orderBy: { number: 'desc' },
+          take: limit,
+        })
+      : [],
+    db.client.findMany({
+      where: { name: contains },
+      select: { id: true, name: true, sector: { select: { name: true } } },
+      orderBy: { name: 'asc' },
+      take: limit,
+    }),
+  ]);
+
+  return [
+    ...enquiries.map((e) => ({
+      type: 'ENQUIRY' as const,
+      id: e.id,
+      label: e.number,
+      detail: e.client.name,
+    })),
+    ...quotations.map((x) => ({
+      type: 'QUOTATION' as const,
+      id: x.id,
+      label: x.number,
+      detail: x.client.name,
+    })),
+    ...clients.map((c) => ({
+      type: 'CLIENT' as const,
+      id: c.id,
+      label: c.name,
+      detail: c.sector.name,
+    })),
+  ];
+}

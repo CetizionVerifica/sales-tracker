@@ -1,10 +1,10 @@
-import { listClients, listSectors } from '@sales-tracker/core';
+import { listClients, listSectorOptions, listSectors } from '@sales-tracker/core';
 import { listClientsSchema } from '@sales-tracker/core/schemas';
-import Link from 'next/link';
-import { ListToolbar } from '@/components/data-table/ListToolbar';
-import { Button } from '@/components/ui/button';
+import { FilterBar } from '@/components/data/FilterBar';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { requireAdmin } from '@/lib/auth';
-import { parseListParams, type SearchParams } from '@/lib/list-params';
+import { filterKeys, parseListParams, type SearchParams } from '@/lib/list-params';
+import { NewClientButton } from './ClientForm';
 import { ClientsTable } from './ClientsTable';
 
 export const metadata = { title: 'Clients · Sales Tracker' };
@@ -15,16 +15,23 @@ export default async function ClientsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const ctx = await requireAdmin();
-  if (!ctx) return null; // non-admins: the layout shows Forbidden
-  const params = parseListParams(await searchParams, listClientsSchema);
-  const [result, sectors] = await Promise.all([
+  if (!ctx) return null; // non-admins: the layout shows No access
+  const raw = await searchParams;
+  const params = parseListParams(raw, listClientsSchema);
+  const [result, sectors, sectorOptions] = await Promise.all([
     listClients(ctx, params),
     listSectors(ctx, { page: 1, pageSize: 100, status: 'live' }),
+    listSectorOptions(ctx),
   ]);
 
   return (
-    <section className="flex flex-col gap-4">
-      <ListToolbar
+    <>
+      <PageHeader
+        title="Client records"
+        description="Add clients, correct their details and manage contacts"
+        actions={<NewClientButton sectors={sectorOptions} />}
+      />
+      <FilterBar
         searchPlaceholder="Search clients"
         filters={[
           {
@@ -34,11 +41,7 @@ export default async function ClientsPage({
           },
           { param: 'status', label: 'Statuses', options: [{ value: 'deleted', label: 'Deleted' }] },
         ]}
-      >
-        <Button asChild size="sm">
-          <Link href="/admin/clients/new">New client</Link>
-        </Button>
-      </ListToolbar>
+      />
       <ClientsTable
         rows={result.items.map((c) => ({
           id: c.id,
@@ -53,7 +56,8 @@ export default async function ClientsPage({
         pageSize={result.pageSize}
         sort={params.sort}
         dir={params.dir}
+        filtered={filterKeys(raw).length > 0}
       />
-    </section>
+    </>
   );
 }

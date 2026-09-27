@@ -18,12 +18,15 @@ test('document: upload → read → review → confirm; other reps cannot see it
   await createQuotation(page, '1,25,000.50', istDay(7));
   const quotationUrl = page.url();
 
+  // The document lives on the quotation's Documents tab (UI guide §4.2).
+  await page.getByRole('tab', { name: 'Documents' }).click();
   await page.getByLabel('Choose a document').setInputFiles(FIXTURE);
-  await expect(page.getByText('globex-quotation.pdf', { exact: true })).toBeVisible();
+  const card = page.getByRole('region', { name: 'Quotation document' });
+  await expect(card.getByText('globex-quotation.pdf', { exact: true })).toBeVisible();
   // The card polls while the worker reads the file.
-  await expect(page.getByText('Ready to review')).toBeVisible({ timeout: 30_000 });
+  await expect(card.getByText('Ready to review')).toBeVisible({ timeout: 30_000 });
 
-  await page.getByRole('link', { name: 'Review' }).click();
+  await card.getByRole('link', { name: 'Review' }).click();
   await expect(page.getByRole('heading', { name: 'Review globex-quotation.pdf' })).toBeVisible();
   const reviewUrl = page.url();
   const fileUrl = reviewUrl.replace('/documents/', '/api/documents/').replace(/\/review$/, '/file');
@@ -47,7 +50,9 @@ test('document: upload → read → review → confirm; other reps cannot see it
   await expect(page).toHaveURL(quotationUrl);
   await expect(detail(page, 'Amount')).toHaveText('₹3,35,000.00');
   await expect(detail(page, 'Scope and notes')).toHaveText('Third-party inspection of two boilers');
+  await page.getByRole('tab', { name: 'Documents' }).click();
   await expect(page.getByText(/^Confirmed by /)).toBeVisible();
+  await page.getByRole('tab', { name: 'Timeline' }).click();
   await expect(page.getByText(/confirmed globex-quotation\.pdf on/)).toBeVisible();
 
   // The review URL is now read-only.

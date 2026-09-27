@@ -12,15 +12,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { FormSheet } from '@/components/layout/FormSheet';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -71,7 +63,7 @@ function addDays(day: string, days: number): string {
  * Log a follow-up (create) or correct one (edit). On create, `targets` are the records the
  * user may attach it to; a single target is fixed (opened from a record page).
  */
-export function FollowUpDialog({
+export function FollowUpSheet({
   mode,
   targets = [],
   contacts,
@@ -114,7 +106,7 @@ export function FollowUpDialog({
     }) as unknown as Resolver<FollowUpFormValues>,
     defaultValues: defaults,
   });
-  const { errors, isSubmitting } = form.formState;
+  const { errors, isSubmitting, isDirty } = form.formState;
   const date = form.watch('date');
 
   async function submit(values: FollowUpFormValues) {
@@ -125,7 +117,7 @@ export function FollowUpDialog({
       mode === 'create'
         ? await logFollowUpAction({ entityType, entityId, ...data })
         : await updateFollowUpAction({ id: initial!.id, data });
-    if (applyResult(result, form, mode === 'create' ? 'Follow-up logged' : 'Follow-up updated')) {
+    if (applyResult(result, form, mode === 'create' ? 'Follow-up logged' : 'Follow-up saved')) {
       setOpen(false);
       form.reset(mode === 'create' ? defaults : values);
       router.refresh();
@@ -133,20 +125,28 @@ export function FollowUpDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant={triggerVariant}>
-          {triggerLabel}
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{mode === 'create' ? 'Log follow-up' : 'Edit follow-up'}</DialogTitle>
-          <DialogDescription>
-            Record a touchpoint that happened, and when to follow up next.
-          </DialogDescription>
-        </DialogHeader>
-        <form noValidate className="flex flex-col gap-4" onSubmit={form.handleSubmit(submit)}>
+    <>
+      <Button
+        size={triggerVariant === 'ghost' ? 'sm' : 'default'}
+        variant={triggerVariant}
+        onClick={() => setOpen(true)}
+      >
+        {triggerLabel}
+      </Button>
+      <FormSheet
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) form.reset(mode === 'create' ? defaults : initial);
+          setOpen(next);
+        }}
+        title={mode === 'create' ? 'Log follow-up' : 'Edit follow-up'}
+        description="Record a touchpoint that happened, and when to follow up next."
+        submitLabel={mode === 'create' ? 'Log follow-up' : 'Save follow-up'}
+        submitting={isSubmitting}
+        dirty={isDirty}
+        onSubmit={form.handleSubmit(submit)}
+      >
+        <div className="flex flex-col gap-4">
           {mode === 'create' && targets.length > 1 && (
             <Field data-invalid={Boolean(errors.entityId)}>
               <FieldLabel htmlFor="follow-up-record">About</FieldLabel>
@@ -269,14 +269,8 @@ export function FollowUpDialog({
             </div>
             <FieldError errors={[errors.nextFollowUpDate]} />
           </Field>
-
-          <DialogFooter>
-            <Button type="submit" disabled={isSubmitting}>
-              {mode === 'create' ? 'Log follow-up' : 'Save'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </FormSheet>
+    </>
   );
 }

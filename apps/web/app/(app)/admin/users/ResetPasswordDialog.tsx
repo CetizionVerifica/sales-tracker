@@ -12,7 +12,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -27,8 +26,16 @@ function generatePassword(): string {
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
 }
 
-export function ResetPasswordDialog({ user }: { user: UserRow }) {
-  const [open, setOpen] = useState(false);
+/** Opened from the user's ⋯ menu. */
+export function ResetPasswordDialog({
+  user,
+  open,
+  onOpenChange: setOpen,
+}: {
+  user: UserRow;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [issued, setIssued] = useState<string | null>(null);
   const form = useForm({
     resolver: zodResolver(resetPasswordSchema),
@@ -52,11 +59,6 @@ export function ResetPasswordDialog({ user }: { user: UserRow }) {
         }
       }}
     >
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          Reset password
-        </Button>
-      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Reset password for {user.name}</DialogTitle>

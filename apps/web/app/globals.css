@@ -1,61 +1,127 @@
 @import 'tailwindcss';
 
-/* shadcn/ui neutral theme tokens (components reference bg-primary, border-input, etc.). */
+/*
+ * Design tokens from docs/UI-GUIDE.md §2. Components use these only: no raw hex values or
+ * palette colours (bg-blue-500) outside this file. Light is the default; `.dark` is set by
+ * next-themes from the user menu.
+ */
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  /* UI guide semantic status (added in M7 for low-confidence extracted values). */
+  color-scheme: light;
+  /* Neutrals */
+  --background: #f5f6f8;
+  --foreground: #1b2533;
+  --card: #ffffff;
+  --card-foreground: #1b2533;
+  --popover: #ffffff;
+  --popover-foreground: #1b2533;
+  --muted: #eef0f3;
+  --muted-foreground: #5b6675;
+  --border: #dde1e7;
+  --input: #d2d7de;
+
+  /* Brand */
+  --primary: #1e3f66;
+  --primary-foreground: #ffffff;
+  --secondary: #e8edf3;
+  --secondary-foreground: #1e3f66;
+  --accent: #e8edf3;
+  --accent-foreground: #1b2533;
+  --ring: #3a6ea5;
+
+  /* Attention (due today / overdue only) */
+  --attention: #d99a1e;
+  --attention-soft: #fbf1dc;
+  --attention-foreground: #6b4a08;
+
+  /* Semantic status */
+  --success: #2e7d4f;
+  --success-soft: #e4f2e9;
   --warning: #a86a12;
   --warning-soft: #f8eedc;
+  --destructive: #b42318;
+  --destructive-soft: #fbe7e5;
+  --destructive-foreground: #ffffff;
+  --neutral: #6b7686;
+  --neutral-soft: #eef0f3;
+
+  /* Pipeline ramp (light → deep = earlier → later) */
+  --stage-enquiry: #8fa8c8;
+  --stage-quotation: #5f86b3;
+  --stage-project: #3a6a9e;
+  --stage-po: #245184;
+  --stage-invoice: #143a63;
+
+  /* Charts (non-pipeline series) */
+  --chart-1: #245184;
+  --chart-2: #2e7d4f;
+  --chart-3: #d99a1e;
+  --chart-4: #8fa8c8;
+  --chart-5: #6b7686;
+
+  /* Sidebar (shadcn Sidebar also reads the primary/ring pair) */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1b2533;
+  --sidebar-primary: #1e3f66;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef2f7;
+  --sidebar-accent-foreground: #1b2533;
+  --sidebar-border: #dde1e7;
+  --sidebar-ring: #3a6ea5;
+
+  /* Shape */
+  --radius: 10px;
+  --radius-control: 6px;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  /* Native controls (date pickers, scrollbars) follow the theme. */
+  color-scheme: dark;
+  --background: #10161f;
+  --foreground: #e6eaf0;
+  --card: #161e29;
+  --card-foreground: #e6eaf0;
+  --popover: #1b2431;
+  --popover-foreground: #e6eaf0;
+  --muted: #1e2835;
+  --muted-foreground: #97a2b1;
+  --border: #2a3544;
+  --input: #334051;
+  --primary: #7fa6d4;
+  --primary-foreground: #0e1620;
+  --secondary: #1f2b3a;
+  --secondary-foreground: #c9d6e6;
+  --accent: #1f2b3a;
+  --accent-foreground: #e6eaf0;
+  --ring: #7fa6d4;
+  --attention: #e8b040;
+  --attention-soft: #3a2e14;
+  --attention-foreground: #f4d58f;
+  --success: #5bb582;
+  --success-soft: #16301f;
   --warning: #d9a04a;
   --warning-soft: #33280f;
+  --destructive: #e0675c;
+  --destructive-soft: #3a1714;
+  --neutral: #97a2b1;
+  --neutral-soft: #1e2835;
+  --sidebar: #131a24;
+  --sidebar-foreground: #e6eaf0;
+  --sidebar-primary: #7fa6d4;
+  --sidebar-primary-foreground: #0e1620;
+  --sidebar-accent: #1f2b3a;
+  --sidebar-accent-foreground: #e6eaf0;
+  --sidebar-border: #2a3544;
+  --sidebar-ring: #7fa6d4;
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: var(--radius-control);
+  --radius-md: var(--radius-control);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: var(--radius);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -70,12 +136,39 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-attention: var(--attention);
+  --color-attention-soft: var(--attention-soft);
+  --color-attention-foreground: var(--attention-foreground);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
+  --color-destructive: var(--destructive);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-neutral: var(--neutral);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-stage-enquiry: var(--stage-enquiry);
+  --color-stage-quotation: var(--stage-quotation);
+  --color-stage-project: var(--stage-project);
+  --color-stage-po: var(--stage-po);
+  --color-stage-invoice: var(--stage-invoice);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 @layer base {
@@ -83,6 +176,29 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    /* Body text 14/20 (guide §2 typography); set on body so rem spacing stays 16px-based. */
+    font-size: 14px;
+    line-height: 20px;
+  }
+  /* Visible focus ring on every interactive element (guide §8). */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Tabular figures for every number (guide §2); right-align them in tables. */
+  .num {
+    font-variant-numeric: tabular-nums;
   }
 }

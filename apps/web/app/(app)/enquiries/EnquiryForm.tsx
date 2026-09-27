@@ -11,7 +11,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
-import { Button } from '@/components/ui/button';
+import { FormSheet } from '@/components/layout/FormSheet';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Field,
@@ -90,11 +90,15 @@ export function EnquiryForm({
   enquiry,
   options,
   today,
+  open,
+  onOpenChange,
 }: {
   enquiry?: EnquiryFormValues;
   options: EnquiryFormOptions;
   /** Today in IST (YYYY-MM-DD), the latest date the pickers allow. */
   today: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
   const [clients, setClients] = useState(options.clients);
@@ -114,7 +118,7 @@ export function EnquiryForm({
       ownerId: options.owners ? enquiry?.ownerId : undefined,
     },
   });
-  const { errors, isSubmitting } = form.formState;
+  const { errors, isSubmitting, isDirty } = form.formState;
   const source = useWatch({ control: form.control, name: 'source' });
   const detail = source ? SOURCE_DETAIL[source] : undefined;
 
@@ -137,30 +141,37 @@ export function EnquiryForm({
   }, [clients, createdClientId]);
 
   return (
-    <form
-      noValidate
-      className="max-w-xl"
+    <FormSheet
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) form.reset();
+        onOpenChange(next);
+      }}
+      title={enquiry ? `Edit ${enquiry.number}` : 'New enquiry'}
+      description={enquiry ? undefined : 'Log it as soon as a client gets in touch.'}
+      submitLabel={enquiry ? 'Save enquiry' : 'Create enquiry'}
+      submitting={isSubmitting}
+      dirty={isDirty}
       onSubmit={form.handleSubmit(async (data) => {
         const values = options.owners ? data : { ...data, ownerId: undefined };
         if (enquiry) {
           const result = await updateEnquiryAction({ id: enquiry.id, data: values });
-          if (applyResult(result, form, 'Enquiry saved')) router.push(`/enquiries/${enquiry.id}`);
+          if (applyResult(result, form, 'Enquiry saved')) {
+            form.reset(data);
+            onOpenChange(false);
+            router.refresh();
+          }
           return;
         }
         const result = await createEnquiryAction(values);
         if (applyResult(result, form, 'Enquiry created')) {
+          // Navigate only: closing the sheet here would also rewrite the URL (?new=1) and
+          // race this push. Leaving the page closes the sheet.
           router.push(`/enquiries/${result.data.id}`);
         }
       })}
     >
       <FieldGroup>
-        {enquiry && (
-          <Field>
-            <FieldLabel htmlFor="enquiry-number">Enquiry number</FieldLabel>
-            <Input id="enquiry-number" value={enquiry.number} readOnly disabled />
-          </Field>
-        )}
-
         <Field data-invalid={Boolean(errors.clientId)}>
           <div className="flex items-center justify-between">
             <FieldLabel htmlFor="enquiry-client">Client</FieldLabel>
@@ -328,9 +339,6 @@ export function EnquiryForm({
           </Field>
         )}
       </FieldGroup>
-      <Button type="submit" className="mt-6" disabled={isSubmitting}>
-        {enquiry ? 'Save enquiry' : 'Create enquiry'}
-      </Button>
-    </form>
+    </FormSheet>
   );
 }

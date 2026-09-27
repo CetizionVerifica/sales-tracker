@@ -17,8 +17,11 @@ import { Button } from '@/components/ui/button';
 import type { ActionResult } from '@/lib/action-core';
 import { applyResult } from '@/lib/apply-result';
 
-/** A button that asks for confirmation, runs a server action, and refreshes the page. */
-export function ConfirmButton({
+/**
+ * A button that asks for confirmation, runs a server action, and refreshes the page. Titles
+ * name the record ("Delete ENQ-0142?", UI guide §5); the toast uses the button's verb.
+ */
+export function ConfirmDialog({
   label,
   title,
   description,
@@ -26,6 +29,8 @@ export function ConfirmButton({
   success,
   run,
   variant = 'outline',
+  open: controlledOpen,
+  onOpenChange,
 }: {
   label: string;
   title: string;
@@ -34,18 +39,26 @@ export function ConfirmButton({
   success: string;
   run: () => Promise<ActionResult<unknown>>;
   variant?: ComponentProps<typeof Button>['variant'];
+  /** Controlled from elsewhere (a row's ⋯ menu): no trigger button is rendered. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : ownOpen;
+  const setOpen = (next: boolean) => (controlled ? onOpenChange?.(next) : setOwnOpen(next));
   const [pending, startTransition] = useTransition();
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger asChild>
-        <Button variant={variant} size="sm">
-          {label}
-        </Button>
-      </AlertDialogTrigger>
+      {!controlled && (
+        <AlertDialogTrigger asChild>
+          <Button variant={variant} size="sm">
+            {label}
+          </Button>
+        </AlertDialogTrigger>
+      )}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
@@ -55,6 +68,11 @@ export function ConfirmButton({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             disabled={pending}
+            className={
+              variant === 'destructive'
+                ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                : undefined
+            }
             onClick={(event) => {
               event.preventDefault();
               startTransition(async () => {

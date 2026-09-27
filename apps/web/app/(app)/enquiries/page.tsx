@@ -1,6 +1,7 @@
 import {
   can,
   enquiryResource,
+  enquiryStatusCounts,
   listClientOptions,
   listEnquiries,
   listEnquiryOwnerOptions,
@@ -8,15 +9,18 @@ import {
   listServiceOptions,
 } from '@sales-tracker/core';
 import { listEnquiriesSchema } from '@sales-tracker/core/schemas';
-import Link from 'next/link';
-import { DateRangeFilter } from '@/components/audit/DateRangeFilter';
-import { ListToolbar, type FilterDef } from '@/components/data-table/ListToolbar';
-import { Forbidden } from '@/components/Forbidden';
-import { Button } from '@/components/ui/button';
+import { SummaryStrip } from '@/components/data/SummaryStrip';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { DateRangeFilter } from '@/components/data/DateRangeFilter';
+import { FilterBar, type FilterDef } from '@/components/data/FilterBar';
+import { NoAccess } from '@/components/feedback/NoAccess';
 import { requireUser } from '@/lib/auth';
 import { SOURCE_LABELS, STATUS_LABELS, toOptions } from '@/lib/enquiry-labels';
-import { parseListParams, type SearchParams } from '@/lib/list-params';
+import { filterKeys, isOnlyFilter, parseListParams, type SearchParams } from '@/lib/list-params';
 import { EnquiriesTable } from './EnquiriesTable';
+import { NewEnquiryButton } from './EnquirySheets';
+import { loadEnquiryFormOptions } from './form-options';
+import { istToday } from '@/lib/display';
 
 export const metadata = { title: 'Enquiries · Sales Tracker' };
 
@@ -29,16 +33,20 @@ export default async function EnquiriesPage({
   searchParams: Promise<SearchParams>;
 }) {
   const ctx = await requireUser();
-  if (!can(ctx.user, 'list', 'enquiry')) return <Forbidden />;
-  const params = parseListParams(await searchParams, listEnquiriesSchema);
+  if (!can(ctx.user, 'list', 'enquiry')) return <NoAccess />;
+  const raw = await searchParams;
+  const params = parseListParams(raw, listEnquiriesSchema);
+  const canCreate = can(ctx.user, 'create', 'enquiry');
   const isAdmin = can(ctx.user, 'list', 'user');
 
-  const [result, clients, sectors, services, owners] = await Promise.all([
+  const [result, counts, clients, sectors, services, owners, formOptions] = await Promise.all([
     listEnquiries(ctx, params),
+    enquiryStatusCounts(ctx),
     listClientOptions(ctx),
     listSectorOptions(ctx),
     listServiceOptions(ctx),
     isAdmin ? listEnquiryOwnerOptions(ctx) : null,
+    canCreate ? loadEnquiryFormOptions(ctx) : null,
   ]);
 
   const filters: FilterDef[] = [
@@ -56,24 +64,35 @@ export default async function EnquiriesPage({
     },
   ];
 
+  const chip = (status: 'IN_PROGRESS' | 'CONVERTED' | 'LOST', label: string) => ({
+    label,
+    count: counts[status],
+    href: `/enquiries?status=${status}`,
+    active: isOnlyFilter(raw, 'status', status),
+  });
+
   return (
-    <section className="flex flex-col gap-4 py-8">
-      <h1 className="text-2xl font-semibold">Enquiries</h1>
-      <ListToolbar searchPlaceholder="Search number, client, details" filters={filters}>
-        {can(ctx.user, 'create', 'enquiry') && (
-          <Button asChild size="sm">
-            <Link href="/enquiries/new">New enquiry</Link>
-          </Button>
-        )}
-      </ListToolbar>
-      <div className="flex flex-wrap gap-4">
+    <>
+      <PageHeader
+        title="Enquiries"
+        description="Track every enquiry from first contact to conversion"
+        actions={formOptions && <NewEnquiryButton options={formOptions} today={istToday()} />}
+      />
+      <SummaryStrip
+        chips={[
+          chip('IN_PROGRESS', 'In progress'),
+          chip('CONVERTED', 'Converted'),
+          chip('LOST', 'Lost'),
+        ]}
+      />
+      <FilterBar searchPlaceholder="Search number, client, details" filters={filters}>
         <DateRangeFilter label="Received" fromParam="receivedFrom" toParam="receivedTo" />
         <DateRangeFilter
           label="Proposal sent"
           fromParam="proposalSentFrom"
           toParam="proposalSentTo"
         />
-      </div>
+      </FilterBar>
       <EnquiriesTable
         rows={result.items.map((e) => ({
           id: e.id,
@@ -95,7 +114,9 @@ export default async function EnquiriesPage({
         pageSize={result.pageSize}
         sort={params.sort}
         dir={params.dir}
+        filtered={filterKeys(raw).length > 0}
+        canCreate={canCreate}
       />
-    </section>
+    </>
   );
 }

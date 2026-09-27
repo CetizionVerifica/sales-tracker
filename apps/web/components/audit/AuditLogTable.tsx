@@ -2,8 +2,7 @@
 
 import { createColumnHelper } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
-import { DataTable } from '@/components/data-table/DataTable';
-import { Badge } from '@/components/ui/badge';
+import { DataTable } from '@/components/data/DataTable';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -12,6 +11,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { DateDisplay } from '@/components/display/DateDisplay';
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { MarkBadge } from '@/components/pipeline/StatusBadge';
+import { AUDIT_ACTION_LABELS, AUDIT_SOURCE_LABELS, humanize } from '@/lib/audit-labels';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -37,7 +40,7 @@ function show(value: unknown): string {
 }
 
 /** Before/after of one change, every field, with the changed ones highlighted. */
-function ChangeDetail({ row }: { row: AuditRowView }) {
+export function ChangeDetail({ row }: { row: AuditRowView }) {
   const fields = [...new Set([...Object.keys(row.before ?? {}), ...Object.keys(row.after ?? {})])];
   return (
     <table className="w-full text-sm" aria-label="Changes">
@@ -55,9 +58,9 @@ function ChangeDetail({ row }: { row: AuditRowView }) {
             <tr
               key={field}
               data-changed={changed || undefined}
-              className={cn(changed && 'bg-amber-50 font-medium')}
+              className={cn(changed && 'bg-accent font-medium')}
             >
-              <td className="py-1 pr-2 align-top">{field}</td>
+              <td className="py-1 pr-2 align-top">{humanize(field)}</td>
               <td className="py-1 pr-2 align-top break-all">
                 {row.before ? show(row.before[field]) : '—'}
               </td>
@@ -90,26 +93,39 @@ export function AuditLogTable({
     () => [
       column.accessor('createdAt', {
         header: 'When (IST)',
-        cell: (c) => formatDateTime(c.getValue()),
+        meta: { fixed: true },
+        cell: (c) => <DateDisplay value={c.getValue()} withTime />,
       }),
       ...(showActor ? [column.accessor('actor', { header: 'Who' })] : []),
       column.accessor('action', {
         header: 'Action',
-        cell: (c) => <Badge variant="outline">{c.getValue()}</Badge>,
+        cell: (c) => (
+          <MarkBadge>{AUDIT_ACTION_LABELS[c.getValue()] ?? humanize(c.getValue())}</MarkBadge>
+        ),
       }),
-      column.accessor('entityType', { header: 'Record' }),
+      column.accessor('entityType', { header: 'Record', cell: (c) => humanize(c.getValue()) }),
       column.accessor('changedFields', {
         header: 'Changed',
-        cell: (c) => c.getValue().join(', ') || '—',
+        cell: (c) => (
+          <span className="block max-w-72 truncate" title={c.getValue().map(humanize).join(', ')}>
+            {c.getValue().map(humanize).join(', ') || '—'}
+          </span>
+        ),
       }),
-      column.accessor('source', { header: 'Source' }),
+      column.accessor('source', {
+        header: 'Source',
+        cell: (c) => AUDIT_SOURCE_LABELS[c.getValue()] ?? humanize(c.getValue()),
+      }),
       column.display({
         id: 'view',
+        meta: { fixed: true },
         header: () => <span className="sr-only">Details</span>,
         cell: ({ row: { original } }) => (
-          <Button size="sm" variant="outline" onClick={() => setSelected(original)}>
-            View
-          </Button>
+          <div className="flex justify-end">
+            <Button size="sm" variant="outline" onClick={() => setSelected(original)}>
+              View
+            </Button>
+          </div>
         ),
       }),
     ],
@@ -119,10 +135,27 @@ export function AuditLogTable({
   return (
     <>
       <DataTable
+        id={showActor ? 'audit-log' : 'my-activity'}
         columns={columns}
         data={rows}
         getRowId={(r) => r.id}
-        emptyText="No changes recorded for these filters."
+        empty={<EmptyState message="No changes recorded for these filters." />}
+        mobileCard={(r) => (
+          <button
+            type="button"
+            className="flex w-full flex-col gap-1 text-left"
+            onClick={() => setSelected(r)}
+          >
+            <span className="font-medium">
+              {AUDIT_ACTION_LABELS[r.action] ?? humanize(r.action)}{' '}
+              {humanize(r.entityType).toLowerCase()}
+            </span>
+            <span className="text-muted-foreground text-[13px]">
+              {formatDateTime(r.createdAt)}
+              {showActor ? ` · ${r.actor}` : ''}
+            </span>
+          </button>
+        )}
         {...paging}
       />
       <Sheet open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
@@ -131,11 +164,12 @@ export function AuditLogTable({
             <>
               <SheetHeader>
                 <SheetTitle>
-                  {selected.action} {selected.entityType}
+                  {AUDIT_ACTION_LABELS[selected.action] ?? humanize(selected.action)}{' '}
+                  {humanize(selected.entityType).toLowerCase()}
                 </SheetTitle>
                 <SheetDescription>
-                  {formatDateTime(selected.createdAt)} · {selected.actor} · {selected.source} · id{' '}
-                  {selected.entityId}
+                  {formatDateTime(selected.createdAt)} · {selected.actor} ·{' '}
+                  {AUDIT_SOURCE_LABELS[selected.source] ?? selected.source} · id {selected.entityId}
                 </SheetDescription>
               </SheetHeader>
               <div className="px-4 pb-6">

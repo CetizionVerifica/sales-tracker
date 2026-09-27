@@ -5,7 +5,7 @@ import { FileText, Loader2, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { ConfirmButton } from '@/components/ConfirmButton';
+import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import type { ActionResult } from '@/lib/action-core';
 import { applyResult } from '@/lib/apply-result';
@@ -106,10 +106,10 @@ export function DocumentCard({
   return (
     <section
       aria-labelledby="document-heading"
-      className="bg-card flex max-w-3xl flex-col gap-3 rounded-[var(--radius)] border p-4"
+      className="bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4"
     >
       <h2 id="document-heading" className="text-base font-semibold">
-        Document
+        Quotation document
       </h2>
 
       {!document && !canUpdate && (
@@ -179,7 +179,7 @@ export function DocumentCard({
                     Replace
                   </Button>
                   {picker}
-                  <ConfirmButton
+                  <ConfirmDialog
                     label="Delete"
                     variant="destructive"
                     title={`Delete ${document.originalFilename}?`}

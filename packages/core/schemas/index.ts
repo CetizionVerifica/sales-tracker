@@ -10,5 +10,6 @@ export * from './list-params.ts';
 export * from './master.ts';
 export * from './money.ts';
 export * from './quotation.ts';
+export * from './search.ts';
 export * from './settings.ts';
 export * from './user.ts';

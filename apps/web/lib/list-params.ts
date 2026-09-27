@@ -31,3 +31,17 @@ export function toSearch(state: Record<string, string | number | undefined | nul
   const query = params.toString();
   return query ? `?${query}` : '';
 }
+
+/** URL params that are view state (paging, sorting), not filters. */
+const VIEW_PARAMS = new Set(['page', 'pageSize', 'sort', 'dir']);
+
+/** The filter params a list URL carries (search included). */
+export function filterKeys(params: SearchParams): string[] {
+  return Object.keys(params).filter((key) => !VIEW_PARAMS.has(key) && params[key] !== undefined);
+}
+
+/** Whether the list is filtered by exactly `key=value` (a summary chip is active). */
+export function isOnlyFilter(params: SearchParams, key: string, value: string): boolean {
+  const keys = filterKeys(params);
+  return keys.length === 1 && keys[0] === key && params[key] === value;
+}

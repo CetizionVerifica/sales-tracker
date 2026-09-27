@@ -9,9 +9,13 @@ export async function signIn(page: Page, email: string, password: string) {
 }
 
 export async function signOut(page: Page) {
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: 'User menu' }).click();
+  await page.getByRole('menuitem', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/login/);
 }
+
+/** The sidebar's main navigation (UI guide §3). */
+export const mainNav = (page: Page) => page.getByRole('navigation', { name: 'Main' });
 
 /**
  * Picks an option in a shadcn/Radix Select by its exact label, searched within `scope`
@@ -48,23 +52,31 @@ export const shown = (day: string) =>
     timeZone: 'UTC',
   }).format(new Date(`${day}T00:00:00Z`));
 
-/** The value next to a label in a detail page's field list. */
+/**
+ * The value next to a label in a detail page's field list. The first match: a fact can
+ * appear both in the Overview and the Key facts panel.
+ */
 export const detail = (page: Page, label: string) =>
-  page.locator('dt', { hasText: new RegExp(`^${label}`) }).locator('xpath=following-sibling::dd');
+  page
+    .locator('dt', { hasText: new RegExp(`^${label}`) })
+    .locator('xpath=following-sibling::dd')
+    .first();
 
 /** As the signed-in rep: a converted enquiry for a new client (the M4 flow); returns its URL. */
 export async function convertedEnquiry(page: Page, client: string): Promise<string> {
+  // New enquiries open in a side sheet (old /new links land on it).
   await page.goto('/enquiries/new');
-  await page.getByRole('button', { name: 'New client' }).click();
-  const dialog = page.getByRole('dialog');
+  const sheet = page.getByRole('dialog', { name: 'New enquiry' });
+  await sheet.getByRole('button', { name: 'New client' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New client' });
   await dialog.getByLabel('Client name').fill(client);
   await choose(page, 'Client sector', 'Energy', dialog);
   await dialog.getByRole('button', { name: 'Create client' }).click();
   await expect(dialog).toBeHidden();
-  await page.getByLabel('Inspection').click();
-  await page.getByLabel('Audit').click();
-  await choose(page, 'Source', 'Email');
-  await page.getByRole('button', { name: 'Create enquiry' }).click();
+  await sheet.getByLabel('Inspection').click();
+  await sheet.getByLabel('Audit').click();
+  await choose(page, 'Source', 'Email', sheet);
+  await sheet.getByRole('button', { name: 'Create enquiry' }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^ENQ-/);
   await page.getByRole('button', { name: 'Convert' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Convert' }).click();
@@ -72,13 +84,16 @@ export async function convertedEnquiry(page: Page, client: string): Promise<stri
   return page.url();
 }
 
+/** The open side sheet with this title (create and edit forms, UI guide §4.3). */
+export const sheet = (page: Page, title: string) => page.getByRole('dialog', { name: title });
+
 /** From a converted enquiry's page: creates a quotation and returns its number. */
 export async function createQuotation(page: Page, amount: string, next: string): Promise<string> {
-  await page.getByRole('link', { name: 'Create quotation' }).click();
-  await expect(page.getByRole('heading', { name: 'New quotation' })).toBeVisible();
-  await page.getByLabel('Amount').fill(amount);
-  await page.getByLabel('Next follow-up').fill(next);
   await page.getByRole('button', { name: 'Create quotation' }).click();
+  const form = page.getByRole('dialog', { name: 'New quotation' });
+  await form.getByLabel('Amount').fill(amount);
+  await form.getByLabel('Next follow-up').fill(next);
+  await form.getByRole('button', { name: 'Create quotation' }).click();
   const heading = page.getByRole('heading', { level: 1 });
   await expect(heading).toHaveText(QUOTATION_NUMBER);
   return (await heading.textContent())!.trim();

@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { FormSheet } from '@/components/layout/FormSheet';
 import { applyResult } from '@/lib/apply-result';
 import type { Option } from '../enquiries/form-options';
 import { createQuotationAction, updateQuotationAction } from './actions';
@@ -114,6 +115,9 @@ export function QuotationForm({
   options,
   today,
   closed = false,
+  enquiryNumber,
+  open,
+  onOpenChange,
 }: {
   /** Edit: the quotation's id and number. */
   quotation?: { id: string; number: string };
@@ -123,6 +127,10 @@ export function QuotationForm({
   /** Today in IST (YYYY-MM-DD), the latest date the pickers allow. */
   today: string;
   closed?: boolean;
+  /** Create: the enquiry it comes from ("From ENQ-0142", UI guide §4.3). */
+  enquiryNumber?: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
   const schema = closed ? closedQuotationFormSchema : createQuotationFormSchema;
@@ -137,7 +145,7 @@ export function QuotationForm({
       ownerId: options.owners ? initial.ownerId : undefined,
     },
   });
-  const { errors, isSubmitting } = form.formState;
+  const { errors, isSubmitting, isDirty } = form.formState;
   const [amount, currency, quotationDate] = useWatch({
     control: form.control,
     name: ['amount', 'currency', 'quotationDate'],
@@ -150,6 +158,7 @@ export function QuotationForm({
     if (!quotation) {
       const result = await createQuotationAction({ enquiryId, ...fields, ...owner });
       if (applyResult(result, form, 'Quotation created')) {
+        // Navigate only (see EnquiryForm): leaving the page closes the sheet.
         router.push(`/quotations/${result.data.id}`);
       }
       return;
@@ -158,22 +167,40 @@ export function QuotationForm({
       ? { description: fields.description, lastFollowUpHighlights: fields.lastFollowUpHighlights }
       : { ...fields, ...owner };
     const result = await updateQuotationAction({ id: quotation.id, data });
-    if (applyResult(result, form, 'Quotation saved')) router.push(`/quotations/${quotation.id}`);
+    if (applyResult(result, form, 'Quotation saved')) {
+      form.reset(values);
+      onOpenChange(false);
+      router.refresh();
+    }
   }
 
   return (
-    <form noValidate className="max-w-xl" onSubmit={form.handleSubmit(submit)}>
+    <FormSheet
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) form.reset();
+        onOpenChange(next);
+      }}
+      title={quotation ? `Edit ${quotation.number}` : 'New quotation'}
+      description={
+        quotation
+          ? closed
+            ? 'A quotation with a PO received or marked lost only takes notes.'
+            : undefined
+          : enquiryNumber
+            ? `From ${enquiryNumber}. Client, sector and services come from the enquiry.`
+            : undefined
+      }
+      submitLabel={quotation ? 'Save quotation' : 'Create quotation'}
+      submitting={isSubmitting}
+      dirty={isDirty}
+      onSubmit={form.handleSubmit(submit)}
+    >
       <FieldGroup>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {quotation && (
-            <Field>
-              <FieldLabel htmlFor="quotation-number">Quotation number</FieldLabel>
-              <Input id="quotation-number" value={quotation.number} readOnly disabled />
-            </Field>
-          )}
           <Field>
-            <FieldLabel htmlFor="quotation-client">Client</FieldLabel>
-            <Input id="quotation-client" value={client} readOnly disabled />
+            <span className="text-muted-foreground text-[13px]">Client</span>
+            <span data-testid="quotation-client">{client}</span>
             <FieldDescription>Always the enquiry’s client.</FieldDescription>
           </Field>
         </div>
@@ -342,9 +369,6 @@ export function QuotationForm({
           </Field>
         )}
       </FieldGroup>
-      <Button type="submit" className="mt-6" disabled={isSubmitting}>
-        {quotation ? 'Save quotation' : 'Create quotation'}
-      </Button>
-    </form>
+    </FormSheet>
   );
 }

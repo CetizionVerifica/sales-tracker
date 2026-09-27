@@ -1,11 +1,13 @@
 'use client';
 
 import { createColumnHelper } from '@tanstack/react-table';
-import { useMemo } from 'react';
-import { ConfirmButton } from '@/components/ConfirmButton';
-import { DataTable } from '@/components/data-table/DataTable';
-import { Badge } from '@/components/ui/badge';
-import { formatDateTime } from '@/lib/format';
+import { useMemo, useState } from 'react';
+import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
+import { DataTable } from '@/components/data/DataTable';
+import { RowActions } from '@/components/data/RowActions';
+import { DateDisplay } from '@/components/display/DateDisplay';
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { MarkBadge } from '@/components/pipeline/StatusBadge';
 import { deleteMasterAction, restoreMasterAction } from './actions';
 import { MasterDialog } from './MasterDialog';
 
@@ -19,9 +21,53 @@ export interface MasterRowView {
 
 const column = createColumnHelper<MasterRowView>();
 
+/** A sector's or service's ⋯ menu: edit, delete, or restore a deleted one. */
+function MasterActions({ kind, row }: { kind: 'sector' | 'service'; row: MasterRowView }) {
+  const [open, setOpen] = useState<'edit' | 'delete' | 'restore' | null>(null);
+  const close = (next: boolean) => !next && setOpen(null);
+  return (
+    <div className="flex justify-end">
+      <RowActions
+        label={row.name}
+        actions={
+          row.deleted
+            ? [{ label: 'Restore', onSelect: () => setOpen('restore') }]
+            : [
+                { label: `Edit ${kind}`, onSelect: () => setOpen('edit') },
+                { label: 'Delete', onSelect: () => setOpen('delete'), destructive: true },
+              ]
+        }
+      />
+      {!row.deleted && (
+        <MasterDialog kind={kind} row={row} open={open === 'edit'} onOpenChange={close} />
+      )}
+      <ConfirmDialog
+        open={open === 'delete'}
+        onOpenChange={close}
+        variant="destructive"
+        label="Delete"
+        title={`Delete “${row.name}”?`}
+        description="Existing records keep showing it. You can restore it from the Deleted filter."
+        success={`“${row.name}” deleted`}
+        run={() => deleteMasterAction({ kind, id: row.id })}
+      />
+      <ConfirmDialog
+        open={open === 'restore'}
+        onOpenChange={close}
+        label="Restore"
+        title={`Restore “${row.name}”?`}
+        description="It becomes available again."
+        success={`“${row.name}” restored`}
+        run={() => restoreMasterAction({ kind, id: row.id })}
+      />
+    </div>
+  );
+}
+
 export function MastersTable({
   kind,
   rows,
+  filtered,
   ...paging
 }: {
   kind: 'sector' | 'service';
@@ -31,55 +77,33 @@ export function MastersTable({
   pageSize: number;
   sort?: string;
   dir?: 'asc' | 'desc';
+  filtered: boolean;
 }) {
   // Memoised so cells (and their dialogs) survive refreshes; see UsersTable.
   const columns = useMemo(
     () => [
-      column.accessor('name', { header: 'Name' }),
+      column.accessor('name', { header: 'Name', meta: { fixed: true } }),
       column.display({
         id: 'status',
         header: 'Status',
         cell: ({ row: { original } }) =>
           original.deleted ? (
-            <Badge variant="destructive">Deleted</Badge>
+            <MarkBadge tone="destructive">Deleted</MarkBadge>
           ) : original.active ? (
-            <Badge variant="secondary">Active</Badge>
+            <MarkBadge tone="success">Active</MarkBadge>
           ) : (
-            <Badge variant="outline">Inactive</Badge>
+            <MarkBadge>Inactive</MarkBadge>
           ),
       }),
       column.accessor('updatedAt', {
         header: 'Updated',
-        cell: (c) => formatDateTime(c.getValue()),
+        cell: (c) => <DateDisplay value={c.getValue()} withTime />,
       }),
       column.display({
         id: 'actions',
+        meta: { fixed: true },
         header: () => <span className="sr-only">Actions</span>,
-        cell: ({ row: { original } }) => (
-          <div className="flex justify-end gap-2">
-            {original.deleted ? (
-              <ConfirmButton
-                label="Restore"
-                title={`Restore “${original.name}”?`}
-                description="It becomes available again."
-                success={`“${original.name}” restored`}
-                run={() => restoreMasterAction({ kind, id: original.id })}
-              />
-            ) : (
-              <>
-                <MasterDialog kind={kind} row={original} />
-                <ConfirmButton
-                  label="Delete"
-                  variant="destructive"
-                  title={`Delete “${original.name}”?`}
-                  description="Existing records keep showing it. You can restore it from the Deleted filter."
-                  success={`“${original.name}” deleted`}
-                  run={() => deleteMasterAction({ kind, id: original.id })}
-                />
-              </>
-            )}
-          </div>
-        ),
+        cell: ({ row: { original } }) => <MasterActions kind={kind} row={original} />,
       }),
     ],
     [kind],
@@ -87,11 +111,24 @@ export function MastersTable({
 
   return (
     <DataTable
+      id={`masters-${kind}`}
       columns={columns}
       data={rows}
       getRowId={(r) => r.id}
       sortable={['name']}
-      emptyText="Nothing here yet."
+      empty={
+        <EmptyState
+          message={
+            filtered ? `No ${kind}s match these filters.` : `No ${kind}s yet. Add the first one.`
+          }
+        />
+      }
+      mobileCard={(r) => (
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium">{r.name}</span>
+          <MasterActions kind={kind} row={r} />
+        </div>
+      )}
       {...paging}
     />
   );
