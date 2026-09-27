@@ -64,7 +64,7 @@ docker compose up -d  # postgres, redis
 2. **Every service method takes the acting user (`ctx`) as its first argument** and calls `can(ctx.user, action, resource)` before doing anything.
 3. **Every mutation is audited** by the Prisma audit extension in `packages/db`. Pass `ctx.source` (`web` | `mcp` | `import` | `system`). Never bypass it with raw SQL for writes.
 4. **Soft delete only** (`deletedAt`). Queries exclude soft-deleted rows by default.
-5. **Money:** integer minor units (`amountMinor: Int`) + ISO currency code (`currency: String`). Never floats. Base currency is INR.
+5. **Money:** integer minor units (`amountMinor: BigInt`, since 32-bit `Int` caps paise at ~₹2.1 crore) + ISO currency code (`currency: String`). Never floats. Base currency is INR.
 6. **Dates:** store UTC; display in `Asia/Kolkata`. Dates without time (e.g. due date) use `@db.Date`.
 7. **Zod schemas live in `packages/core/schemas`** and are the single source of truth for input shapes.
 8. **Status changes go through status-machine functions** in `packages/core/status`, never by setting the field directly.
@@ -87,7 +87,7 @@ docker compose up -d  # postgres, redis
 - **CompanySettings** (single row) — company name, `defaultInvoiceDueDays` (30), enabled currencies, base currency.
 - **Client**, **Sector**, **Service** — master tables.
 - **Enquiry** — client, sector, services, `receivedDate`, `proposalSentDate`, status, owner.
-- **Quotation** — enquiry, client/sector/service/owner (copied from enquiry, editable), `quotationDate` (defaults to enquiry `proposalSentDate`), amount + currency, status, `nextFollowUpDate`, `lastFollowUpHighlights`, document.
+- **Quotation** — enquiry, client (fixed to the enquiry's), sector/service/owner (copied from enquiry, editable), `quotationDate` (defaults to enquiry `proposalSentDate`), amount + currency, status, `nextFollowUpDate`, `lastFollowUpHighlights`, `poReceivedDate`, `lostReason`, document. Edited in place; the audit log is the revision history.
 - **Project** — quotation, manager, client, services, revenue, start/end dates, status, `completionPct` (0–100).
 - **PurchaseOrder** — project, `poNumber`, `receivedDate`, client, services, amount + currency, `paymentTerms`, document, status (derived).
 - **Invoice** — PO, `invoiceNumber`, `invoiceDate`, client, service, amount + currency, `dueDate`, status, `paidAt`, document.
@@ -99,7 +99,7 @@ docker compose up -d  # postgres, redis
 ## Status machines
 
 - **Enquiry:** `IN_PROGRESS → CONVERTED | LOST`. `CONVERTED` requires `proposalSentDate` and offers to create a Quotation pre-filled from the enquiry.
-- **Quotation:** `SENT ⇄ UNDER_NEGOTIATION → PO_RECEIVED`. `nextFollowUpDate` required while `SENT` or `UNDER_NEGOTIATION`. `PO_RECEIVED` offers to create a Project.
+- **Quotation:** `SENT ⇄ UNDER_NEGOTIATION → PO_RECEIVED | LOST`. `nextFollowUpDate` required while `SENT` or `UNDER_NEGOTIATION`. `PO_RECEIVED` requires `poReceivedDate` and offers to create a Project. `LOST` requires `lostReason`. Both are terminal.
 - **Invoice:** `PENDING → PAID`; `PENDING → OVERDUE` (nightly job when `dueDate < today` and unpaid); `OVERDUE → PAID`.
 - **PurchaseOrder:** derived — `PAID` if all invoices paid, `OVERDUE` if any overdue, else `PENDING`. Recompute whenever an invoice changes. Never set manually.
 - **Invoice due date** = `invoiceDate + CompanySettings.defaultInvoiceDueDays`, overridable per invoice.

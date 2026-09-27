@@ -67,12 +67,12 @@ Client, sector and service become master tables instead of free text, so reports
 | AuditLog                | actor, action, entity type + id, before/after JSON, source (web / mcp / import), timestamp                                                   | Append-only                           |
 | ApiToken                | name, hashed token, scopes, expiry, created by                                                                                               | For MCP access                        |
 
-Money is stored as integer minor units (paise, cents) plus an ISO currency code.
+Money is stored as integer minor units (paise, cents) in a `BigInt` column plus an ISO currency code (M6 Decision 3).
 
 Status rules:
 
 - **Enquiry:** IN\_PROGRESS → CONVERTED or LOST. CONVERTED requires a proposal sent date and prompts quotation creation.
-- **Quotation:** SENT ⇄ UNDER\_NEGOTIATION → PO\_RECEIVED. Next follow-up date is required in SENT and UNDER\_NEGOTIATION. PO\_RECEIVED prompts project creation.
+- **Quotation:** SENT ⇄ UNDER\_NEGOTIATION → PO\_RECEIVED or LOST. Next follow-up date is required in SENT and UNDER\_NEGOTIATION. PO\_RECEIVED prompts project creation. LOST requires a reason (M6 Decision 11).
 - **Invoice:** PENDING → PAID, or PENDING → OVERDUE (nightly job, once past due date) → PAID.
 - **PurchaseOrder:** derived, never set by hand. PAID when all invoices are paid, OVERDUE when any is overdue, otherwise PENDING.
 
@@ -140,7 +140,7 @@ Decided:
 
 Still open (settle before the module that needs it):
 
-- [ ] Can a quotation have revisions, or is it edited in place? (M6)
+- [x] Can a quotation have revisions, or is it edited in place? (M6) Edited in place; the audit log is the history: see M6 Decision 2.
 - [x] Can one enquiry cover several services? (M4) Yes: see M4 Decision 2.
 - [ ] Are partial invoice payments needed? (M10)
 - [ ] Should reports convert USD and other currencies to INR, and at which rate: quote date or current? (M12)
