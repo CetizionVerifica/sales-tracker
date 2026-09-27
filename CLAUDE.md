@@ -18,7 +18,7 @@ The build plan lives in `docs/PLAN.md`; each module has a spec in `docs/modules/
 - **Validation:** Zod — one schema per entity, shared by forms, server actions, API routes, MCP tools and AI extraction.
 - **DB:** PostgreSQL + Prisma.
 - **Auth:** Better Auth (admin plugin). No public sign-up; only admins create users.
-- **Files:** S3-compatible storage (MinIO locally).
+- **Files:** Cloudinary-compatible storage (MinIO locally).
 - **Jobs:** BullMQ + Redis (document extraction, nightly overdue check, reminders).
 - **AI extraction:** Anthropic API, PDF/image input, structured JSON validated by Zod.
 - **MCP:** `@modelcontextprotocol/sdk`, Streamable HTTP transport.
