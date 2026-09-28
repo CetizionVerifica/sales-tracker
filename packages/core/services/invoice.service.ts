@@ -32,7 +32,9 @@ import {
   type InvoiceActor,
   type InvoiceMove,
 } from '../status/invoice.ts';
+import { fxFields, fxOnChange } from './fx.ts';
 import {
+  ageingBucketWhere,
   dueWindowWhere,
   INVOICE_DOCUMENT_WHERE,
   overInvoicedWarning,
@@ -108,7 +110,9 @@ const invoiceInclude = {
 type InvoiceRow = Prisma.InvoiceGetPayload<{ include: typeof invoiceInclude }>;
 
 /** An invoice with its client, service, PO, project and document state, for display. */
-export type InvoiceDetail = InvoiceRow & {
+export type InvoiceDetail = Omit<InvoiceRow, 'fxRate'> & {
+  /** The rate behind `amountInrMinor` as a decimal string, or null (M12). */
+  fxRate: string | null;
   documentState: DocumentState;
   /** Days past the due date for an unpaid invoice (negative before it); null once paid. */
   daysOverdue: number | null;
@@ -130,9 +134,10 @@ export type InvoiceView = InvoiceDetail & {
   permissions: InvoicePermissions;
 };
 
-function toDetail(row: InvoiceRow, today = todayInIST()): InvoiceDetail {
+function toDetail({ fxRate, ...row }: InvoiceRow, today = todayInIST()): InvoiceDetail {
   return {
     ...row,
+    fxRate: fxRate?.toString() ?? null,
     documentState: documentStateOf(row.document),
     daysOverdue: row.status === 'PAID' ? null : daysOverdue(row.dueDate, today),
   };
@@ -158,6 +163,7 @@ const accessSelect = {
   status: true,
   paidAt: true,
   currency: true,
+  amountMinor: true,
   serviceId: true,
   documentId: true,
   purchaseOrder: {
@@ -426,6 +432,7 @@ function invoiceListWhere(ctx: Ctx, input: ListInvoicesInput): Prisma.InvoiceWhe
   // The due range and window both constrain dueDate, so they go in separate AND terms.
   if (between(p.dueFrom, p.dueTo)) filters.push({ dueDate: between(p.dueFrom, p.dueTo) });
   if (p.due) filters.push(dueWindowWhere(p.due));
+  if (p.ageing) filters.push(ageingBucketWhere(p.ageing));
   if (p.document) filters.push(INVOICE_DOCUMENT_WHERE[p.document]);
   // `deletedAt` stays top-level: that is the soft-delete extension's opt-in (M3).
   return {
@@ -650,6 +657,8 @@ export async function createInvoice(
           clientId: po.clientId,
           currency: po.currency,
           amountMinor,
+          // M12: the INR equivalent at the invoice month's rate, in the same audited write.
+          ...(await fxFields(tx, amountMinor, po.currency, fields.invoiceDate)),
           dueDate: due.dueDate,
           dueDateBasis: due.basis,
           status,
@@ -713,6 +722,20 @@ export async function updateInvoice(
       if (amountMinor !== undefined) data.amountMinor = amountMinor;
       if (!sameDay(due.dueDate, current.dueDate)) data.dueDate = due.dueDate;
       if (due.basis !== current.dueDateBasis) data.dueDateBasis = due.basis;
+      // M12: re-convert only when the amount or the invoice date changes (the currency is
+      // the PO's, fixed).
+      Object.assign(
+        data,
+        await fxOnChange(
+          tx,
+          {
+            amountMinor: current.amountMinor,
+            currency: current.currency,
+            day: current.invoiceDate,
+          },
+          { amountMinor, day: invoiceDate },
+        ),
+      );
       await guardedUpdate(tx, id, { deletedAt: null, status: current.status }, data);
 
       const today = todayInIST();

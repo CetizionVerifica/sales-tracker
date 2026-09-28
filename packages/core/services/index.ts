@@ -1,8 +1,10 @@
 // Domain services: every function takes `ctx` first and calls assertCan() before anything else.
 export * from './audit-log.service.ts';
 export * from './client.service.ts';
+export * from './dashboard.service.ts';
 export * from './document.service.ts';
 export * from './enquiry.service.ts';
+export * from './exchange-rate.service.ts';
 export * from './follow-up.service.ts';
 export * from './invoice.service.ts';
 export * from './my-today.service.ts';

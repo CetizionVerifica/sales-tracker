@@ -280,7 +280,13 @@ describe('quotations (integration)', () => {
       await updateQuotation(sales, q.id, { amount: '200000', currency: 'USD' });
       const rows = await auditOf('Quotation', q.id);
       expect(rows.map((r) => r.action)).toEqual(['CREATE', 'UPDATE']);
-      expect(rows[1]!.changedFields).toEqual(['amountMinor', 'currency']);
+      // M12: the INR equivalent is recomputed in the same audited write.
+      expect(rows[1]!.changedFields).toEqual([
+        'amountInrMinor',
+        'amountMinor',
+        'currency',
+        'fxRate',
+      ]);
       expect((await getQuotation(sales, q.id)).amountMinor).toBe(20_000_000n);
     });
 

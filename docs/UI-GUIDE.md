@@ -77,9 +77,9 @@ Put these in `apps/web/app/globals.css`. Components use tokens only — **no raw
   --stage-po: #245184;
   --stage-invoice: #143a63;
 
-  /* Charts (non-pipeline series) */
-  --chart-1: #245184;
-  --chart-2: #2e7d4f;
+  /* Charts (non-pipeline series); 1–2 are a validated categorical pair (M12) */
+  --chart-1: #2f6cb3;
+  --chart-2: #2e8a57;
   --chart-3: #d99a1e;
   --chart-4: #8fa8c8;
   --chart-5: #6b7686;
@@ -124,6 +124,14 @@ Put these in `apps/web/app/globals.css`. Components use tokens only — **no raw
   --destructive-soft: #3a1714;
   --neutral: #97a2b1;
   --neutral-soft: #1e2835;
+  /* Pipeline ramp and chart pair, dark steps (M12): later stages lighter */
+  --stage-enquiry: #4a6a94;
+  --stage-quotation: #5b82b5;
+  --stage-project: #739bcc;
+  --stage-po: #8fb3de;
+  --stage-invoice: #afcbee;
+  --chart-1: #5a8bd0;
+  --chart-2: #3f9e69;
   --sidebar: #131a24;
   --sidebar-foreground: #e6eaf0;
   --sidebar-accent: #1f2b3a;
@@ -411,6 +419,10 @@ Added when the guide was first applied (branch `ui-guide`), as the guide's intro
 - **Tabs live in the URL** (`?tab=timeline`), so a tab survives refresh and can be linked. Filters inside a tab (the client timeline) keep the tab.
 - **Loading and error at route level.** `app/(app)/loading.tsx` shows skeletons; `app/(app)/error.tsx` shows `<ErrorState>` with Retry.
 - **My today is home** (M11). `/` redirects to `/today`, sign-in lands there, and the sidebar's first item carries the overdue + due-today badge. Admins get a **Viewing** select to open another user's list read-only (`?user=`). Kind chips above the panels filter by `?kind=`.
+- **Wide dashboard tables become cards below 1280px** (M12), not at `md`: six money columns overflow a panel at 768px and at 1024px beside the sidebar.
+- **Dashboard charts have a table view** (M12). Each chart panel has a Chart | Table switch; the table carries every value and the drill-down links, so nothing is hover-only and the keyboard reaches everything. Bars also click through. Axis ticks use short labels where full ones collide (ageing: "1–30"); tooltips and tables use the full wording.
+- **Money in other currencies shows its INR equivalent** under the amount on detail pages ("≈ ₹10,37,500 at 83.00 INR/USD, Oct 2026"), or "No INR rate for Oct 2026 yet" (M12).
+- **Chart colours:** `--chart-1`/`--chart-2` are a validated categorical pair in both modes; single-series charts use `--chart-1`; the funnel uses the pipeline ramp, whose dark steps get lighter toward later stages.
 - **Rows collapse out after an action.** A My today row that no longer qualifies after Log follow-up or Mark paid collapses (150 ms, none with reduced motion); the action's own toast confirms it.
 - **Lists switch to cards with CSS** (`md:hidden` / `hidden md:block`), not JavaScript, so a phone never flashes the wide table.
 
@@ -420,4 +432,4 @@ Deviations, and why:
 - **Warning badges use foreground text.** `--warning` on `--warning-soft` is about 3.9:1, below the 4.5:1 rule, so the dot carries the colour.
 - **IBM Plex Sans is self-hosted** (`app/fonts`, SIL OFL): `next/font/google` fails under this Next version's Turbopack when more than one weight is requested.
 - **The Timeline component stays in `components/timeline/`**, next to its follow-up sheet and actions, rather than `pipeline/`.
-- **Not built yet, because the features don't exist:** the notification bell (reminders), Export (M12), the INR equivalent under non-INR money (M12 rates), and Dashboard in the sidebar (M12).
+- **Not built yet, because the features don't exist:** the notification bell (reminders), and Export on list pages (the dashboard's panels export CSV since M12).

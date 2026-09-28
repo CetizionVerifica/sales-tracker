@@ -24,6 +24,17 @@ export const enquiryStatusSchema = z.enum(ENQUIRY_STATUSES);
 export const enquirySourceSchema = z.enum(ENQUIRY_SOURCES, 'Choose where the enquiry came from');
 
 export type EnquirySourceValue = (typeof ENQUIRY_SOURCES)[number];
+
+/** How each source reads in the UI and in dashboard exports (M12 needs them in core). */
+export const ENQUIRY_SOURCE_LABELS: Record<EnquirySourceValue, string> = {
+  EMAIL: 'Email',
+  PHONE: 'Phone',
+  TENDER_PORTAL: 'Tender portal',
+  REFERRAL: 'Referral',
+  WEBSITE: 'Website',
+  WALK_IN: 'Walk-in',
+  OTHER: 'Other',
+};
 export type EnquiryStatusValue = (typeof ENQUIRY_STATUSES)[number];
 
 /** Sources where the channel alone is not enough to follow up (M4 Decision 10). */

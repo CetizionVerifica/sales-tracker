@@ -56,9 +56,9 @@ describe('project database rules and races (integration)', () => {
         `UPDATE "project" SET "startDate" = '2026-05-02', "endDate" = '2026-05-01' WHERE id = $1`,
       ),
     ).rejects.toThrow(/project_end_after_start/);
-    await expect(raw(`UPDATE "project" SET "revenueMinor" = -1 WHERE id = $1`)).rejects.toThrow(
-      /project_revenue_non_negative/,
-    );
+    await expect(
+      raw(`UPDATE "project" SET "revenueMinor" = -1, "amountInrMinor" = -1 WHERE id = $1`),
+    ).rejects.toThrow(/project_revenue_non_negative/);
     await expect(raw(`UPDATE "project" SET currency = 'inr' WHERE id = $1`)).rejects.toThrow(
       /project_currency_iso/,
     );

@@ -34,6 +34,7 @@ import {
   isActiveProject,
   isBehindSchedule,
 } from '../status/project.ts';
+import { fxFields, fxOnChange } from './fx.ts';
 import { nextNumber } from './number-sequence.ts';
 import { lockProject } from './project-lock.ts';
 import { billingFor, invoiceStage, type InvoiceStage, type PoBilling } from './invoice-queries.ts';
@@ -67,8 +68,10 @@ const projectInclude = {
 type ProjectRow = Prisma.ProjectGetPayload<{ include: typeof projectInclude }>;
 
 /** A project with its client, manager, quotation and services flattened for display. */
-export type ProjectDetail = Omit<ProjectRow, 'services'> & {
+export type ProjectDetail = Omit<ProjectRow, 'services' | 'fxRate'> & {
   services: { id: string; name: string }[];
+  /** The rate behind `amountInrMinor` (revenue in INR) as a decimal string, or null (M12). */
+  fxRate: string | null;
   /** Open, with a planned end before today (Asia/Kolkata). */
   behindSchedule: boolean;
 };
@@ -127,9 +130,10 @@ export type ProjectView = ProjectDetail & {
 
 export const PROJECT_HAS_PURCHASE_ORDERS = 'Has purchase orders';
 
-function toDetail({ services, ...row }: ProjectRow, today = todayInIST()): ProjectDetail {
+function toDetail({ services, fxRate, ...row }: ProjectRow, today = todayInIST()): ProjectDetail {
   return {
     ...row,
+    fxRate: fxRate?.toString() ?? null,
     services: services.map((link) => link.service),
     behindSchedule: isBehindSchedule(row, today),
   };
@@ -180,6 +184,7 @@ const accessSelect = {
   startDate: true,
   endDate: true,
   currency: true,
+  revenueMinor: true,
   services: { select: { id: true, serviceId: true } },
   ...projectAccessSelect,
 } satisfies Prisma.ProjectSelect;
@@ -445,6 +450,7 @@ export async function createProject(ctx: Ctx, input: CreateProjectInput): Promis
           clientId: true,
           status: true,
           currency: true,
+          poReceivedDate: true,
           client: { select: { deletedAt: true } },
           services: { select: { serviceId: true } },
           ...quotationManagersSelect,
@@ -489,6 +495,9 @@ export async function createProject(ctx: Ctx, input: CreateProjectInput): Promis
       const { id } = await tx.project.create({
         data: {
           ...fields,
+          // M12: revenue in INR at the rate for the month the PO arrived (a project has no
+          // date of its own), in the same audited write.
+          ...(await fxFields(tx, fields.revenueMinor, fields.currency, quotation.poReceivedDate!)),
           quotationId,
           clientId: quotation.clientId,
           managerId: managerId ?? null,
@@ -586,13 +595,27 @@ export async function updateProject(
       }
     }
 
+    // M12: re-convert the revenue only when it or the currency changes; the date is the
+    // quotation's PO received date, which is fixed once the PO is received.
+    let fx = {};
+    if (fields.revenueMinor !== undefined || fields.currency !== undefined) {
+      const { poReceivedDate } = await tx.quotation.findUniqueOrThrow({
+        where: { id: current.quotationId },
+        select: { poReceivedDate: true },
+      });
+      fx = await fxOnChange(
+        tx,
+        { amountMinor: current.revenueMinor, currency: current.currency, day: poReceivedDate! },
+        { amountMinor: fields.revenueMinor, currency: fields.currency },
+      );
+    }
     // Guarded on the status and manager that were read: a status change or reassignment
     // committed since must still apply its rules (AC13).
     await guardedUpdate(
       tx,
       id,
       { status: current.status, managerId: current.managerId, deletedAt: null },
-      fields,
+      { ...fields, ...fx },
     );
     return loadProject(tx, id);
   });

@@ -15,6 +15,7 @@ import { DocumentCard, type DocumentSummary } from '@/components/documents/Docum
 import { Panel } from '@/components/charts/Panel';
 import { DateDisplay } from '@/components/display/DateDisplay';
 import { FieldGrid } from '@/components/display/FieldGrid';
+import { InrEquivalent } from '@/components/display/InrEquivalent';
 import { Money } from '@/components/display/Money';
 import { RelativeDue } from '@/components/display/RelativeDue';
 import { UserAvatar } from '@/components/display/UserAvatar';
@@ -353,7 +354,15 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
                 {
                   label: 'Amount',
                   value: (
-                    <Money amountMinor={quotation.amountMinor} currency={quotation.currency} />
+                    <>
+                      <Money amountMinor={quotation.amountMinor} currency={quotation.currency} />
+                      <InrEquivalent
+                        currency={quotation.currency}
+                        amountInrMinor={quotation.amountInrMinor}
+                        fxRate={quotation.fxRate}
+                        date={quotation.quotationDate}
+                      />
+                    </>
                   ),
                 },
                 {

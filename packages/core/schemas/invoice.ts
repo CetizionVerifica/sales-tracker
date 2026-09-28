@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AGEING_BUCKETS } from './dashboard.ts';
 import {
   calendarDateSchema,
   idOnlySchema,
@@ -197,6 +198,8 @@ export const listInvoicesSchema = listParamsSchema.extend({
   dueTo: calendarDateSchema.optional(),
   /** Unpaid invoices overdue, or due from today to +7 / +30 days. */
   due: z.enum(INVOICE_DUE_WINDOWS).optional(),
+  /** M12 drill-down: an ageing bucket of the dashboard's receivables panel. */
+  ageing: z.enum(AGEING_BUCKETS).optional(),
   document: z.enum(DOCUMENT_STATES).optional(),
   recordStatus: recordStatusSchema,
   sort: z.enum(INVOICE_SORTS).optional(),

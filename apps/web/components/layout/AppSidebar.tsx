@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ArrowLeftRight,
   Briefcase,
   Building2,
   ClipboardList,
@@ -9,6 +10,7 @@ import {
   ListChecks,
   Inbox,
   Layers,
+  LayoutDashboard,
   Receipt,
   ScrollText,
   Settings,
@@ -36,6 +38,8 @@ import type { NavGroup, NavIcon } from './nav';
 
 const ICONS: Record<NavIcon, LucideIcon> = {
   today: ListChecks,
+  dashboard: LayoutDashboard,
+  rates: ArrowLeftRight,
   enquiries: Inbox,
   quotations: FileText,
   projects: Briefcase,

@@ -1,59 +1,17 @@
-import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { disconnectAll, getRootDb } from '../clients.ts';
-import { runInStore } from '../audit/store.ts';
-import type { Ctx } from '../context.ts';
+import { disconnectAll } from '../clients.ts';
 import { logFollowUp } from '../services/follow-up.service.ts';
 import { getMyToday } from '../services/my-today.service.ts';
 import { createEnquiry } from '../services/enquiry.service.ts';
 import { daysFromToday, invoiceWorld, newInvoice } from './invoice-fixtures.ts';
 import type { PoWorld } from './purchase-order-fixtures.ts';
+import { countQueries } from './query-counter.ts';
 
 /*
  * AC11: My Today costs a fixed number of queries whatever the data size (no query per row),
  * and stays fast on a busy user's list. The spec's "seed ×10" is approximated by a world
  * with several times the seed's rows for one Sales user and one PM.
  */
-
-/** Runs `fn` with getDb() returning a client that counts model calls and raw queries. */
-async function countQueries<T>(
-  ctx: Ctx,
-  fn: () => Promise<T>,
-): Promise<{ result: T; queries: number }> {
-  const root = getRootDb();
-  let queries = 0;
-  const counted = new Proxy(root, {
-    get(target, property, receiver) {
-      const value = Reflect.get(target, property, receiver) as unknown;
-      if (property === '$queryRaw' && typeof value === 'function') {
-        return (...args: unknown[]) => {
-          queries += 1;
-          return (value as (...a: unknown[]) => unknown).apply(target, args);
-        };
-      }
-      if (
-        typeof property === 'string' &&
-        !property.startsWith('$') &&
-        value &&
-        typeof value === 'object'
-      ) {
-        return new Proxy(value, {
-          get(delegate, method, r) {
-            const fnValue = Reflect.get(delegate, method, r) as unknown;
-            if (typeof fnValue !== 'function') return fnValue;
-            return (...args: unknown[]) => {
-              queries += 1;
-              return (fnValue as (...a: unknown[]) => unknown).apply(delegate, args);
-            };
-          },
-        });
-      }
-      return value;
-    },
-  });
-  const result = await runInStore({ ctx, requestId: randomUUID(), tx: counted }, fn);
-  return { result, queries };
-}
 
 async function addLoad(w: PoWorld, n: number) {
   for (let i = 0; i < n; i++) {

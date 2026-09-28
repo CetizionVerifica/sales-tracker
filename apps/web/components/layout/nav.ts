@@ -3,6 +3,8 @@ import type { StageId } from '@/components/pipeline/PipelineStrip';
 /** Serialisable nav data, built on the server from can() (UI guide: hide what users can't use). */
 export type NavIcon =
   | 'today'
+  | 'dashboard'
+  | 'rates'
   | 'enquiries'
   | 'quotations'
   | 'projects'

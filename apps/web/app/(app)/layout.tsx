@@ -15,8 +15,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = ctx.user;
   const isAdmin = can(user, 'list', 'user');
 
-  // Only modules that exist, and only what the role can use (UI guide §3). Dashboard and
-  // MCP access join as M12–M13 ship.
+  // Only modules that exist, and only what the role can use (UI guide §3). MCP access joins
+  // in M13.
   const invoices = can(user, 'list', 'invoice')
     ? [{ href: '/invoices', label: 'Invoices', icon: 'invoices', stage: 'invoice' } as const]
     : [];
@@ -35,7 +35,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     : [];
   const groups: NavGroup[] = [
     // M11: My today is every role's first stop, with its overdue + due-today count.
-    { items: [{ href: '/today', label: 'My today', icon: 'today', badge: due }] },
+    {
+      items: [
+        { href: '/today', label: 'My today', icon: 'today', badge: due },
+        // M12: every role has a dashboard, at its own scope.
+        { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+      ],
+    },
     {
       label: 'Pipeline',
       items: [
@@ -77,6 +83,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               { href: '/admin/sectors', label: 'Sectors', icon: 'sectors' },
               { href: '/admin/services', label: 'Services', icon: 'services' },
               { href: '/admin/settings', label: 'Settings', icon: 'settings' },
+              { href: '/admin/exchange-rates', label: 'Exchange rates', icon: 'rates' },
               { href: '/admin/audit-log', label: 'Audit log', icon: 'audit' },
             ],
           } satisfies NavGroup,

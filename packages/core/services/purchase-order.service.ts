@@ -32,6 +32,7 @@ import {
   type PoBilling,
 } from './invoice-queries.ts';
 import { lockProject } from './project-lock.ts';
+import { fxFields, fxOnChange } from './fx.ts';
 import { lockPurchaseOrder } from './purchase-order-lock.ts';
 import { PO_DOCUMENT_WHERE, poTotals, type PoTotals } from './purchase-order-queries.ts';
 import {
@@ -97,8 +98,10 @@ const purchaseOrderInclude = {
 type PurchaseOrderRow = Prisma.PurchaseOrderGetPayload<{ include: typeof purchaseOrderInclude }>;
 
 /** A PO with its client, project, services and document state, flattened for display. */
-export type PurchaseOrderDetail = Omit<PurchaseOrderRow, 'services'> & {
+export type PurchaseOrderDetail = Omit<PurchaseOrderRow, 'services' | 'fxRate'> & {
   services: { id: string; name: string }[];
+  /** The rate behind `amountInrMinor` as a decimal string, or null (M12). */
+  fxRate: string | null;
   documentState: DocumentState;
 };
 
@@ -122,9 +125,10 @@ export type PurchaseOrderView = PurchaseOrderDetail & {
   permissions: PurchaseOrderPermissions;
 };
 
-function toDetail({ services, ...row }: PurchaseOrderRow): PurchaseOrderDetail {
+function toDetail({ services, fxRate, ...row }: PurchaseOrderRow): PurchaseOrderDetail {
   return {
     ...row,
+    fxRate: fxRate?.toString() ?? null,
     services: services.map((link) => link.service),
     documentState: documentStateOf(row.document),
   };
@@ -146,6 +150,8 @@ const accessSelect = {
   clientId: true,
   poNumber: true,
   currency: true,
+  amountMinor: true,
+  receivedDate: true,
   documentId: true,
   services: { select: { id: true, serviceId: true } },
   project: {
@@ -509,7 +515,14 @@ export async function createPurchaseOrder(
       if (fields.currency !== project.currency) await assertCurrencyEnabled(tx, fields.currency);
 
       const { id } = await tx.purchaseOrder.create({
-        data: { ...fields, projectId, clientId: project.clientId, statusChangedAt: new Date() },
+        data: {
+          ...fields,
+          // M12: the INR equivalent at the received month's rate, in the same audited write.
+          ...(await fxFields(tx, fields.amountMinor, fields.currency, fields.receivedDate)),
+          projectId,
+          clientId: project.clientId,
+          statusChangedAt: new Date(),
+        },
         select: { id: true },
       });
       // One row per service: M2 rejects nested writes, and each link is audited.
@@ -579,7 +592,13 @@ export async function updatePurchaseOrder(
         }
       }
 
-      await guardedUpdate(tx, id, { deletedAt: null }, fields);
+      // M12: re-convert only when the amount, currency or received date changes.
+      const fx = await fxOnChange(
+        tx,
+        { amountMinor: current.amountMinor, currency: current.currency, day: current.receivedDate },
+        { amountMinor: fields.amountMinor, currency: fields.currency, day: fields.receivedDate },
+      );
+      await guardedUpdate(tx, id, { deletedAt: null }, { ...fields, ...fx });
       if (fields.amountMinor !== undefined || fields.currency !== undefined) {
         await recomputePurchaseOrderStatus(tx, id);
       }
