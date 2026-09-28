@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { listParamsSchema, multi, recordStatusSchema } from './list-params.ts';
+import { updatePurchaseOrderFormSchema } from './purchase-order.ts';
 import { updateQuotationFormSchema } from './quotation.ts';
 
 /** Every kind exists in the enum now; the service accepts only shipped ones (M7 spec). */
@@ -97,7 +98,8 @@ export function reviewExtractionFormSchema(
 
 export type ReviewExtractionFormValues = z.infer<ReturnType<typeof reviewExtractionFormSchema>>;
 
-/** The record form schema that validates applied values, per kind (M9/M10 add theirs). */
+/** The record form schema that validates applied values, per kind (M10 adds invoices). */
 const REVIEW_RECORD_SCHEMAS: Partial<Record<DocumentKindValue, z.ZodType>> = {
   QUOTATION: updateQuotationFormSchema,
+  PURCHASE_ORDER: updatePurchaseOrderFormSchema,
 };

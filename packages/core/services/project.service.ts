@@ -12,6 +12,7 @@ import {
 } from '../rbac/scope.ts';
 import type { Action } from '../rbac/types.ts';
 import { todayInIST, type Page } from '../schemas/common.ts';
+import type { DocumentState } from '../schemas/document-state.ts';
 import {
   ADMIN_ONLY_PROJECT_FIELDS,
   changeProjectStatusSchema,
@@ -25,6 +26,7 @@ import {
   type ListProjectsInput,
   type UpdateProjectInput,
 } from '../schemas/project.ts';
+import { documentStateOf } from '../status/document.ts';
 import {
   ACTIVE_PROJECT_STATUSES,
   assertProjectTransition,
@@ -33,6 +35,8 @@ import {
   isBehindSchedule,
 } from '../status/project.ts';
 import { nextNumber } from './number-sequence.ts';
+import { lockProject } from './project-lock.ts';
+import { poTotals, type PoTotals } from './purchase-order-queries.ts';
 import { SETTINGS_ID } from './settings.service.ts';
 import { guardUnique } from './unique.ts';
 
@@ -81,10 +85,44 @@ export interface ProjectPermissions {
   canCancel: boolean;
   canReassign: boolean;
   canDelete: boolean;
+  /** Why an actor who may delete projects cannot delete this one (M9: its live POs). */
+  deleteBlockedReason: string | null;
   editableFields: readonly ProjectEditableField[];
 }
 
-export type ProjectView = ProjectDetail & { permissions: ProjectPermissions };
+/** A live PO as the project page lists it (M9). */
+const projectPurchaseOrderSelect = {
+  id: true,
+  poNumber: true,
+  receivedDate: true,
+  amountMinor: true,
+  currency: true,
+  paymentTerms: true,
+  status: true,
+  document: {
+    select: {
+      id: true,
+      originalFilename: true,
+      extractionStatus: true,
+      reviewStatus: true,
+      createdAt: true,
+      uploadedBy: { select: { id: true, name: true } },
+    },
+  },
+} satisfies Prisma.PurchaseOrderSelect;
+
+export type ProjectPurchaseOrder = Prisma.PurchaseOrderGetPayload<{
+  select: typeof projectPurchaseOrderSelect;
+}> & { documentState: DocumentState };
+
+export type ProjectView = ProjectDetail & {
+  permissions: ProjectPermissions;
+  /** Live POs, oldest first (M9); anyone who reads the project reads its POs. */
+  purchaseOrders: ProjectPurchaseOrder[];
+  poTotals: PoTotals;
+};
+
+export const PROJECT_HAS_PURCHASE_ORDERS = 'Has purchase orders';
 
 function toDetail({ services, ...row }: ProjectRow, today = todayInIST()): ProjectDetail {
   return {
@@ -107,6 +145,7 @@ async function loadProject(db: Db, id: string): Promise<ProjectDetail> {
 export function projectPermissions(
   user: Actor,
   project: { status: ProjectStatus; managerId: string | null; quotation: { ownerId: string } },
+  livePurchaseOrders = 0,
 ): ProjectPermissions {
   const resource = projectResource(project);
   const canUpdate = can(user, 'update', resource);
@@ -117,12 +156,15 @@ export function projectPermissions(
     if (!active) editableFields = CLOSED_PROJECT_EDITABLE as ProjectEditableField[];
     else editableFields = admin ? ALL_EDITABLE : PM_EDITABLE;
   }
+  const mayDelete = can(user, 'delete', resource);
   return {
     canUpdate,
     canChangeStatus: canUpdate && active,
     canCancel: admin && active,
     canReassign: admin && active,
-    canDelete: can(user, 'delete', resource),
+    // M9 Decision 11: a project with live POs cannot be deleted.
+    canDelete: mayDelete && livePurchaseOrders === 0,
+    deleteBlockedReason: mayDelete && livePurchaseOrders > 0 ? PROJECT_HAS_PURCHASE_ORDERS : null,
     editableFields,
   };
 }
@@ -205,6 +247,30 @@ function liveProjectOn(db: Db, quotationId: string) {
 }
 
 const ALREADY_HAS_PROJECT = 'This quotation already has a project';
+
+/** A project keeps every service a live PO on it uses (M9 Decision 8). */
+async function assertServicesUnusedByPurchaseOrders(
+  db: Db,
+  projectId: string,
+  serviceIds: string[],
+) {
+  if (serviceIds.length === 0) return;
+  const used = await db.purchaseOrderService.findMany({
+    where: { serviceId: { in: serviceIds }, purchaseOrder: { projectId, deletedAt: null } },
+    select: {
+      service: { select: { name: true } },
+      purchaseOrder: { select: { poNumber: true } },
+    },
+    orderBy: [{ service: { name: 'asc' } }, { purchaseOrder: { poNumber: 'asc' } }],
+  });
+  if (used.length === 0) return;
+  const services = [...new Set(used.map((link) => link.service.name))].join(', ');
+  const numbers = [...new Set(used.map((link) => link.purchaseOrder.poNumber))];
+  throw new DomainError(
+    `${services} ${used.length === 1 ? 'is' : 'are'} on PO ${numbers.join(', PO ')}. Change the PO first.`,
+    { field: 'serviceIds' },
+  );
+}
 
 // ─── Reads ──────────────────────────────────────────────────────────────────────────
 
@@ -289,11 +355,28 @@ export async function listProjects(
   };
 }
 
-/** Includes a soft-deleted project the user can see (restore view). */
+/** Includes a soft-deleted project the user can see (restore view), with its live POs. */
 export async function getProject(ctx: Ctx, id: string): Promise<ProjectView> {
-  await findAccessible(getDb(), ctx, id, 'read', 'any');
-  const project = await loadProject(getDb(), id);
-  return { ...project, permissions: projectPermissions(ctx.user, project) };
+  const db = getDb();
+  await findAccessible(db, ctx, id, 'read', 'any');
+  const project = await loadProject(db, id);
+  const [purchaseOrders, totals] = await Promise.all([
+    db.purchaseOrder.findMany({
+      where: { projectId: id },
+      select: projectPurchaseOrderSelect,
+      orderBy: [{ receivedDate: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+    }),
+    poTotals(db, project),
+  ]);
+  return {
+    ...project,
+    permissions: projectPermissions(ctx.user, project, purchaseOrders.length),
+    purchaseOrders: purchaseOrders.map((po) => ({
+      ...po,
+      documentState: documentStateOf(po.document),
+    })),
+    poTotals: totals,
+  };
 }
 
 /** Live projects on a quotation the user can see (quotation page). */
@@ -481,6 +564,11 @@ export async function updateProject(
       const added = serviceIds.filter((serviceId) => !have.has(serviceId));
       const removed = current.services.filter((link) => !wanted.has(link.serviceId));
       await assertServicesUsable(tx, added);
+      await assertServicesUnusedByPurchaseOrders(
+        tx,
+        id,
+        removed.map((link) => link.serviceId),
+      );
       if (removed.length > 0) {
         await tx.projectService.deleteMany({
           where: { id: { in: removed.map((link) => link.id) } },
@@ -532,6 +620,8 @@ export async function changeProjectStatus(
 ): Promise<ProjectDetail> {
   const p = changeProjectStatusSchema.parse(input);
   return withTx(ctx, async (tx) => {
+    // A PO cannot be created on a project mid-cancel (M9 AC12).
+    if (p.to === 'CANCELLED') await lockProject(tx, p.id);
     const current = await findAccessible(tx, ctx, p.id, 'update');
     // Cancelling is admin-only (M8 Decision 12), checked on its own so it doesn't follow
     // whoever may delete projects if that policy changes.
@@ -564,12 +654,18 @@ export async function changeProjectStatus(
 }
 
 /**
- * Admins only (M1 policy). Deleting frees the quotation for a new project.
- * TODO(M9): refuse while the project has live purchase orders.
+ * Admins only (M1 policy). Deleting frees the quotation for a new project. Refused while the
+ * project has live POs (M9 Decision 11), under the lock a PO create takes, so the two cannot
+ * race.
  */
 export async function softDeleteProject(ctx: Ctx, id: string): Promise<ProjectDetail> {
   return withTx(ctx, async (tx) => {
+    await lockProject(tx, id);
     await findAccessible(tx, ctx, id, 'delete');
+    const purchaseOrders = await tx.purchaseOrder.count({ where: { projectId: id } });
+    if (purchaseOrders > 0) {
+      throw new DomainError(`Delete this project's purchase orders first (${purchaseOrders})`);
+    }
     await guardedUpdate(tx, id, { deletedAt: null }, { deletedAt: new Date() });
     return loadProject(tx, id);
   });

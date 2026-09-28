@@ -6,6 +6,8 @@ export {
   followUpResource,
   projectAccessSelect,
   projectResource,
+  purchaseOrderAccessSelect,
+  purchaseOrderResource,
   quotationManagersSelect,
   quotationResource,
   scopeAuditLog,
@@ -13,6 +15,7 @@ export {
   scopeEnquiries,
   scopeFollowUps,
   scopeProjects,
+  scopePurchaseOrders,
   scopeQuotations,
   scopeUsers,
 } from './scope.ts';

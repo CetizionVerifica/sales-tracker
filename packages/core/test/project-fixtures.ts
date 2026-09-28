@@ -77,9 +77,9 @@ export async function projectWorld(): Promise<ProjectWorld> {
 }
 
 /** A PO_RECEIVED quotation owned by `ctx`, on a fresh converted enquiry. */
-export async function wonQuotation(w: ProjectWorld, ctx: Ctx = w.sales) {
+export async function wonQuotation(w: ProjectWorld, ctx: Ctx = w.sales, clientId = w.acme) {
   const enquiry = await createEnquiry(ctx, {
-    clientId: w.acme,
+    clientId,
     sectorId: w.pharma,
     serviceIds: [w.inspection, w.audit],
     receivedDate: '2026-03-10',
@@ -123,8 +123,9 @@ export async function newProject(
   w: ProjectWorld,
   overrides: Partial<CreateProjectInput> = {},
   owner: Ctx = w.sales,
+  clientId = w.acme,
 ) {
-  const { enquiry, quotation } = await wonQuotation(w, owner);
+  const { enquiry, quotation } = await wonQuotation(w, owner, clientId);
   const project = await createProject(owner, projectInput(w, quotation.id, overrides));
   expect(project.status).toBe('NOT_STARTED');
   return { enquiry, quotation, project };

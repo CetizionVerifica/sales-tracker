@@ -6,10 +6,13 @@ import {
   enquiryResource,
   projectAccessSelect,
   projectResource,
+  purchaseOrderAccessSelect,
+  purchaseOrderResource,
   quotationManagersSelect,
   quotationResource,
   scopeEnquiries,
   scopeProjects,
+  scopePurchaseOrders,
   scopeQuotations,
 } from '../rbac/scope.ts';
 import type { Actor, Resource } from '../rbac/types.ts';
@@ -286,11 +289,69 @@ function projectLabel(row: { number: string; name: string }): string {
   return `${row.number} · ${row.name}`;
 }
 
+/** How a PO is named across the app: the client's number, prefixed (UI guide §5). */
+export function purchaseOrderLabel(row: { poNumber: string }): string {
+  return `PO ${row.poNumber}`;
+}
+
+/** POs keep no follow-up fields, so there is no sync hook (M9). */
+const purchaseOrderTarget: FollowUpTarget = {
+  auditModel: 'PurchaseOrder',
+  async load(db, id) {
+    const row = await db.purchaseOrder.findFirst({
+      where: { id, deletedAt: undefined },
+      select: {
+        poNumber: true,
+        clientId: true,
+        deletedAt: true,
+        client: { select: { deletedAt: true } },
+        ...purchaseOrderAccessSelect,
+      },
+    });
+    if (!row) return null;
+    return {
+      clientId: row.clientId,
+      label: purchaseOrderLabel(row),
+      deleted: !!row.deletedAt || !!row.client.deletedAt,
+      resource: purchaseOrderResource(row),
+    };
+  },
+  async visibleIds(db, user, clientId) {
+    const rows = await db.purchaseOrder.findMany({
+      where: {
+        deletedAt: undefined,
+        ...(clientId && { clientId }),
+        AND: [scopePurchaseOrders(user)],
+      },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
+  },
+  async labels(db, ids) {
+    const rows = await db.purchaseOrder.findMany({
+      where: { id: { in: ids }, deletedAt: undefined },
+      select: { id: true, poNumber: true, deletedAt: true },
+    });
+    return new Map(
+      rows.map((r) => [r.id, { label: purchaseOrderLabel(r), deleted: !!r.deletedAt }]),
+    );
+  },
+  async pickable(db, user, clientId) {
+    const rows = await db.purchaseOrder.findMany({
+      where: { clientId, AND: [scopePurchaseOrders(user)] },
+      select: { id: true, poNumber: true },
+      orderBy: [{ receivedDate: 'desc' }, { poNumber: 'asc' }],
+    });
+    return rows.map((r) => ({ id: r.id, label: purchaseOrderLabel(r) }));
+  },
+};
+
 export const FOLLOW_UP_TARGETS: Partial<Record<FollowUpEntityTypeValue, FollowUpTarget>> = {
   CLIENT: clientTarget,
   ENQUIRY: enquiryTarget,
   QUOTATION: quotationTarget,
   PROJECT: projectTarget,
+  PURCHASE_ORDER: purchaseOrderTarget,
 };
 
 /** The registry entry, or a field error for a type whose module has not shipped. */

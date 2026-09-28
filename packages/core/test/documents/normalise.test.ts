@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   normaliseExtraction,
+  PURCHASE_ORDER_EXTRACTION_FIELDS,
   QUOTATION_EXTRACTION_FIELDS,
   type WireExtraction,
 } from '../../schemas/extraction.ts';
@@ -54,5 +55,44 @@ describe('normaliseExtraction', () => {
       page: null,
       sourceText: null,
     });
+  });
+
+  // AC6 (M9): whole numbers in range only; anything else is left for the reviewer.
+  it('keeps net days that are digits in range, and nulls the rest with low confidence', () => {
+    const days = (value: string) =>
+      normaliseExtraction(PURCHASE_ORDER_EXTRACTION_FIELDS, { paymentTermsDays: field(value) })
+        .paymentTermsDays;
+    expect(days('45')).toMatchObject({ value: '45', confidence: 'high' });
+    expect(days(' 0 ')).toMatchObject({ value: '0', confidence: 'high' });
+    expect(days('365')).toMatchObject({ value: '365', confidence: 'high' });
+    for (const bad of ['45 days', '400', '-5', '4.5', 'forty-five']) {
+      expect(days(bad)).toMatchObject({ value: null, confidence: 'low' });
+    }
+  });
+
+  it('reads the PO fields: number, date, client, amount, currency and terms', () => {
+    const out = normaliseExtraction(PURCHASE_ORDER_EXTRACTION_FIELDS, {
+      poNumber: field(' 4500012345 '),
+      documentDate: field('2026-09-20'),
+      clientName: field('Globex Ltd'),
+      amount: field('INR 12,50,000'),
+      currency: field('inr'),
+      paymentTerms: field('x'.repeat(600)),
+    });
+    expect(out.poNumber?.value).toBe('4500012345');
+    expect(out.amount?.value).toBe('1250000');
+    expect(out.currency?.value).toBe('INR');
+    expect(out.paymentTerms?.value).toHaveLength(500);
+    expect(Object.keys(out).sort()).toEqual(
+      [
+        'amount',
+        'clientName',
+        'currency',
+        'documentDate',
+        'paymentTerms',
+        'paymentTermsDays',
+        'poNumber',
+      ].sort(),
+    );
   });
 });

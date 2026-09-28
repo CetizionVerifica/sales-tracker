@@ -72,6 +72,12 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
   // The pipeline strip links a project only when there is exactly one under the enquiry.
   const projects = quotations.flatMap((q) => q.projects);
   const onlyProject = projects.length === 1 ? projects[0] : undefined;
+  // M9: likewise the PO; with several, the one project's PO section.
+  const purchaseOrders = projects.flatMap((p) => p.purchaseOrders);
+  const poLink =
+    purchaseOrders.length === 1
+      ? `/purchase-orders/${purchaseOrders[0]!.id}`
+      : onlyProject && `/projects/${onlyProject.id}?tab=overview#purchase-orders`;
 
   const menu: RecordMenuItem[] = [];
   if (canDelete && !deleted && !converted) {
@@ -248,10 +254,19 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
       />
       <PipelineStrip
         current="enquiry"
-        reached={projects.length > 0 ? 'project' : latestQuotation ? 'quotation' : 'enquiry'}
+        reached={
+          purchaseOrders.length > 0
+            ? 'po'
+            : projects.length > 0
+              ? 'project'
+              : latestQuotation
+                ? 'quotation'
+                : 'enquiry'
+        }
         links={{
           ...(latestQuotation && { quotation: `/quotations/${latestQuotation.id}` }),
           ...(onlyProject && { project: `/projects/${onlyProject.id}` }),
+          ...(purchaseOrders.length > 0 && poLink && { po: poLink }),
         }}
       />
       <DetailLayout

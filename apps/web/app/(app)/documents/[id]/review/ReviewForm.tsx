@@ -43,7 +43,7 @@ import { confirmExtractionAction } from '../../actions';
 export interface ReviewFormRow {
   name: string;
   label: string;
-  input: 'text' | 'date' | 'money' | 'textarea';
+  input: 'text' | 'date' | 'money' | 'textarea' | 'integer';
   /** Record field names this row writes, filled from `extracted` in the same order. */
   applies: string[];
   extracted: Record<string, ExtractedField | null>;
@@ -78,6 +78,11 @@ function display(row: ReviewFormRow, values: Record<string, string | null>): str
   const value = values[row.applies[0]!] ?? '';
   if (!value) return '—';
   return row.input === 'date' ? formatDate(value) : value;
+}
+
+/** "Amount" → "amount", but "PO number" keeps its acronym, for "Apply …" labels. */
+function sentenceTail(label: string): string {
+  return label.replace(/^[A-Z](?=[a-z])/, (letter) => letter.toLowerCase());
 }
 
 function confidenceOf(row: ReviewFormRow): ExtractedField['confidence'] | null {
@@ -184,8 +189,9 @@ export function ReviewForm({
         >
           <AlertTriangle className="text-warning mt-0.5 size-4 shrink-0" aria-hidden />
           <p>
-            The document is addressed to <strong>{clientMismatch}</strong>, which does not match the
-            client on {recordLabel}. Check it is the right document before applying values.
+            The document is {kind === 'QUOTATION' ? 'addressed to' : 'from'}{' '}
+            <strong>{clientMismatch}</strong>, which does not match the client on {recordLabel}.
+            Check it is the right document before applying values.
           </p>
         </div>
       )}
@@ -222,7 +228,7 @@ export function ReviewForm({
                     onCheckedChange={(checked) =>
                       form.setValue(`ticked.${row.name}`, checked === true, { shouldDirty: true })
                     }
-                    aria-label={`Apply ${row.label.toLowerCase()}`}
+                    aria-label={`Apply ${sentenceTail(row.label)}`}
                   />
                   {row.label}
                 </label>
@@ -277,6 +283,10 @@ export function ReviewForm({
                     id={inputId(row.applies[0]!)}
                     aria-label={`${row.label} from the document`}
                     type={row.input === 'date' ? 'date' : 'text'}
+                    {...(row.input === 'integer' && {
+                      inputMode: 'numeric' as const,
+                      className: 'w-32 text-right tabular-nums',
+                    })}
                     {...form.register(`values.${row.applies[0]!}`)}
                   />
                 )

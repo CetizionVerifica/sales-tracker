@@ -42,12 +42,16 @@ export async function POST(request: Request) {
     const document = await uploadDocument(
       ctx,
       {
-        kind: String(form.get('kind') ?? '') as 'QUOTATION',
+        kind: String(form.get('kind') ?? '') as 'QUOTATION' | 'PURCHASE_ORDER',
         entityId: String(form.get('entityId') ?? ''),
       },
       { bytes: new Uint8Array(await file.arrayBuffer()), mimeType: file.type, filename: file.name },
     );
     if (document.kind === 'QUOTATION') revalidatePath(`/quotations/${document.entityId}`);
+    if (document.kind === 'PURCHASE_ORDER') {
+      revalidatePath(`/purchase-orders/${document.entityId}`);
+      revalidatePath('/purchase-orders');
+    }
     return reply({ ok: true, data: { id: document.id } });
   } catch (error) {
     const result = toResult(error);

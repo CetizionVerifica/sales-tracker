@@ -1,12 +1,18 @@
 import { getDb } from '../clients.ts';
 import { assertCan, type Ctx } from '../context.ts';
 import { can } from '../rbac/can.ts';
-import { scopeEnquiries, scopeProjects, scopeQuotations } from '../rbac/scope.ts';
+import {
+  scopeEnquiries,
+  scopeProjects,
+  scopePurchaseOrders,
+  scopeQuotations,
+} from '../rbac/scope.ts';
 import {
   searchRecordsSchema,
   type SearchRecordsInput,
   type SearchResultType,
 } from '../schemas/search.ts';
+import { purchaseOrderLabel } from './follow-up-targets.ts';
 
 export interface SearchResult {
   type: SearchResultType;
@@ -14,14 +20,15 @@ export interface SearchResult {
   /** The record's identifier or the client's name. */
   label: string;
   /** Secondary text: the client for enquiries and quotations, the name for projects, the
-   * sector for clients. */
+   * client and project number for POs, the sector for clients. */
   detail: string;
 }
 
 /**
  * The ⌘K palette's search (UI guide §3): enquiries and quotations by number or client name,
- * projects by number, name or client name (M8), clients by name. Each type is scoped exactly like its list, so a rep never sees another
- * rep's records; types the user cannot list are skipped. Live records only.
+ * projects by number, name or client name (M8), POs by the client's PO number (M9), clients
+ * by name. Each type is scoped exactly like its list, so a rep never sees another rep's
+ * records; types the user cannot list are skipped. Live records only.
  */
 export async function searchRecords(ctx: Ctx, input: SearchRecordsInput): Promise<SearchResult[]> {
   const { q, limit } = searchRecordsSchema.parse(input);
@@ -30,7 +37,7 @@ export async function searchRecords(ctx: Ctx, input: SearchRecordsInput): Promis
   const contains = { contains: q, mode: 'insensitive' as const };
   const byNumberOrClient = { OR: [{ number: contains }, { client: { name: contains } }] };
 
-  const [enquiries, quotations, projects, clients] = await Promise.all([
+  const [enquiries, quotations, projects, purchaseOrders, clients] = await Promise.all([
     can(ctx.user, 'list', 'enquiry')
       ? db.enquiry.findMany({
           where: { AND: [scopeEnquiries(ctx.user), byNumberOrClient] },
@@ -54,6 +61,19 @@ export async function searchRecords(ctx: Ctx, input: SearchRecordsInput): Promis
           },
           select: { id: true, number: true, name: true },
           orderBy: { number: 'desc' },
+          take: limit,
+        })
+      : [],
+    can(ctx.user, 'list', 'purchaseOrder')
+      ? db.purchaseOrder.findMany({
+          where: { AND: [scopePurchaseOrders(ctx.user), { poNumber: contains }] },
+          select: {
+            id: true,
+            poNumber: true,
+            client: { select: { name: true } },
+            project: { select: { number: true } },
+          },
+          orderBy: [{ receivedDate: 'desc' }, { id: 'asc' }],
           take: limit,
         })
       : [],
@@ -83,6 +103,12 @@ export async function searchRecords(ctx: Ctx, input: SearchRecordsInput): Promis
       id: p.id,
       label: p.number,
       detail: p.name,
+    })),
+    ...purchaseOrders.map((po) => ({
+      type: 'PURCHASE_ORDER' as const,
+      id: po.id,
+      label: purchaseOrderLabel(po),
+      detail: `${po.client.name} · ${po.project.number}`,
     })),
     ...clients.map((c) => ({
       type: 'CLIENT' as const,

@@ -115,6 +115,36 @@ export function projectResource(row: { managerId: string | null; quotation: { ow
 }
 
 /**
+ * Admins see every PO; Sales see POs on projects under quotations they currently own; PMs
+ * see POs on projects assigned to them (M9). The same reach as scopeProjects, so anyone who
+ * can read a project can read its POs.
+ */
+export function scopePurchaseOrders(user: Actor): Prisma.PurchaseOrderWhereInput {
+  if (user.role === 'ADMIN') return {};
+  if (user.role === 'SALES') return { project: { quotation: { ownerId: user.id } } };
+  return { project: { managerId: user.id } };
+}
+
+/** Selects what purchaseOrderResource needs, through the project (never copied onto the PO). */
+export const purchaseOrderAccessSelect = {
+  project: { select: projectAccessSelect },
+} satisfies Prisma.PurchaseOrderSelect;
+
+/**
+ * The can() instance for a PO. Both owners are read through its project, so reassigning the
+ * project's manager or the quotation's owner moves PO access with it (M8 Decision 4).
+ */
+export function purchaseOrderResource(row: {
+  project: { managerId: string | null; quotation: { ownerId: string } };
+}) {
+  return {
+    type: 'purchaseOrder' as const,
+    projectManagerId: row.project.managerId,
+    pipelineOwnerId: row.project.quotation.ownerId,
+  };
+}
+
+/**
  * Follow-ups the user may see (M5 Decision 4): their own, client-level ones (everyone reads
  * clients), and those on records they can read. The polymorphic `entityId` has no relation
  * to join on, so the caller resolves the readable record ids per type first

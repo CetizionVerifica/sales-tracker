@@ -687,6 +687,19 @@ export async function listDocumentsPendingReview(ctx: Ctx): Promise<DocumentRow[
   for (const [kind, spec] of supportedKinds()) {
     current.push({ kind, ...spec.currentWhere });
     if (kind === 'QUOTATION') mine.push({ kind, quotation: { is: { ownerId: ctx.user.id } } });
+    // M9: a PO document is its pipeline owner's and its project manager's to review.
+    if (kind === 'PURCHASE_ORDER') {
+      mine.push({
+        kind,
+        purchaseOrder: {
+          is: {
+            project: {
+              OR: [{ managerId: ctx.user.id }, { quotation: { ownerId: ctx.user.id } }],
+            },
+          },
+        },
+      });
+    }
   }
   const docs = await db.document.findMany({
     where: {

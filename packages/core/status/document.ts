@@ -1,5 +1,6 @@
 import type { DocumentReviewStatus, ExtractionStatus } from '@sales-tracker/db';
 import { DomainError } from '../errors.ts';
+import type { DocumentState } from '../schemas/document-state.ts';
 
 /**
  * Document extraction: QUEUED → RUNNING → SUCCEEDED | FAILED, with RUNNING → QUEUED for a
@@ -64,4 +65,13 @@ export function assertCanRetry(doc: ReviewState): void {
   if (!FINISHED_EXTRACTION.includes(doc.extractionStatus)) {
     throw new DomainError('The document is still being read');
   }
+}
+
+/** Where a record's current document is, for list columns and filters (M9). */
+export function documentStateOf(doc: ReviewState | null): DocumentState {
+  if (!doc) return 'none';
+  if (doc.reviewStatus === 'CONFIRMED') return 'reviewed';
+  if (doc.extractionStatus === 'SUCCEEDED') return 'toReview';
+  if (doc.extractionStatus === 'FAILED' || doc.extractionStatus === 'SKIPPED') return 'failed';
+  return 'reading';
 }
