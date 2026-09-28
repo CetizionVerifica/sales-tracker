@@ -39,6 +39,7 @@ export { RetryableExtractionError } from './extraction/types.ts';
 export { setDocumentDeps } from './extraction/deps.ts';
 export * from './import/service.ts';
 export { MAX_IMPORT_FILE_BYTES } from './import/file-types.ts';
+export { buildEnquiryImportTemplate } from './import/template.ts';
 export {
   closeImportsQueue,
   IMPORT_COMMIT_JOB,

@@ -1,5 +1,6 @@
 'use client';
 
+import { Download } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Panel } from '@/components/charts/Panel';
@@ -33,6 +34,14 @@ export function UploadForm() {
     <Panel
       title="Upload a spreadsheet"
       description="xlsx, xlsm, xls, ods, csv, tsv or txt, up to 20 MB and 50,000 rows. Phase 1 imports enquiries from a single sheet."
+      actions={
+        <Button variant="outline" size="sm" asChild>
+          <a href="/api/imports/template" download>
+            <Download className="size-4" strokeWidth={1.75} aria-hidden />
+            Download template
+          </a>
+        </Button>
+      }
     >
       <div className="flex flex-col gap-4">
         <label

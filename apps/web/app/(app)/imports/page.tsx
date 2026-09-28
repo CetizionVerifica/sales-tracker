@@ -1,5 +1,6 @@
 import { can, listImportBatches } from '@sales-tracker/core';
 import { IMPORT_BATCH_STATUSES, listImportBatchesSchema } from '@sales-tracker/core/schemas';
+import { Download } from 'lucide-react';
 import Link from 'next/link';
 import type { FilterDef } from '@/components/data/FilterBar';
 import { FilterBar } from '@/components/data/FilterBar';
@@ -43,9 +44,17 @@ export default async function ImportsPage({
         title="Imports"
         description="Bring in enquiries in bulk from a spreadsheet."
         actions={
-          <Button asChild>
-            <Link href="/imports/new">Upload a file</Link>
-          </Button>
+          <>
+            <Button variant="outline" size="sm" asChild>
+              <a href="/api/imports/template" download>
+                <Download className="size-4" strokeWidth={1.75} aria-hidden />
+                Download template
+              </a>
+            </Button>
+            <Button asChild>
+              <Link href="/imports/new">Upload a file</Link>
+            </Button>
+          </>
         }
       />
       <FilterBar searchPlaceholder="Search file name" filters={filters} />

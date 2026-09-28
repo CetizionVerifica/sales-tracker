@@ -50,9 +50,11 @@ test('purchase order: add from the project → read the PDF → review → confi
   await page.getByRole('link', { name: 'Add PO' }).click();
   await expect(page.getByRole('heading', { name: 'New purchase order' })).toBeVisible();
   await expect(page.getByTestId('po-client')).toHaveText(client);
-  await expect(page.getByLabel('Inspection')).toBeChecked();
-  await expect(page.getByLabel('Audit')).toBeChecked();
-  await expect(page.getByLabel('Amount')).toHaveValue('125000.50');
+  // Exact/role-scoped: M12b's split editor added "Amount for Inspection" etc., which
+  // getByLabel's default substring match would otherwise also pick up here.
+  await expect(page.getByRole('checkbox', { name: 'Inspection' })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Audit' })).toBeChecked();
+  await expect(page.getByLabel('Amount', { exact: true })).toHaveValue('125000.50');
   await expect(page.getByText(`Remaining on ${projectNumber}`)).toBeVisible();
   await expect(page.getByLabel('Received on')).toHaveValue(istDay(0));
   await expect(page.getByText(`From ${quotationNumber}’s PO received date`)).toBeVisible();
