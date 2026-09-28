@@ -105,4 +105,7 @@ export const policy: { [T in ResourceType]: Rule<T> } = {
 
   // M11: everyone reads their own My Today; admins may read anyone's (Decision 6).
   myToday: (user, action, i) => action === 'read' && i?.userId === user.id,
+
+  // M12: everyone reads rates (forms show the INR equivalent); only admins manage them.
+  exchangeRate: (_user, action) => action === 'read' || action === 'list',
 };

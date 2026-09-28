@@ -67,7 +67,7 @@ Client, sector and service become master tables instead of free text, so reports
 | AuditLog                | actor, action, entity type + id, before/after JSON, source (web / mcp / import), timestamp                                                   | Append-only                           |
 | ApiToken                | name, hashed token, scopes, expiry, created by                                                                                               | For MCP access                        |
 
-Money is stored as integer minor units (paise, cents) in a `BigInt` column plus an ISO currency code (M6 Decision 3).
+Money is stored as integer minor units (paise, cents) in a `BigInt` column plus an ISO currency code (M6 Decision 3). From M12, quotations, projects, POs and invoices also store an INR equivalent (`amountInrMinor`) at the monthly exchange rate for the record's own date, which reports sum (M12 Decision 1).
 
 Status rules:
 
@@ -143,6 +143,6 @@ Still open (settle before the module that needs it):
 - [x] Can a quotation have revisions, or is it edited in place? (M6) Edited in place; the audit log is the history: see M6 Decision 2.
 - [x] Can one enquiry cover several services? (M4) Yes: see M4 Decision 2.
 - [x] Are partial invoice payments needed? (M10) Not in v1; an invoice is paid in full or not: see M10 Decision 13.
-- [ ] Should reports convert USD and other currencies to INR, and at which rate: quote date or current? (M12)
+- [x] Should reports convert USD and other currencies to INR, and at which rate: quote date or current? (M12) Stored per record at the admin-entered monthly rate for the record's own date: see M12 Decision 1.
 - [x] Who can mark an invoice PAID: sales, PM, or admin only? (M10) Anyone who can update the invoice (pipeline owner, PM, admin): see M10 Decision 14.
 - [ ] Where will it be hosted: company VPS, AWS Mumbai, or another cloud? (M14)

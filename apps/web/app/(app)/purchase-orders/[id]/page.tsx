@@ -14,6 +14,7 @@ import { RecordAudit } from '@/components/audit/RecordAudit';
 import { Panel } from '@/components/charts/Panel';
 import { DateDisplay } from '@/components/display/DateDisplay';
 import { FieldGrid } from '@/components/display/FieldGrid';
+import { InrEquivalent } from '@/components/display/InrEquivalent';
 import { Money } from '@/components/display/Money';
 import { UserAvatar } from '@/components/display/UserAvatar';
 import { DocumentCard, type DocumentSummary } from '@/components/documents/DocumentCard';
@@ -378,7 +379,17 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
                 },
                 {
                   label: 'Amount',
-                  value: <Money amountMinor={po.amountMinor} currency={po.currency} />,
+                  value: (
+                    <>
+                      <Money amountMinor={po.amountMinor} currency={po.currency} />
+                      <InrEquivalent
+                        currency={po.currency}
+                        amountInrMinor={po.amountInrMinor}
+                        fxRate={po.fxRate}
+                        date={po.receivedDate}
+                      />
+                    </>
+                  ),
                 },
                 { label: 'Received on', value: <DateDisplay value={po.receivedDate} /> },
                 {

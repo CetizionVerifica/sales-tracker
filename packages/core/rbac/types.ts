@@ -31,7 +31,9 @@ export type ResourceInstance =
   | { type: 'document'; canReadParent: boolean; canUpdateParent: boolean }
   | { type: 'dashboard'; scope: 'company' | 'personal' | 'project' }
   /** Whose My Today list is being read (M11). */
-  | { type: 'myToday'; userId: string };
+  | { type: 'myToday'; userId: string }
+  /** Monthly exchange rates (M12): a master, like sectors and services. */
+  | { type: 'exchangeRate' };
 
 export type ResourceType = ResourceInstance['type'];
 

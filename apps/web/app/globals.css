@@ -53,9 +53,10 @@
   --stage-po: #245184;
   --stage-invoice: #143a63;
 
-  /* Charts (non-pipeline series) */
-  --chart-1: #245184;
-  --chart-2: #2e7d4f;
+  /* Charts (non-pipeline series). 1–2 validated as a categorical pair (M12, dataviz
+     validator: lightness band, chroma, CVD ΔE 18.1, contrast >= 3:1 on the card). */
+  --chart-1: #2f6cb3;
+  --chart-2: #2e8a57;
   --chart-3: #d99a1e;
   --chart-4: #8fa8c8;
   --chart-5: #6b7686;
@@ -100,6 +101,15 @@
   --attention-foreground: #f4d58f;
   --success: #5bb582;
   --success-soft: #16301f;
+  /* Dark steps of the pipeline ramp and chart pair (M12): later stages lighter, so they
+     stay the most prominent; every step >= 3:1 on the dark card. */
+  --stage-enquiry: #4a6a94;
+  --stage-quotation: #5b82b5;
+  --stage-project: #739bcc;
+  --stage-po: #8fb3de;
+  --stage-invoice: #afcbee;
+  --chart-1: #5a8bd0;
+  --chart-2: #3f9e69;
   --warning: #d9a04a;
   --warning-soft: #33280f;
   --destructive: #e0675c;

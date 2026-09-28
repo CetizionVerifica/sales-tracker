@@ -178,6 +178,9 @@ export const listQuotationsSchema = listParamsSchema.extend({
   quotationTo: calendarDateSchema.optional(),
   nextFollowUpFrom: calendarDateSchema.optional(),
   nextFollowUpTo: calendarDateSchema.optional(),
+  /** M12 drill-down: won (PO received date) or lost (IST day of the loss) in this range. */
+  decidedFrom: calendarDateSchema.optional(),
+  decidedTo: calendarDateSchema.optional(),
   /** Active, with a next follow-up date on or before today (Asia/Kolkata). */
   followUpDue: flag,
   /** PO_RECEIVED quotations with (true) or without (false) a live project (M8). */

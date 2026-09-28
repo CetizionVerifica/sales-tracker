@@ -6,6 +6,9 @@
   },
   "pm@example.com": {
     "overdue": [
+      "INVOICE_OVERDUE | Invoice INV/26-27/0007 | -120",
+      "INVOICE_OVERDUE | Invoice INV/26-27/0006 | -75",
+      "INVOICE_OVERDUE | Invoice INV/26-27/0005 | -45",
       "INVOICE_OVERDUE | Invoice INV/26-27/0003 | -10 | also FOLLOW_UP_DUE",
       "PROJECT_BEHIND_SCHEDULE | PRJ-2026-0004 · Export line inspection | -5"
     ],
@@ -29,6 +32,9 @@
   },
   "sales2@example.com": {
     "overdue": [
+      "INVOICE_OVERDUE | Invoice INV/26-27/0007 | -120",
+      "INVOICE_OVERDUE | Invoice INV/26-27/0006 | -75",
+      "INVOICE_OVERDUE | Invoice INV/26-27/0005 | -45",
       "STALE_ENQUIRY | ENQ-2026-0010 | -20",
       "INVOICE_OVERDUE | Invoice INV/26-27/0003 | -10",
       "QUOTATION_AWAITING_REPLY | QUO-2026-0004 | -3",

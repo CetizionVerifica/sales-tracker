@@ -31,6 +31,8 @@ import {
   isActiveQuotation,
 } from '../status/quotation.ts';
 import { invoiceStage, type InvoiceStage } from './invoice-queries.ts';
+import { lostIn, wonIn } from './quotation-queries.ts';
+import { fxFields, fxOnChange } from './fx.ts';
 import { nextNumber } from './number-sequence.ts';
 import { SETTINGS_ID } from './settings.service.ts';
 
@@ -67,12 +69,18 @@ const quotationInclude = {
 type QuotationRow = Prisma.QuotationGetPayload<{ include: typeof quotationInclude }>;
 
 /** A quotation with its client, sector, owner, enquiry and services flattened for display. */
-export type QuotationDetail = Omit<QuotationRow, 'services'> & {
+export type QuotationDetail = Omit<QuotationRow, 'services' | 'fxRate'> & {
   services: { id: string; name: string }[];
+  /** The rate behind `amountInrMinor` as a decimal string ("83.125"), or null (M12). */
+  fxRate: string | null;
 };
 
-function toDetail({ services, ...row }: QuotationRow): QuotationDetail {
-  return { ...row, services: services.map((link) => link.service) };
+function toDetail({ services, fxRate, ...row }: QuotationRow): QuotationDetail {
+  return {
+    ...row,
+    fxRate: fxRate?.toString() ?? null,
+    services: services.map((link) => link.service),
+  };
 }
 
 /** Includes a soft-deleted quotation (detail page with Restore). */
@@ -189,6 +197,9 @@ const SORT_COLUMNS = {
   updatedAt: (dir) => ({ updatedAt: dir }),
 } satisfies Record<string, (dir: Prisma.SortOrder) => Prisma.QuotationOrderByWithRelationInput>;
 
+const EARLIEST = new Date('1970-01-01T00:00:00.000Z');
+const LATEST = new Date('9999-12-31T00:00:00.000Z');
+
 const between = (from: Date | undefined, to: Date | undefined) =>
   from || to ? { ...(from && { gte: from }), ...(to && { lte: to }) } : undefined;
 
@@ -226,6 +237,12 @@ export async function listQuotations(
       }),
     },
   ];
+  // M12: the dashboard's "decided in the period" (won by PO date, lost by the loss day). Its
+  // own entry: the search above also uses OR.
+  if (p.decidedFrom || p.decidedTo) {
+    const span = { from: p.decidedFrom ?? EARLIEST, to: p.decidedTo ?? LATEST };
+    filters.push({ OR: [wonIn(span), lostIn(span)] });
+  }
   if (p.hasProject !== undefined) {
     // A live project, if any (M8 Decision 2); relation filters skip the soft-delete extension.
     const live = { some: { deletedAt: null } };
@@ -350,6 +367,8 @@ export async function createQuotation(
     const { id } = await tx.quotation.create({
       data: {
         ...fields,
+        // M12: the INR equivalent at the quotation month's rate, in the same audited write.
+        ...(await fxFields(tx, fields.amountMinor, fields.currency, fields.quotationDate)),
         enquiryId,
         clientId: enquiry.clientId,
         ownerId,
@@ -439,8 +458,23 @@ export async function updateQuotation(
     }
 
     if (Object.keys(fields).length > 0) {
+      // M12: re-convert to INR only when the amount, currency or date changes.
+      const fx = await fxOnChange(
+        tx,
+        {
+          amountMinor: current.amountMinor,
+          currency: current.currency,
+          day: current.quotationDate,
+        },
+        { amountMinor: fields.amountMinor, currency: fields.currency, day: fields.quotationDate },
+      );
       // Guarded: a status change committed since the read must still lock the fields.
-      await guardedUpdate(tx, id, { status: current.status, deletedAt: null }, fields);
+      await guardedUpdate(
+        tx,
+        id,
+        { status: current.status, deletedAt: null },
+        { ...fields, ...fx },
+      );
     }
     return loadQuotation(tx, id);
   });

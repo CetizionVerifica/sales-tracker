@@ -1,0 +1,1558 @@
+{
+  "admin · company · this quarter": {
+    "layout": "sales",
+    "scope": {
+      "kind": "company"
+    },
+    "period": {
+      "preset": "thisQuarter",
+      "from": "2026-07-01",
+      "to": "2026-09-30",
+      "label": "Q2 FY 2026–27",
+      "unit": "quarter"
+    },
+    "previous": {
+      "preset": "thisQuarter",
+      "from": "2026-04-01",
+      "to": "2026-06-30",
+      "label": "Q1 FY 2026–27",
+      "unit": "quarter"
+    },
+    "missingFx": {
+      "count": 0,
+      "currencies": []
+    },
+    "kpis": {
+      "openPipeline": {
+        "count": 3,
+        "valueMinor": "₹1213750.00"
+      },
+      "winRate": {
+        "won": 6,
+        "lost": 1,
+        "rate": 0.8571,
+        "valueRate": 0.0727,
+        "previous": null
+      },
+      "won": {
+        "count": 6,
+        "valueMinor": "₹2745000.00",
+        "previousMinor": "₹671200.00"
+      },
+      "overdue": {
+        "count": 4,
+        "valueMinor": "₹1275000.00"
+      }
+    },
+    "funnel": [
+      {
+        "stage": "enquiries",
+        "count": 8,
+        "conversion": null,
+        "valueMinor": null
+      },
+      {
+        "stage": "proposalSent",
+        "count": 2,
+        "conversion": 0.25,
+        "valueMinor": null
+      },
+      {
+        "stage": "quoted",
+        "count": 1,
+        "conversion": 0.5,
+        "valueMinor": "₹120000.00"
+      },
+      {
+        "stage": "won",
+        "count": 1,
+        "conversion": 1,
+        "valueMinor": "₹1230000.00"
+      },
+      {
+        "stage": "invoiced",
+        "count": 1,
+        "conversion": 1,
+        "valueMinor": null
+      },
+      {
+        "stage": "paid",
+        "count": 0,
+        "conversion": 0,
+        "valueMinor": null
+      }
+    ],
+    "ageing": {
+      "buckets": [
+        {
+          "bucket": "notDue",
+          "count": 1,
+          "valueMinor": "₹90000.00"
+        },
+        {
+          "bucket": "days1to30",
+          "count": 1,
+          "valueMinor": "₹975000.00"
+        },
+        {
+          "bucket": "days31to60",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "days61to90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "over90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        }
+      ],
+      "total": {
+        "count": 5,
+        "valueMinor": "₹1365000.00"
+      },
+      "dsoDays": 60
+    },
+    "conversion": {
+      "dimension": "sector",
+      "rows": [
+        {
+          "label": "Pharma",
+          "won": 6,
+          "lost": 1,
+          "rate": 0.8571,
+          "valueRate": null
+        }
+      ]
+    },
+    "quotedVsWon": [
+      {
+        "month": "2026-07",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹1515000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-08",
+        "quotedMinor": "₹1395000.00",
+        "wonMinor": "₹990000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-09",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹240000.00",
+        "lostMinor": "₹35000000.00"
+      }
+    ],
+    "topClients": [
+      {
+        "name": "Acme Pharma",
+        "invoicedMinor": "₹1962800.00",
+        "collectedMinor": "₹897800.00",
+        "outstandingMinor": "₹1065000.00",
+        "wonMinor": "₹2745000.00",
+        "pipelineMinor": "₹1213750.00"
+      },
+      {
+        "name": "Bharat Steel Works",
+        "invoicedMinor": "₹100000.00",
+        "collectedMinor": "₹0.00",
+        "outstandingMinor": "₹300000.00",
+        "wonMinor": "₹0.00",
+        "pipelineMinor": "₹0.00"
+      }
+    ]
+  },
+  "admin · company · by service": {
+    "layout": "sales",
+    "scope": {
+      "kind": "company"
+    },
+    "period": {
+      "preset": "thisQuarter",
+      "from": "2026-07-01",
+      "to": "2026-09-30",
+      "label": "Q2 FY 2026–27",
+      "unit": "quarter"
+    },
+    "previous": {
+      "preset": "thisQuarter",
+      "from": "2026-04-01",
+      "to": "2026-06-30",
+      "label": "Q1 FY 2026–27",
+      "unit": "quarter"
+    },
+    "missingFx": {
+      "count": 0,
+      "currencies": []
+    },
+    "kpis": {
+      "openPipeline": {
+        "count": 3,
+        "valueMinor": "₹1213750.00"
+      },
+      "winRate": {
+        "won": 6,
+        "lost": 1,
+        "rate": 0.8571,
+        "valueRate": 0.0727,
+        "previous": null
+      },
+      "won": {
+        "count": 6,
+        "valueMinor": "₹2745000.00",
+        "previousMinor": "₹671200.00"
+      },
+      "overdue": {
+        "count": 4,
+        "valueMinor": "₹1275000.00"
+      }
+    },
+    "funnel": [
+      {
+        "stage": "enquiries",
+        "count": 8,
+        "conversion": null,
+        "valueMinor": null
+      },
+      {
+        "stage": "proposalSent",
+        "count": 2,
+        "conversion": 0.25,
+        "valueMinor": null
+      },
+      {
+        "stage": "quoted",
+        "count": 1,
+        "conversion": 0.5,
+        "valueMinor": "₹120000.00"
+      },
+      {
+        "stage": "won",
+        "count": 1,
+        "conversion": 1,
+        "valueMinor": "₹1230000.00"
+      },
+      {
+        "stage": "invoiced",
+        "count": 1,
+        "conversion": 1,
+        "valueMinor": null
+      },
+      {
+        "stage": "paid",
+        "count": 0,
+        "conversion": 0,
+        "valueMinor": null
+      }
+    ],
+    "ageing": {
+      "buckets": [
+        {
+          "bucket": "notDue",
+          "count": 1,
+          "valueMinor": "₹90000.00"
+        },
+        {
+          "bucket": "days1to30",
+          "count": 1,
+          "valueMinor": "₹975000.00"
+        },
+        {
+          "bucket": "days31to60",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "days61to90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "over90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        }
+      ],
+      "total": {
+        "count": 5,
+        "valueMinor": "₹1365000.00"
+      },
+      "dsoDays": 60
+    },
+    "conversion": {
+      "dimension": "service",
+      "rows": [
+        {
+          "label": "Training",
+          "won": 4,
+          "lost": 0,
+          "rate": 1,
+          "valueRate": null
+        },
+        {
+          "label": "Inspection",
+          "won": 2,
+          "lost": 1,
+          "rate": 0.6667,
+          "valueRate": null
+        }
+      ]
+    },
+    "quotedVsWon": [
+      {
+        "month": "2026-07",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹1515000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-08",
+        "quotedMinor": "₹1395000.00",
+        "wonMinor": "₹990000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-09",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹240000.00",
+        "lostMinor": "₹35000000.00"
+      }
+    ],
+    "topClients": [
+      {
+        "name": "Acme Pharma",
+        "invoicedMinor": "₹1962800.00",
+        "collectedMinor": "₹897800.00",
+        "outstandingMinor": "₹1065000.00",
+        "wonMinor": "₹2745000.00",
+        "pipelineMinor": "₹1213750.00"
+      },
+      {
+        "name": "Bharat Steel Works",
+        "invoicedMinor": "₹100000.00",
+        "collectedMinor": "₹0.00",
+        "outstandingMinor": "₹300000.00",
+        "wonMinor": "₹0.00",
+        "pipelineMinor": "₹0.00"
+      }
+    ]
+  },
+  "admin · company · by source": {
+    "layout": "sales",
+    "scope": {
+      "kind": "company"
+    },
+    "period": {
+      "preset": "thisQuarter",
+      "from": "2026-07-01",
+      "to": "2026-09-30",
+      "label": "Q2 FY 2026–27",
+      "unit": "quarter"
+    },
+    "previous": {
+      "preset": "thisQuarter",
+      "from": "2026-04-01",
+      "to": "2026-06-30",
+      "label": "Q1 FY 2026–27",
+      "unit": "quarter"
+    },
+    "missingFx": {
+      "count": 0,
+      "currencies": []
+    },
+    "kpis": {
+      "openPipeline": {
+        "count": 3,
+        "valueMinor": "₹1213750.00"
+      },
+      "winRate": {
+        "won": 6,
+        "lost": 1,
+        "rate": 0.8571,
+        "valueRate": 0.0727,
+        "previous": null
+      },
+      "won": {
+        "count": 6,
+        "valueMinor": "₹2745000.00",
+        "previousMinor": "₹671200.00"
+      },
+      "overdue": {
+        "count": 4,
+        "valueMinor": "₹1275000.00"
+      }
+    },
+    "funnel": [
+      {
+        "stage": "enquiries",
+        "count": 8,
+        "conversion": null,
+        "valueMinor": null
+      },
+      {
+        "stage": "proposalSent",
+        "count": 2,
+        "conversion": 0.25,
+        "valueMinor": null
+      },
+      {
+        "stage": "quoted",
+        "count": 1,
+        "conversion": 0.5,
+        "valueMinor": "₹120000.00"
+      },
+      {
+        "stage": "won",
+        "count": 1,
+        "conversion": 1,
+        "valueMinor": "₹1230000.00"
+      },
+      {
+        "stage": "invoiced",
+        "count": 1,
+        "conversion": 1,
+        "valueMinor": null
+      },
+      {
+        "stage": "paid",
+        "count": 0,
+        "conversion": 0,
+        "valueMinor": null
+      }
+    ],
+    "ageing": {
+      "buckets": [
+        {
+          "bucket": "notDue",
+          "count": 1,
+          "valueMinor": "₹90000.00"
+        },
+        {
+          "bucket": "days1to30",
+          "count": 1,
+          "valueMinor": "₹975000.00"
+        },
+        {
+          "bucket": "days31to60",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "days61to90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "over90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        }
+      ],
+      "total": {
+        "count": 5,
+        "valueMinor": "₹1365000.00"
+      },
+      "dsoDays": 60
+    },
+    "conversion": {
+      "dimension": "source",
+      "rows": [
+        {
+          "label": "Referral",
+          "won": 4,
+          "lost": 0,
+          "rate": 1,
+          "valueRate": null
+        },
+        {
+          "label": "Other",
+          "won": 2,
+          "lost": 1,
+          "rate": 0.6667,
+          "valueRate": null
+        }
+      ]
+    },
+    "quotedVsWon": [
+      {
+        "month": "2026-07",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹1515000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-08",
+        "quotedMinor": "₹1395000.00",
+        "wonMinor": "₹990000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-09",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹240000.00",
+        "lostMinor": "₹35000000.00"
+      }
+    ],
+    "topClients": [
+      {
+        "name": "Acme Pharma",
+        "invoicedMinor": "₹1962800.00",
+        "collectedMinor": "₹897800.00",
+        "outstandingMinor": "₹1065000.00",
+        "wonMinor": "₹2745000.00",
+        "pipelineMinor": "₹1213750.00"
+      },
+      {
+        "name": "Bharat Steel Works",
+        "invoicedMinor": "₹100000.00",
+        "collectedMinor": "₹0.00",
+        "outstandingMinor": "₹300000.00",
+        "wonMinor": "₹0.00",
+        "pipelineMinor": "₹0.00"
+      }
+    ]
+  },
+  "admin · company · by owner": {
+    "layout": "sales",
+    "scope": {
+      "kind": "company"
+    },
+    "period": {
+      "preset": "thisQuarter",
+      "from": "2026-07-01",
+      "to": "2026-09-30",
+      "label": "Q2 FY 2026–27",
+      "unit": "quarter"
+    },
+    "previous": {
+      "preset": "thisQuarter",
+      "from": "2026-04-01",
+      "to": "2026-06-30",
+      "label": "Q1 FY 2026–27",
+      "unit": "quarter"
+    },
+    "missingFx": {
+      "count": 0,
+      "currencies": []
+    },
+    "kpis": {
+      "openPipeline": {
+        "count": 3,
+        "valueMinor": "₹1213750.00"
+      },
+      "winRate": {
+        "won": 6,
+        "lost": 1,
+        "rate": 0.8571,
+        "valueRate": 0.0727,
+        "previous": null
+      },
+      "won": {
+        "count": 6,
+        "valueMinor": "₹2745000.00",
+        "previousMinor": "₹671200.00"
+      },
+      "overdue": {
+        "count": 4,
+        "valueMinor": "₹1275000.00"
+      }
+    },
+    "funnel": [
+      {
+        "stage": "enquiries",
+        "count": 8,
+        "conversion": null,
+        "valueMinor": null
+      },
+      {
+        "stage": "proposalSent",
+        "count": 2,
+        "conversion": 0.25,
+        "valueMinor": null
+      },
+      {
+        "stage": "quoted",
+        "count": 1,
+        "conversion": 0.5,
+        "valueMinor": "₹120000.00"
+      },
+      {
+        "stage": "won",
+        "count": 1,
+        "conversion": 1,
+        "valueMinor": "₹1230000.00"
+      },
+      {
+        "stage": "invoiced",
+        "count": 1,
+        "conversion": 1,
+        "valueMinor": null
+      },
+      {
+        "stage": "paid",
+        "count": 0,
+        "conversion": 0,
+        "valueMinor": null
+      }
+    ],
+    "ageing": {
+      "buckets": [
+        {
+          "bucket": "notDue",
+          "count": 1,
+          "valueMinor": "₹90000.00"
+        },
+        {
+          "bucket": "days1to30",
+          "count": 1,
+          "valueMinor": "₹975000.00"
+        },
+        {
+          "bucket": "days31to60",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "days61to90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "over90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        }
+      ],
+      "total": {
+        "count": 5,
+        "valueMinor": "₹1365000.00"
+      },
+      "dsoDays": 60
+    },
+    "conversion": {
+      "dimension": "owner",
+      "rows": [
+        {
+          "label": "Sam Sales",
+          "won": 4,
+          "lost": 0,
+          "rate": 1,
+          "valueRate": null
+        },
+        {
+          "label": "Sita Sales",
+          "won": 2,
+          "lost": 1,
+          "rate": 0.6667,
+          "valueRate": null
+        }
+      ]
+    },
+    "quotedVsWon": [
+      {
+        "month": "2026-07",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹1515000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-08",
+        "quotedMinor": "₹1395000.00",
+        "wonMinor": "₹990000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-09",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹240000.00",
+        "lostMinor": "₹35000000.00"
+      }
+    ],
+    "topClients": [
+      {
+        "name": "Acme Pharma",
+        "invoicedMinor": "₹1962800.00",
+        "collectedMinor": "₹897800.00",
+        "outstandingMinor": "₹1065000.00",
+        "wonMinor": "₹2745000.00",
+        "pipelineMinor": "₹1213750.00"
+      },
+      {
+        "name": "Bharat Steel Works",
+        "invoicedMinor": "₹100000.00",
+        "collectedMinor": "₹0.00",
+        "outstandingMinor": "₹300000.00",
+        "wonMinor": "₹0.00",
+        "pipelineMinor": "₹0.00"
+      }
+    ]
+  },
+  "admin · Sita Sales": {
+    "layout": "sales",
+    "scope": {
+      "kind": "personal"
+    },
+    "period": {
+      "preset": "thisQuarter",
+      "from": "2026-07-01",
+      "to": "2026-09-30",
+      "label": "Q2 FY 2026–27",
+      "unit": "quarter"
+    },
+    "previous": {
+      "preset": "thisQuarter",
+      "from": "2026-04-01",
+      "to": "2026-06-30",
+      "label": "Q1 FY 2026–27",
+      "unit": "quarter"
+    },
+    "missingFx": {
+      "count": 0,
+      "currencies": []
+    },
+    "kpis": {
+      "openPipeline": {
+        "count": 1,
+        "valueMinor": "₹1048750.00"
+      },
+      "winRate": {
+        "won": 2,
+        "lost": 1,
+        "rate": 0.6667,
+        "valueRate": 0.0415,
+        "previous": null
+      },
+      "won": {
+        "count": 2,
+        "valueMinor": "₹1515000.00",
+        "previousMinor": "₹671200.00"
+      },
+      "overdue": {
+        "count": 4,
+        "valueMinor": "₹1275000.00"
+      }
+    },
+    "funnel": [
+      {
+        "stage": "enquiries",
+        "count": 3,
+        "conversion": null,
+        "valueMinor": null
+      },
+      {
+        "stage": "proposalSent",
+        "count": 0,
+        "conversion": 0,
+        "valueMinor": null
+      },
+      {
+        "stage": "quoted",
+        "count": 0,
+        "conversion": null,
+        "valueMinor": "₹0.00"
+      },
+      {
+        "stage": "won",
+        "count": 0,
+        "conversion": null,
+        "valueMinor": "₹0.00"
+      },
+      {
+        "stage": "invoiced",
+        "count": 0,
+        "conversion": null,
+        "valueMinor": null
+      },
+      {
+        "stage": "paid",
+        "count": 0,
+        "conversion": null,
+        "valueMinor": null
+      }
+    ],
+    "ageing": {
+      "buckets": [
+        {
+          "bucket": "notDue",
+          "count": 0,
+          "valueMinor": "₹0.00"
+        },
+        {
+          "bucket": "days1to30",
+          "count": 1,
+          "valueMinor": "₹975000.00"
+        },
+        {
+          "bucket": "days31to60",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "days61to90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "over90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        }
+      ],
+      "total": {
+        "count": 4,
+        "valueMinor": "₹1275000.00"
+      },
+      "dsoDays": 66
+    },
+    "conversion": {
+      "dimension": "sector",
+      "rows": [
+        {
+          "label": "Pharma",
+          "won": 2,
+          "lost": 1,
+          "rate": 0.6667,
+          "valueRate": null
+        }
+      ]
+    },
+    "quotedVsWon": [
+      {
+        "month": "2026-07",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹1515000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-08",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-09",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹35000000.00"
+      }
+    ],
+    "topClients": [
+      {
+        "name": "Acme Pharma",
+        "invoicedMinor": "₹1647800.00",
+        "collectedMinor": "₹672800.00",
+        "outstandingMinor": "₹975000.00",
+        "wonMinor": "₹1515000.00",
+        "pipelineMinor": "₹1048750.00"
+      },
+      {
+        "name": "Bharat Steel Works",
+        "invoicedMinor": "₹100000.00",
+        "collectedMinor": "₹0.00",
+        "outstandingMinor": "₹300000.00",
+        "wonMinor": "₹0.00",
+        "pipelineMinor": "₹0.00"
+      }
+    ]
+  },
+  "admin · this financial year": {
+    "layout": "sales",
+    "scope": {
+      "kind": "company"
+    },
+    "period": {
+      "preset": "thisFinancialYear",
+      "from": "2026-04-01",
+      "to": "2027-03-31",
+      "label": "FY 2026–27",
+      "unit": "year"
+    },
+    "previous": {
+      "preset": "thisFinancialYear",
+      "from": "2025-04-01",
+      "to": "2026-03-31",
+      "label": "FY 2025–26",
+      "unit": "year"
+    },
+    "missingFx": {
+      "count": 0,
+      "currencies": []
+    },
+    "kpis": {
+      "openPipeline": {
+        "count": 3,
+        "valueMinor": "₹1213750.00"
+      },
+      "winRate": {
+        "won": 7,
+        "lost": 1,
+        "rate": 0.875,
+        "valueRate": 0.0889,
+        "previous": null
+      },
+      "won": {
+        "count": 7,
+        "valueMinor": "₹3416200.00",
+        "previousMinor": "₹300000.00"
+      },
+      "overdue": {
+        "count": 4,
+        "valueMinor": "₹1275000.00"
+      }
+    },
+    "funnel": [
+      {
+        "stage": "enquiries",
+        "count": 10,
+        "conversion": null,
+        "valueMinor": null
+      },
+      {
+        "stage": "proposalSent",
+        "count": 3,
+        "conversion": 0.3,
+        "valueMinor": null
+      },
+      {
+        "stage": "quoted",
+        "count": 2,
+        "conversion": 0.6667,
+        "valueMinor": "₹35120000.00"
+      },
+      {
+        "stage": "won",
+        "count": 2,
+        "conversion": 1,
+        "valueMinor": "₹3416200.00"
+      },
+      {
+        "stage": "invoiced",
+        "count": 2,
+        "conversion": 1,
+        "valueMinor": null
+      },
+      {
+        "stage": "paid",
+        "count": 0,
+        "conversion": 0,
+        "valueMinor": null
+      }
+    ],
+    "ageing": {
+      "buckets": [
+        {
+          "bucket": "notDue",
+          "count": 1,
+          "valueMinor": "₹90000.00"
+        },
+        {
+          "bucket": "days1to30",
+          "count": 1,
+          "valueMinor": "₹975000.00"
+        },
+        {
+          "bucket": "days31to60",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "days61to90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "over90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        }
+      ],
+      "total": {
+        "count": 5,
+        "valueMinor": "₹1365000.00"
+      },
+      "dsoDays": 60
+    },
+    "conversion": {
+      "dimension": "sector",
+      "rows": [
+        {
+          "label": "Pharma",
+          "won": 7,
+          "lost": 1,
+          "rate": 0.875,
+          "valueRate": null
+        }
+      ]
+    },
+    "quotedVsWon": [
+      {
+        "month": "2026-04",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-05",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-06",
+        "quotedMinor": "₹38234950.00",
+        "wonMinor": "₹671200.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-07",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹1515000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-08",
+        "quotedMinor": "₹1395000.00",
+        "wonMinor": "₹990000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-09",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹240000.00",
+        "lostMinor": "₹35000000.00"
+      },
+      {
+        "month": "2026-10",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-11",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-12",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2027-01",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2027-02",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2027-03",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹0.00"
+      }
+    ],
+    "topClients": [
+      {
+        "name": "Acme Pharma",
+        "invoicedMinor": "₹1962800.00",
+        "collectedMinor": "₹897800.00",
+        "outstandingMinor": "₹1065000.00",
+        "wonMinor": "₹3416200.00",
+        "pipelineMinor": "₹1213750.00"
+      },
+      {
+        "name": "Bharat Steel Works",
+        "invoicedMinor": "₹300000.00",
+        "collectedMinor": "₹0.00",
+        "outstandingMinor": "₹300000.00",
+        "wonMinor": "₹0.00",
+        "pipelineMinor": "₹0.00"
+      }
+    ]
+  },
+  "sales · this quarter": {
+    "layout": "sales",
+    "scope": {
+      "kind": "personal"
+    },
+    "period": {
+      "preset": "thisQuarter",
+      "from": "2026-07-01",
+      "to": "2026-09-30",
+      "label": "Q2 FY 2026–27",
+      "unit": "quarter"
+    },
+    "previous": {
+      "preset": "thisQuarter",
+      "from": "2026-04-01",
+      "to": "2026-06-30",
+      "label": "Q1 FY 2026–27",
+      "unit": "quarter"
+    },
+    "missingFx": {
+      "count": 0,
+      "currencies": []
+    },
+    "kpis": {
+      "openPipeline": {
+        "count": 2,
+        "valueMinor": "₹165000.00"
+      },
+      "winRate": {
+        "won": 4,
+        "lost": 0,
+        "rate": 1,
+        "valueRate": 1,
+        "previous": null
+      },
+      "won": {
+        "count": 4,
+        "valueMinor": "₹1230000.00",
+        "previousMinor": "₹0.00"
+      },
+      "overdue": {
+        "count": 0,
+        "valueMinor": "₹0.00"
+      }
+    },
+    "funnel": [
+      {
+        "stage": "enquiries",
+        "count": 5,
+        "conversion": null,
+        "valueMinor": null
+      },
+      {
+        "stage": "proposalSent",
+        "count": 2,
+        "conversion": 0.4,
+        "valueMinor": null
+      },
+      {
+        "stage": "quoted",
+        "count": 1,
+        "conversion": 0.5,
+        "valueMinor": "₹120000.00"
+      },
+      {
+        "stage": "won",
+        "count": 1,
+        "conversion": 1,
+        "valueMinor": "₹1230000.00"
+      },
+      {
+        "stage": "invoiced",
+        "count": 1,
+        "conversion": 1,
+        "valueMinor": null
+      },
+      {
+        "stage": "paid",
+        "count": 0,
+        "conversion": 0,
+        "valueMinor": null
+      }
+    ],
+    "ageing": {
+      "buckets": [
+        {
+          "bucket": "notDue",
+          "count": 1,
+          "valueMinor": "₹90000.00"
+        },
+        {
+          "bucket": "days1to30",
+          "count": 0,
+          "valueMinor": "₹0.00"
+        },
+        {
+          "bucket": "days31to60",
+          "count": 0,
+          "valueMinor": "₹0.00"
+        },
+        {
+          "bucket": "days61to90",
+          "count": 0,
+          "valueMinor": "₹0.00"
+        },
+        {
+          "bucket": "over90",
+          "count": 0,
+          "valueMinor": "₹0.00"
+        }
+      ],
+      "total": {
+        "count": 1,
+        "valueMinor": "₹90000.00"
+      },
+      "dsoDays": 26
+    },
+    "conversion": {
+      "dimension": "sector",
+      "rows": [
+        {
+          "label": "Pharma",
+          "won": 4,
+          "lost": 0,
+          "rate": 1,
+          "valueRate": null
+        }
+      ]
+    },
+    "quotedVsWon": [
+      {
+        "month": "2026-07",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-08",
+        "quotedMinor": "₹1395000.00",
+        "wonMinor": "₹990000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-09",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹240000.00",
+        "lostMinor": "₹0.00"
+      }
+    ],
+    "topClients": [
+      {
+        "name": "Acme Pharma",
+        "invoicedMinor": "₹315000.00",
+        "collectedMinor": "₹225000.00",
+        "outstandingMinor": "₹90000.00",
+        "wonMinor": "₹1230000.00",
+        "pipelineMinor": "₹165000.00"
+      }
+    ]
+  },
+  "sales2 · this quarter": {
+    "layout": "sales",
+    "scope": {
+      "kind": "personal"
+    },
+    "period": {
+      "preset": "thisQuarter",
+      "from": "2026-07-01",
+      "to": "2026-09-30",
+      "label": "Q2 FY 2026–27",
+      "unit": "quarter"
+    },
+    "previous": {
+      "preset": "thisQuarter",
+      "from": "2026-04-01",
+      "to": "2026-06-30",
+      "label": "Q1 FY 2026–27",
+      "unit": "quarter"
+    },
+    "missingFx": {
+      "count": 0,
+      "currencies": []
+    },
+    "kpis": {
+      "openPipeline": {
+        "count": 1,
+        "valueMinor": "₹1048750.00"
+      },
+      "winRate": {
+        "won": 2,
+        "lost": 1,
+        "rate": 0.6667,
+        "valueRate": 0.0415,
+        "previous": null
+      },
+      "won": {
+        "count": 2,
+        "valueMinor": "₹1515000.00",
+        "previousMinor": "₹671200.00"
+      },
+      "overdue": {
+        "count": 4,
+        "valueMinor": "₹1275000.00"
+      }
+    },
+    "funnel": [
+      {
+        "stage": "enquiries",
+        "count": 3,
+        "conversion": null,
+        "valueMinor": null
+      },
+      {
+        "stage": "proposalSent",
+        "count": 0,
+        "conversion": 0,
+        "valueMinor": null
+      },
+      {
+        "stage": "quoted",
+        "count": 0,
+        "conversion": null,
+        "valueMinor": "₹0.00"
+      },
+      {
+        "stage": "won",
+        "count": 0,
+        "conversion": null,
+        "valueMinor": "₹0.00"
+      },
+      {
+        "stage": "invoiced",
+        "count": 0,
+        "conversion": null,
+        "valueMinor": null
+      },
+      {
+        "stage": "paid",
+        "count": 0,
+        "conversion": null,
+        "valueMinor": null
+      }
+    ],
+    "ageing": {
+      "buckets": [
+        {
+          "bucket": "notDue",
+          "count": 0,
+          "valueMinor": "₹0.00"
+        },
+        {
+          "bucket": "days1to30",
+          "count": 1,
+          "valueMinor": "₹975000.00"
+        },
+        {
+          "bucket": "days31to60",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "days61to90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "over90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        }
+      ],
+      "total": {
+        "count": 4,
+        "valueMinor": "₹1275000.00"
+      },
+      "dsoDays": 66
+    },
+    "conversion": {
+      "dimension": "sector",
+      "rows": [
+        {
+          "label": "Pharma",
+          "won": 2,
+          "lost": 1,
+          "rate": 0.6667,
+          "valueRate": null
+        }
+      ]
+    },
+    "quotedVsWon": [
+      {
+        "month": "2026-07",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹1515000.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-08",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹0.00"
+      },
+      {
+        "month": "2026-09",
+        "quotedMinor": "₹0.00",
+        "wonMinor": "₹0.00",
+        "lostMinor": "₹35000000.00"
+      }
+    ],
+    "topClients": [
+      {
+        "name": "Acme Pharma",
+        "invoicedMinor": "₹1647800.00",
+        "collectedMinor": "₹672800.00",
+        "outstandingMinor": "₹975000.00",
+        "wonMinor": "₹1515000.00",
+        "pipelineMinor": "₹1048750.00"
+      },
+      {
+        "name": "Bharat Steel Works",
+        "invoicedMinor": "₹100000.00",
+        "collectedMinor": "₹0.00",
+        "outstandingMinor": "₹300000.00",
+        "wonMinor": "₹0.00",
+        "pipelineMinor": "₹0.00"
+      }
+    ]
+  },
+  "pm · this quarter": {
+    "layout": "project",
+    "scope": {
+      "kind": "project"
+    },
+    "period": {
+      "preset": "thisQuarter",
+      "from": "2026-07-01",
+      "to": "2026-09-30",
+      "label": "Q2 FY 2026–27",
+      "unit": "quarter"
+    },
+    "previous": {
+      "preset": "thisQuarter",
+      "from": "2026-04-01",
+      "to": "2026-06-30",
+      "label": "Q1 FY 2026–27",
+      "unit": "quarter"
+    },
+    "missingFx": {
+      "count": 0,
+      "currencies": []
+    },
+    "kpis": {
+      "activeProjects": 4,
+      "behindSchedule": 1,
+      "invoiced": {
+        "count": 5,
+        "valueMinor": "₹2062800.00",
+        "previousMinor": "₹200000.00"
+      },
+      "overdue": {
+        "count": 4,
+        "valueMinor": "₹1275000.00"
+      }
+    },
+    "projectsByStatus": [
+      {
+        "status": "IN_PROGRESS",
+        "count": 3
+      },
+      {
+        "status": "ON_HOLD",
+        "count": 1
+      },
+      {
+        "status": "COMPLETED",
+        "count": 1
+      },
+      {
+        "status": "CANCELLED",
+        "count": 1
+      }
+    ],
+    "ageing": {
+      "buckets": [
+        {
+          "bucket": "notDue",
+          "count": 1,
+          "valueMinor": "₹90000.00"
+        },
+        {
+          "bucket": "days1to30",
+          "count": 1,
+          "valueMinor": "₹975000.00"
+        },
+        {
+          "bucket": "days31to60",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "days61to90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        },
+        {
+          "bucket": "over90",
+          "count": 1,
+          "valueMinor": "₹100000.00"
+        }
+      ],
+      "total": {
+        "count": 5,
+        "valueMinor": "₹1365000.00"
+      },
+      "dsoDays": 60
+    },
+    "delivered": [
+      {
+        "label": "PRJ-2026-0003 · SOP writing workshop",
+        "client": "Acme Pharma",
+        "endDate": "2026-09-16",
+        "completedDate": "2026-09-18",
+        "daysLate": 2
+      }
+    ],
+    "billing": [
+      {
+        "label": "PRJ-2026-0002 · Plant QA training, phase 1",
+        "client": "Acme Pharma",
+        "status": "IN_PROGRESS",
+        "revenueMinor": "₹450000.00",
+        "invoicedMinor": "₹225000.00",
+        "paidMinor": "₹225000.00",
+        "outstandingMinor": "₹0.00"
+      },
+      {
+        "label": "PRJ-2026-0003 · SOP writing workshop",
+        "client": "Acme Pharma",
+        "status": "COMPLETED",
+        "revenueMinor": "₹180000.00",
+        "invoicedMinor": "₹90000.00",
+        "paidMinor": "₹0.00",
+        "outstandingMinor": "₹90000.00"
+      },
+      {
+        "label": "PRJ-2026-0004 · Export line inspection",
+        "client": "Acme Pharma",
+        "status": "IN_PROGRESS",
+        "revenueMinor": "₹671200.00",
+        "invoicedMinor": "₹672800.00",
+        "paidMinor": "₹672800.00",
+        "outstandingMinor": "₹0.00"
+      },
+      {
+        "label": "PRJ-2026-0005 · Warehouse audit",
+        "client": "Acme Pharma",
+        "status": "ON_HOLD",
+        "revenueMinor": "₹975000.00",
+        "invoicedMinor": "₹975000.00",
+        "paidMinor": "₹0.00",
+        "outstandingMinor": "₹975000.00"
+      },
+      {
+        "label": "PRJ-2026-0007 · Rolling mill maintenance audit",
+        "client": "Bharat Steel Works",
+        "status": "IN_PROGRESS",
+        "revenueMinor": "₹300000.00",
+        "invoicedMinor": "₹300000.00",
+        "paidMinor": "₹0.00",
+        "outstandingMinor": "₹300000.00"
+      }
+    ]
+  }
+}

@@ -53,16 +53,27 @@ export async function getCtxFromHeaders(headers: Headers, source: Source): Promi
  * Runs `fn` in one interactive transaction with `ctx` as the acting user. Every audited write
  * must happen inside it (M2: the audit rows commit or roll back with the change). A nested
  * call joins the outer transaction and keeps its requestId.
+ *
+ * `timeoutMs` (M12) raises Prisma's 5-second limit for the few bulk writes that need it: the
+ * seed, and filling or recalculating a month of INR equivalents. Ignored when nested.
  */
-export async function withTx<T>(ctx: Ctx, fn: (tx: Db) => Promise<T>): Promise<T> {
+export async function withTx<T>(
+  ctx: Ctx,
+  fn: (tx: Db) => Promise<T>,
+  options: { timeoutMs?: number } = {},
+): Promise<T> {
   const outer = getStore();
   if (outer?.tx) return runInStore({ ...outer, ctx }, () => fn(outer.tx as Db));
 
   const requestId = crypto.randomUUID();
-  return getRootDb().$transaction((tx) =>
-    runInStore({ ctx, requestId, tx }, () => fn(tx as unknown as Db)),
+  return getRootDb().$transaction(
+    (tx) => runInStore({ ctx, requestId, tx }, () => fn(tx as unknown as Db)),
+    options.timeoutMs ? { timeout: options.timeoutMs, maxWait: options.timeoutMs } : undefined,
   );
 }
+
+/** For bulk writes: the seed and a month of INR equivalents (M12). */
+export const BULK_TX = { timeoutMs: 60_000 } as const;
 
 /**
  * The context for background jobs and system tasks: the seeded system user, source "system".

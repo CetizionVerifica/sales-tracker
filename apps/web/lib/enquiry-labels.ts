@@ -1,4 +1,8 @@
-import type { EnquirySourceValue, EnquiryStatusValue } from '@sales-tracker/core/schemas';
+import {
+  ENQUIRY_SOURCE_LABELS,
+  type EnquirySourceValue,
+  type EnquiryStatusValue,
+} from '@sales-tracker/core/schemas';
 import type { Badge } from '@/components/ui/badge';
 
 export const STATUS_LABELS: Record<EnquiryStatusValue, string> = {
@@ -16,15 +20,8 @@ export const STATUS_BADGE: Record<
   LOST: 'outline',
 };
 
-export const SOURCE_LABELS: Record<EnquirySourceValue, string> = {
-  EMAIL: 'Email',
-  PHONE: 'Phone',
-  TENDER_PORTAL: 'Tender portal',
-  REFERRAL: 'Referral',
-  WEBSITE: 'Website',
-  WALK_IN: 'Walk-in',
-  OTHER: 'Other',
-};
+/** Shared with core, where the M12 dashboard exports use them too. */
+export const SOURCE_LABELS = ENQUIRY_SOURCE_LABELS;
 
 /** The source-detail field follows the source (M4 spec: web form). */
 export const SOURCE_DETAIL: Record<EnquirySourceValue, { label: string; placeholder: string }> = {

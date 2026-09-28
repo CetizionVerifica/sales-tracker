@@ -2,7 +2,10 @@ import type { EnquirySourceValue } from '../schemas/enquiry.ts';
 import { todayInIST, toCalendarDateString } from '../schemas/common.ts';
 import type { FollowUpChannelValue } from '../schemas/follow-up.ts';
 import { getDb, type Db } from '../clients.ts';
-import { systemCtx, withTx, type Ctx } from '../context.ts';
+import { BULK_TX, systemCtx, withTx as baseWithTx, type Ctx } from '../context.ts';
+
+/** Seed transactions do a lot of work: allow them the bulk timeout. */
+const withTx = <T>(ctx: Ctx, fn: (tx: Db) => Promise<T>) => baseWithTx(ctx, fn, BULK_TX);
 import { createClient } from '../services/client.service.ts';
 import { convertEnquiry, createEnquiry, markEnquiryLost } from '../services/enquiry.service.ts';
 import { logFollowUp } from '../services/follow-up.service.ts';
@@ -10,6 +13,7 @@ import { changeProjectStatus, createProject, updateProject } from '../services/p
 import { createInvoice } from '../services/invoice.service.ts';
 import { createPurchaseOrder } from '../services/purchase-order.service.ts';
 import { changeQuotationStatus, createQuotation } from '../services/quotation.service.ts';
+import { createExchangeRate } from '../services/exchange-rate.service.ts';
 import { updateSettings } from '../services/settings.service.ts';
 import { parseAmount, toAmountString } from '../schemas/money.ts';
 
@@ -564,7 +568,11 @@ async function addSampleProjectFollowUps(tx: Db): Promise<number> {
  * owner, moved along by the dev PM, cancelled by the system user (admin-only), all audited as
  * `system`.
  */
-async function createSampleProjects(ctx: Ctx, tx: Db): Promise<number> {
+async function createSampleProjects(
+  ctx: Ctx,
+  tx: Db,
+  samples: readonly SampleProject[] = SAMPLE_PROJECTS,
+): Promise<number> {
   const as = (user: { id: string; role: Ctx['user']['role'] }): Ctx => ({
     user: { ...user, active: true },
     source: 'system',
@@ -572,7 +580,7 @@ async function createSampleProjects(ctx: Ctx, tx: Db): Promise<number> {
   const pm = as(await devUser(tx, PM_EMAIL));
 
   let count = 0;
-  for (const sample of SAMPLE_PROJECTS) {
+  for (const sample of samples) {
     const quotation = await createSampleQuotation(ctx, tx, sample.quotation);
     if (!quotation) continue;
     const owner = as((await findSampleEnquiry(tx, sample.quotation.enquiry))!.owner);
@@ -714,10 +722,13 @@ async function addSamplePurchaseOrderFollowUps(tx: Db): Promise<number> {
  * M9 sample POs on the sample projects (found by name), created by the quotation's owner,
  * audited as `system`. Projects a developer has since deleted or cancelled are skipped.
  */
-async function createSamplePurchaseOrders(tx: Db): Promise<number> {
+async function createSamplePurchaseOrders(
+  tx: Db,
+  samples: readonly SamplePurchaseOrder[] = SAMPLE_PURCHASE_ORDERS,
+): Promise<number> {
   const pm = await devUser(tx, PM_EMAIL);
   let count = 0;
-  for (const sample of SAMPLE_PURCHASE_ORDERS) {
+  for (const sample of samples) {
     const project = await findSampleProject(tx, sample.project);
     if (!project) continue;
     const owner: Ctx = { user: { ...project.quotation.owner, active: true }, source: 'system' };
@@ -754,6 +765,8 @@ interface SampleInvoice {
   invoiceDaysAgo: number;
   /** The share of the PO amount billed (1 = all of it). */
   share: 1 | 0.5;
+  /** An exact amount instead of a share (M12's ageing samples). */
+  amount?: string;
   /** Recorded as paid this many days ago. */
   paidDaysAgo?: number;
   paymentReference?: string;
@@ -826,10 +839,13 @@ async function addSampleInvoiceFollowUps(tx: Db): Promise<number> {
  * M10 sample invoices on the sample POs (found by number), raised by the pipeline owner,
  * audited as `system`. POs a developer has since deleted are skipped.
  */
-async function createSampleInvoices(tx: Db): Promise<number> {
+async function createSampleInvoices(
+  tx: Db,
+  samples: readonly SampleInvoice[] = SAMPLE_INVOICES,
+): Promise<number> {
   const pm = await devUser(tx, PM_EMAIL);
   let count = 0;
-  for (const sample of SAMPLE_INVOICES) {
+  for (const sample of samples) {
     const po = await tx.purchaseOrder.findFirst({
       where: { poNumber: sample.poNumber },
       select: {
@@ -850,7 +866,7 @@ async function createSampleInvoices(tx: Db): Promise<number> {
       invoiceNumber: sample.invoiceNumber,
       invoiceDate: daysAgo(sample.invoiceDaysAgo),
       serviceId: po.services[0]!.serviceId,
-      amount: toAmountString(amountMinor, po.currency),
+      amount: sample.amount ?? toAmountString(amountMinor, po.currency),
       ...(sample.paidDaysAgo !== undefined && {
         paidAt: daysAgo(sample.paidDaysAgo),
         paymentReference: sample.paymentReference,
@@ -888,6 +904,7 @@ export async function ensureSampleEnquiries(log: (message: string) => void): Pro
       log(`created ${await createSampleInvoices(tx)} sample invoices`);
     });
     await ensureMyTodaySamples(log);
+    await ensureDashboardSamples(log);
     return;
   }
   const hasFollowUps = (await db.followUp.count({ where: { deletedAt: undefined } })) > 0;
@@ -919,6 +936,7 @@ export async function ensureSampleEnquiries(log: (message: string) => void): Pro
     );
   }
   await ensureMyTodaySamples(log);
+  await ensureDashboardSamples(log);
 }
 
 // ─── M11: My Today ──────────────────────────────────────────────────────────────────
@@ -1067,4 +1085,119 @@ async function createSampleEnquiries(
       await markEnquiryLost(ctx, { id: enquiry.id, lostReason: sample.outcome.lostReason });
     }
   }
+}
+
+// ─── M12: dashboard ─────────────────────────────────────────────────────────────
+
+/**
+ * Monthly USD rates for the thirteen months up to this one (M12 Decision 1), so the sample
+ * USD quotation, project, PO and invoice get INR equivalents: 83.00 a year ago, rising by
+ * 0.10 a month.
+ */
+async function ensureSampleRates(ctx: Ctx, tx: Db): Promise<number> {
+  if ((await tx.exchangeRate.count({ where: { deletedAt: undefined } })) > 0) return 0;
+  const today = todayInIST();
+  let count = 0;
+  for (let back = 12; back >= 0; back -= 1) {
+    const month = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - back, 1));
+    await createExchangeRate(ctx, {
+      currency: 'USD',
+      month: toCalendarDateString(month).slice(0, 7),
+      rate: (83 + (12 - back) / 10).toFixed(2),
+    });
+    count += 1;
+  }
+  return count;
+}
+
+const AGEING_ENQUIRY: SampleEnquiry = {
+  client: 'Bharat Steel Works',
+  services: ['Audit'],
+  owner: 'sales2@example.com',
+  receivedDaysAgo: 220,
+  proposalDaysAgo: 215,
+  source: 'REFERRAL',
+  sourceDetail: 'Referred by the plant head at Coastal Infra',
+  description: 'Annual maintenance audit of the rolling mill',
+  outcome: 'CONVERTED',
+};
+
+/**
+ * One more won pipeline whose invoices age past 30, 60 and 90 days (M12 receivables
+ * ageing): a project on net-30 terms billed 75, 105 and 150 days ago and not yet paid.
+ * With the M10 samples every ageing bucket has an invoice.
+ */
+const AGEING_PROJECT: SampleProject = {
+  quotation: {
+    enquiry: { client: 'Bharat Steel Works', owner: 'sales2@example.com', source: 'REFERRAL' },
+    quotedDaysAgo: 210,
+    amount: '3,00,000.00',
+    currency: 'INR',
+    nextInDays: -200,
+    outcome: { poDaysAgo: 200 },
+  },
+  name: 'Rolling mill maintenance audit',
+  managed: true,
+  startDaysAgo: 195,
+  endInDays: 20,
+  completionPct: 60,
+  status: 'IN_PROGRESS',
+};
+
+const AGEING_PO: SamplePurchaseOrder = {
+  project: 'Rolling mill maintenance audit',
+  poNumber: 'BSW-AMC-2026',
+  paymentTerms: 'Net 30',
+  paymentTermsDays: 30,
+};
+
+const AGEING_INVOICES: SampleInvoice[] = [
+  {
+    poNumber: 'BSW-AMC-2026',
+    invoiceNumber: 'INV/26-27/0005',
+    invoiceDaysAgo: 75,
+    share: 1,
+    amount: '1,00,000',
+  },
+  {
+    poNumber: 'BSW-AMC-2026',
+    invoiceNumber: 'INV/26-27/0006',
+    invoiceDaysAgo: 105,
+    share: 1,
+    amount: '1,00,000',
+  },
+  {
+    poNumber: 'BSW-AMC-2026',
+    invoiceNumber: 'INV/26-27/0007',
+    invoiceDaysAgo: 150,
+    share: 1,
+    amount: '1,00,000',
+  },
+];
+
+/**
+ * Idempotent: rates once, and each level of the ageing pipeline when it is missing, so a
+ * database whose quotations or invoices were cleared gets them back (the M5–M11 pattern).
+ */
+async function ensureDashboardSamples(log: (message: string) => void): Promise<void> {
+  const ctx = await systemCtx();
+  await withTx(ctx, async (tx) => {
+    const rates = await ensureSampleRates(ctx, tx);
+    if (rates) log(`created ${rates} sample exchange rates (M12)`);
+    if (!(await findSampleEnquiry(tx, AGEING_ENQUIRY))) {
+      await createSampleEnquiries(ctx, tx, [AGEING_ENQUIRY]);
+    }
+    if (!(await findSampleProject(tx, AGEING_PROJECT.name))) {
+      await createSampleProjects(ctx, tx, [AGEING_PROJECT]);
+    }
+    const po = { poNumber: AGEING_PO.poNumber };
+    if (!(await tx.purchaseOrder.findFirst({ where: po, select: { id: true } }))) {
+      await createSamplePurchaseOrders(tx, [AGEING_PO]);
+    }
+    const first = { invoiceNumber: AGEING_INVOICES[0]!.invoiceNumber };
+    if (!(await tx.invoice.findFirst({ where: first, select: { id: true } }))) {
+      const invoices = await createSampleInvoices(tx, AGEING_INVOICES);
+      log(`created the receivables-ageing sample pipeline with ${invoices} invoices (M12)`);
+    }
+  });
 }

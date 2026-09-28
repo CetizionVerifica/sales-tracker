@@ -12,6 +12,7 @@ import { RecordAudit } from '@/components/audit/RecordAudit';
 import { Panel } from '@/components/charts/Panel';
 import { DateDisplay } from '@/components/display/DateDisplay';
 import { FieldGrid } from '@/components/display/FieldGrid';
+import { InrEquivalent } from '@/components/display/InrEquivalent';
 import { Money } from '@/components/display/Money';
 import { Progress } from '@/components/display/Progress';
 import { RelativeDue } from '@/components/display/RelativeDue';
@@ -408,6 +409,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                   value: (
                     <span className="flex flex-col">
                       <Money amountMinor={project.revenueMinor} currency={project.currency} />
+                      <InrEquivalent
+                        currency={project.currency}
+                        amountInrMinor={project.amountInrMinor}
+                        fxRate={project.fxRate}
+                        date={project.quotation.poReceivedDate}
+                      />
                       {revenueDiffers && (
                         <span className="text-muted-foreground text-[13px]">
                           Quoted{' '}

@@ -14,6 +14,7 @@ import { RecordAudit } from '@/components/audit/RecordAudit';
 import { Panel } from '@/components/charts/Panel';
 import { DateDisplay } from '@/components/display/DateDisplay';
 import { FieldGrid } from '@/components/display/FieldGrid';
+import { InrEquivalent } from '@/components/display/InrEquivalent';
 import { Money } from '@/components/display/Money';
 import { RelativeDue } from '@/components/display/RelativeDue';
 import { UserAvatar } from '@/components/display/UserAvatar';
@@ -373,7 +374,17 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
                 },
                 {
                   label: 'Amount',
-                  value: <Money amountMinor={invoice.amountMinor} currency={invoice.currency} />,
+                  value: (
+                    <>
+                      <Money amountMinor={invoice.amountMinor} currency={invoice.currency} />
+                      <InrEquivalent
+                        currency={invoice.currency}
+                        amountInrMinor={invoice.amountInrMinor}
+                        fxRate={invoice.fxRate}
+                        date={invoice.invoiceDate}
+                      />
+                    </>
+                  ),
                 },
                 {
                   label: 'Due',

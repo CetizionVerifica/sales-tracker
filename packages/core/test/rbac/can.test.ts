@@ -301,6 +301,15 @@ describe('AC2: PLAN.md role table', () => {
     ['My Today is read-only', sales, 'update', { type: 'myToday', userId: sales.id }, false],
     ['no type-level My Today read', sales, 'read', 'myToday', false],
 
+    // Exchange rates (M12)
+    ['sales reads exchange rates', sales, 'list', 'exchangeRate', true],
+    ['pm reads exchange rates', pm, 'read', 'exchangeRate', true],
+    ['sales cannot create exchange rates', sales, 'create', 'exchangeRate', false],
+    ['pm cannot update exchange rates', pm, 'update', 'exchangeRate', false],
+    ['admin manages exchange rates', admin, 'delete', 'exchangeRate', true],
+
+    // Dashboards by scope are above; the rule is unchanged in M12.
+
     // MCP tokens
     ['admin issues API tokens', admin, 'create', 'apiToken', true],
     ['sales cannot issue API tokens', sales, 'create', 'apiToken', false],

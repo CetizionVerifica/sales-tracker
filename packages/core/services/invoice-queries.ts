@@ -2,6 +2,7 @@ import type { Prisma } from '@sales-tracker/db';
 import type { Db } from '../clients.ts';
 import { scopeInvoices } from '../rbac/scope.ts';
 import type { Actor } from '../rbac/types.ts';
+import type { AgeingBucket } from '../schemas/dashboard.ts';
 import type { DocumentState } from '../schemas/document-state.ts';
 import { todayInIST } from '../schemas/common.ts';
 import { formatMoney } from '../schemas/money.ts';
@@ -141,4 +142,23 @@ export function dueWindowWhere(
     status: { in: [...UNPAID_INVOICE_STATUSES] },
     dueDate: { gte: today, lte: new Date(today.getTime() + days * DAY_MS) },
   };
+}
+
+/**
+ * Unpaid invoices by days past their due date as of `today` (M12 receivables ageing): not
+ * yet due, 1–30, 31–60, 61–90, over 90. The dashboard and the invoice list share it.
+ */
+export function ageingBucketWhere(
+  bucket: AgeingBucket,
+  today = todayInIST(),
+): Prisma.InvoiceWhereInput {
+  const before = (days: number) => new Date(today.getTime() - days * DAY_MS);
+  const due: Record<AgeingBucket, Prisma.DateTimeFilter> = {
+    notDue: { gte: today },
+    days1to30: { gte: before(30), lt: today },
+    days31to60: { gte: before(60), lt: before(30) },
+    days61to90: { gte: before(90), lt: before(60) },
+    over90: { lt: before(90) },
+  };
+  return { status: { in: [...UNPAID_INVOICE_STATUSES] }, dueDate: due[bucket] };
 }

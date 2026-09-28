@@ -289,6 +289,7 @@ model Enquiry {
   @@index([clientId])
   @@index([status, receivedDate])
   @@index([source])
+  @@index([receivedDate])
   @@map("enquiry")
 }
 
@@ -405,6 +406,10 @@ model Quotation {
   amountMinor            BigInt
   /// ISO 4217 code; one of CompanySettings.enabledCurrencies when set.
   currency               String
+  /// INR equivalent at the monthly rate for this record's own date (M12 Decision 1);
+  /// null until a rate exists. CHECKs in m12_dashboard keep the pair consistent.
+  amountInrMinor         BigInt?
+  fxRate                 Decimal?  @db.Decimal(14, 6)
   status                 QuotationStatus    @default(SENT)
   /// Required while SENT or UNDER_NEGOTIATION; synced from the latest follow-up.
   nextFollowUpDate       DateTime?          @db.Date
@@ -429,6 +434,8 @@ model Quotation {
   @@index([enquiryId])
   @@index([clientId])
   @@index([status, quotationDate])
+  @@index([status, poReceivedDate])
+  @@index([status, statusChangedAt])
   @@map("quotation")
 }
 
@@ -480,6 +487,10 @@ model Project {
   /// Integer minor units (M6 Decision 3). Defaults to the quotation amount (M8 Decision 9).
   revenueMinor    BigInt
   currency        String
+  /// INR equivalent at the monthly rate for this record's own date (M12 Decision 1);
+  /// null until a rate exists. CHECKs in m12_dashboard keep the pair consistent.
+  amountInrMinor  BigInt?
+  fxRate          Decimal?  @db.Decimal(14, 6)
   status          ProjectStatus    @default(NOT_STARTED)
   statusChangedAt DateTime?
   completionPct   Int              @default(0)
@@ -501,6 +512,7 @@ model Project {
   @@index([managerId, status])
   @@index([clientId])
   @@index([status, endDate])
+  @@index([managerId, completedDate])
   @@map("project")
 }
 
@@ -620,6 +632,10 @@ model PurchaseOrder {
   /// The PO total as printed, in integer minor units (Decision 6, M6 Decision 3).
   amountMinor      BigInt
   currency         String
+  /// INR equivalent at the monthly rate for this record's own date (M12 Decision 1);
+  /// null until a rate exists. CHECKs in m12_dashboard keep the pair consistent.
+  amountInrMinor   BigInt?
+  fxRate           Decimal?  @db.Decimal(14, 6)
   services         PurchaseOrderService[]
   /// As printed or briefly summarised (Decision 7).
   paymentTerms     String?
@@ -703,6 +719,10 @@ model Invoice {
   amountMinor        BigInt
   /// The PO's currency, copied and fixed (Decision 3).
   currency           String
+  /// INR equivalent at the monthly rate for this record's own date (M12 Decision 1);
+  /// null until a rate exists. CHECKs in m12_dashboard keep the pair consistent.
+  amountInrMinor     BigInt?
+  fxRate             Decimal?  @db.Decimal(14, 6)
   dueDate            DateTime      @db.Date
   dueDateBasis       DueDateBasis
   status             InvoiceStatus @default(PENDING)
@@ -726,5 +746,28 @@ model Invoice {
   @@index([status, dueDate])
   @@index([serviceId])
   @@index([invoiceNumber])
+  @@index([invoiceDate])
+  @@index([paidAt])
   @@map("invoice")
+}
+
+// ─── M12: dashboard ─────────────────────────────────────────────────────────────
+
+/// Admin-entered monthly exchange rates (M12 Decision 1). A record in `currency` dated in
+/// `month` stores its INR equivalent at this rate. One live rate per currency and month
+/// (partial unique index in migration m12_dashboard, with CHECKs: rate > 0, first of month).
+model ExchangeRate {
+  id         String    @id @default(uuid())
+  /// ISO 4217, never INR.
+  currency   String
+  /// The first day of the month the rate applies to.
+  month      DateTime  @db.Date
+  /// INR per one unit of `currency`, exact decimal.
+  inrPerUnit Decimal   @db.Decimal(14, 6)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@index([currency, month])
+  @@map("exchange_rate")
 }
