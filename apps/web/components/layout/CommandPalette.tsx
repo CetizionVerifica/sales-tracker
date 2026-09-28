@@ -1,7 +1,15 @@
 'use client';
 
 import type { SearchResult } from '@sales-tracker/core';
-import { Briefcase, Building2, CornerDownLeft, FileText, Inbox, Loader2 } from 'lucide-react';
+import {
+  Briefcase,
+  Building2,
+  CornerDownLeft,
+  FileCheck,
+  FileText,
+  Inbox,
+  Loader2,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -32,16 +40,27 @@ const RECORD_HREF: Record<SearchResult['type'], (id: string) => string> = {
   ENQUIRY: (id) => `/enquiries/${id}`,
   QUOTATION: (id) => `/quotations/${id}`,
   PROJECT: (id) => `/projects/${id}`,
+  PURCHASE_ORDER: (id) => `/purchase-orders/${id}`,
   CLIENT: (id) => `/clients/${id}`,
 };
 
-const RECORD_ICON = { ENQUIRY: Inbox, QUOTATION: FileText, PROJECT: Briefcase, CLIENT: Building2 };
+const RECORD_ICON = {
+  ENQUIRY: Inbox,
+  QUOTATION: FileText,
+  PROJECT: Briefcase,
+  PURCHASE_ORDER: FileCheck,
+  CLIENT: Building2,
+};
 const RECORD_GROUP = {
   ENQUIRY: 'Enquiries',
   QUOTATION: 'Quotations',
   PROJECT: 'Projects',
+  PURCHASE_ORDER: 'Purchase orders',
   CLIENT: 'Clients',
 };
+
+/** Result groups in pipeline order, clients last. */
+const RECORD_ORDER = ['ENQUIRY', 'QUOTATION', 'PROJECT', 'PURCHASE_ORDER', 'CLIENT'] as const;
 
 const DEBOUNCE_MS = 200;
 
@@ -141,7 +160,7 @@ export function CommandPalette({
                   : 'No matches.'}
               </CommandEmpty>
             )}
-            {(['ENQUIRY', 'QUOTATION', 'CLIENT'] as const).map((type) => {
+            {RECORD_ORDER.map((type) => {
               const items = byType(type);
               if (items.length === 0) return null;
               const Icon = RECORD_ICON[type];

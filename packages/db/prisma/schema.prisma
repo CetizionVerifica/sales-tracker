@@ -160,37 +160,39 @@ model Sector {
 
 /// A service the company sells (e.g. Inspection). Same lifecycle as Sector.
 model Service {
-  id         String             @id @default(uuid())
-  name       String
-  active     Boolean            @default(true)
-  enquiries  EnquiryService[]
-  quotations QuotationService[]
-  projects   ProjectService[]
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-  deletedAt  DateTime?
+  id             String                 @id @default(uuid())
+  name           String
+  active         Boolean                @default(true)
+  enquiries      EnquiryService[]
+  quotations     QuotationService[]
+  projects       ProjectService[]
+  purchaseOrders PurchaseOrderService[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  deletedAt      DateTime?
 
   @@map("service")
 }
 
 model Client {
-  id         String          @id @default(uuid())
-  name       String
-  sectorId   String
-  sector     Sector          @relation(fields: [sectorId], references: [id])
+  id             String          @id @default(uuid())
+  name           String
+  sectorId       String
+  sector         Sector          @relation(fields: [sectorId], references: [id])
   /// Indian GST identification number (15 characters), optional.
-  gstin      String?
-  address    String?
-  notes      String?
-  contacts   ClientContact[]
-  enquiries  Enquiry[]
-  followUps  FollowUp[]
-  quotations Quotation[]
-  projects   Project[]
-  documents  Document[]
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-  deletedAt  DateTime?
+  gstin          String?
+  address        String?
+  notes          String?
+  contacts       ClientContact[]
+  enquiries      Enquiry[]
+  followUps      FollowUp[]
+  quotations     Quotation[]
+  projects       Project[]
+  purchaseOrders PurchaseOrder[]
+  documents      Document[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
 
   @@index([sectorId])
   @@map("client")
@@ -468,6 +470,7 @@ model Project {
   managerId       String?
   manager         User?            @relation(fields: [managerId], references: [id])
   services        ProjectService[]
+  purchaseOrders  PurchaseOrder[]
   name            String
   /// Integer minor units (M6 Decision 3). Defaults to the quotation amount (M8 Decision 9).
   revenueMinor    BigInt
@@ -566,6 +569,7 @@ model Document {
   /// Fields the reviewer wrote to the record on confirm.
   appliedFields      String[]             @default([])
   quotation          Quotation?
+  purchaseOrder      PurchaseOrder?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   deletedAt          DateTime?
@@ -575,4 +579,76 @@ model Document {
   @@index([uploadedById, reviewStatus])
   @@index([extractionStatus, updatedAt])
   @@map("document")
+}
+
+// ─── M9: purchase orders ────────────────────────────────────────────────────────
+
+/**
+ * Derived from the PO's invoices (M9 Decision 4): written only by
+ * recomputePurchaseOrderStatus in packages/core, never chosen by a user.
+ */
+enum PurchaseOrderStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+/**
+ * The client's order authorising billing on a project (M9). A project has many; the client
+ * is always the project's (Decision 1). CHECKs in migration m9_purchase_orders: positive
+ * amount, ISO currency, a 1–64 character PO number, net days 0–365. The partial unique index
+ * "purchase_order_live_client_number_key" on ("clientId", lower("poNumber")) among live rows
+ * (Decision 2) is SQL only: Prisma cannot express it, so keep it when editing this model.
+ */
+model PurchaseOrder {
+  id               String                 @id @default(uuid())
+  projectId        String
+  project          Project                @relation(fields: [projectId], references: [id])
+  clientId         String
+  client           Client                 @relation(fields: [clientId], references: [id])
+  /// The client's PO number as printed (Decision 2); unique per client among live POs,
+  /// ignoring case.
+  poNumber         String
+  /// When the PO reached us (not the date printed on it; Decision 12).
+  receivedDate     DateTime               @db.Date
+  /// The PO total as printed, in integer minor units (Decision 6, M6 Decision 3).
+  amountMinor      BigInt
+  currency         String
+  services         PurchaseOrderService[]
+  /// As printed or briefly summarised (Decision 7).
+  paymentTerms     String?
+  /// Net days when the terms state them; M10 defaults invoice due dates from it.
+  paymentTermsDays Int?
+  description      String?
+  /// Derived; written only by recomputePurchaseOrderStatus (Decision 4).
+  status           PurchaseOrderStatus    @default(PENDING)
+  statusChangedAt  DateTime?
+  /// The PO's current document (M7 Decision 2).
+  documentId       String?                @unique
+  document         Document?              @relation(fields: [documentId], references: [id])
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  deletedAt        DateTime?
+
+  @@index([projectId])
+  @@index([clientId, receivedDate])
+  @@index([status])
+  @@index([clientId, poNumber])
+  @@map("purchase_order")
+}
+
+/**
+ * Explicit join, as ProjectService: each added or removed service is audited.
+ */
+model PurchaseOrderService {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  serviceId       String
+  service         Service       @relation(fields: [serviceId], references: [id])
+  createdAt       DateTime      @default(now())
+
+  @@unique([purchaseOrderId, serviceId])
+  @@index([serviceId])
+  @@map("purchase_order_service")
 }

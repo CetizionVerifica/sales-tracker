@@ -6,6 +6,9 @@ const FIELD_LABELS: Record<string, string> = {
   currency: 'currency',
   quotationDate: 'quotation date',
   description: 'description',
+  poNumber: 'PO number',
+  paymentTerms: 'payment terms',
+  paymentTermsDays: 'net days',
 };
 
 export function fieldLabel(name: string): string {

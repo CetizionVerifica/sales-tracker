@@ -241,12 +241,10 @@ describe('documents (integration)', () => {
       expect(await rejection(upload({}, 'QUOTATION', gone.id))).toBeInstanceOf(NotFoundError);
     });
 
-    it.each(['PURCHASE_ORDER', 'INVOICE'] as const)(
-      'rejects %s until its module ships',
-      async (kind) => {
-        expect(fieldOf(await rejection(upload({}, kind)))).toBe('kind');
-      },
-    );
+    // PURCHASE_ORDER shipped with M9 (purchase-order-documents.integration.test.ts).
+    it.each(['INVOICE'] as const)('rejects %s until its module ships', async (kind) => {
+      expect(fieldOf(await rejection(upload({}, kind)))).toBe('kind');
+    });
 
     it('writes nothing when rejected', async () => {
       const before = await getDb().document.count();

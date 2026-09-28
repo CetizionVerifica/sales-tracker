@@ -33,12 +33,14 @@ const wireField = z.object({
 });
 
 /** How each extracted field is cleaned before it is stored. */
-type FieldFormat = 'text' | 'date' | 'amount' | 'currency';
+type FieldFormat = 'text' | 'date' | 'amount' | 'currency' | 'integer';
 
 export interface ExtractionFieldSpec {
   format: FieldFormat;
-  /** Longest stored value (text fields). */
+  /** Longest stored value (text fields); the largest value (integer fields). */
   max?: number;
+  /** The smallest value (integer fields). */
+  min?: number;
   /** Told to Claude in the schema, so it knows what to look for. */
   description: string;
 }
@@ -73,6 +75,48 @@ export const QUOTATION_EXTRACTION_FIELDS = {
     format: 'text',
     max: 1000,
     description: 'A short plain-text summary of the scope of work quoted.',
+  },
+} as const satisfies Record<string, ExtractionFieldSpec>;
+
+/** The fields Claude reads from a client's purchase order (M9, PURCHASE_ORDER kind). */
+export const PURCHASE_ORDER_EXTRACTION_FIELDS = {
+  poNumber: {
+    format: 'text',
+    max: 64,
+    description:
+      'The purchase order number exactly as printed. Not our quotation or proposal reference.',
+  },
+  documentDate: {
+    format: 'date',
+    description: 'The date printed on the purchase order, as YYYY-MM-DD.',
+  },
+  clientName: {
+    format: 'text',
+    max: 200,
+    description: 'The name of the company issuing the purchase order.',
+  },
+  amount: {
+    format: 'amount',
+    description:
+      'The purchase order total, as digits with an optional decimal point (e.g. 1250000.00). ' +
+      'Include taxes if the document shows a total including them. No currency symbol.',
+  },
+  currency: {
+    format: 'currency',
+    description: 'The ISO 4217 code of the purchase order total (e.g. INR, USD).',
+  },
+  paymentTerms: {
+    format: 'text',
+    max: 500,
+    description: 'The payment terms as printed, summarised in plain text if they are long.',
+  },
+  paymentTermsDays: {
+    format: 'integer',
+    min: 0,
+    max: 365,
+    description:
+      'The net payment days as digits only (e.g. 45 for "Net 45"), only when the terms state ' +
+      'a single number of days. Otherwise null.',
   },
 } as const satisfies Record<string, ExtractionFieldSpec>;
 
@@ -130,6 +174,13 @@ function cleanValue(value: string | null, spec: ExtractionFieldSpec): string | n
     case 'currency': {
       const code = trimmed.toUpperCase();
       return /^[A-Z]{3}$/.test(code) ? code : null;
+    }
+    case 'integer': {
+      // Digits only: "45 days" or "-5" is left for the reviewer rather than guessed at.
+      if (!/^\d{1,9}$/.test(trimmed)) return null;
+      const number = Number(trimmed);
+      if (number < (spec.min ?? 0) || number > (spec.max ?? Number.MAX_SAFE_INTEGER)) return null;
+      return String(number);
     }
   }
 }

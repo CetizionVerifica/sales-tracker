@@ -6,6 +6,7 @@ import type {
   FollowUpChannelValue,
   FollowUpEntityTypeValue,
   ProjectStatusValue,
+  PurchaseOrderStatusValue,
   QuotationStatusValue,
   TimelineKind,
 } from '@sales-tracker/core/schemas';
@@ -34,6 +35,7 @@ import { applyResult } from '@/lib/apply-result';
 import { fieldLabel } from '@/lib/document-labels';
 import { STATUS_LABELS } from '@/lib/enquiry-labels';
 import { PROJECT_STATUS_LABELS } from '@/lib/project-labels';
+import { PURCHASE_ORDER_STATUS_LABELS } from '@/lib/purchase-order-labels';
 import { QUOTATION_STATUS_LABELS } from '@/lib/quotation-labels';
 import { CHANNEL_LABELS, ENTITY_TYPE_LABELS, recordHref } from '@/lib/follow-up-labels';
 import { formatDate, formatTime } from '@/lib/format';
@@ -94,6 +96,9 @@ function statusLabel(type: FollowUpEntityTypeValue, status: string): string {
     return QUOTATION_STATUS_LABELS[status as QuotationStatusValue] ?? status;
   }
   if (type === 'PROJECT') return PROJECT_STATUS_LABELS[status as ProjectStatusValue] ?? status;
+  if (type === 'PURCHASE_ORDER') {
+    return PURCHASE_ORDER_STATUS_LABELS[status as PurchaseOrderStatusValue] ?? status;
+  }
   return status.toLowerCase();
 }
 

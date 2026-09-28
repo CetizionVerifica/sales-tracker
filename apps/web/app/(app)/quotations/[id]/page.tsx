@@ -11,6 +11,7 @@ import {
 import { toAmountString, toCalendarDateString } from '@sales-tracker/core/schemas';
 import Link from 'next/link';
 import { RecordAudit } from '@/components/audit/RecordAudit';
+import { DocumentCard, type DocumentSummary } from '@/components/documents/DocumentCard';
 import { Panel } from '@/components/charts/Panel';
 import { DateDisplay } from '@/components/display/DateDisplay';
 import { FieldGrid } from '@/components/display/FieldGrid';
@@ -35,7 +36,6 @@ import { deleteQuotationAction, restoreQuotationAction } from '../actions';
 import { loadQuotationFormOptions } from '../form-options';
 import { loadQuotationOr404 } from '../load';
 import { EditQuotationButton } from '../QuotationSheets';
-import { DocumentCard, type DocumentSummary } from './DocumentCard';
 import { StatusDialog } from './StatusActions';
 
 export default async function QuotationPage({ params }: { params: Promise<{ id: string }> }) {
@@ -260,10 +260,17 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
       />
       <PipelineStrip
         current="quotation"
-        reached={project ? 'project' : 'quotation'}
+        reached={project?.purchaseOrders.length ? 'po' : project ? 'project' : 'quotation'}
         links={{
           enquiry: `/enquiries/${quotation.enquiry.id}`,
           ...(project && { project: `/projects/${project.id}` }),
+          // M9: the PO when there is one, otherwise the project's PO section.
+          ...(project?.purchaseOrders.length && {
+            po:
+              project.purchaseOrders.length === 1
+                ? `/purchase-orders/${project.purchaseOrders[0]!.id}`
+                : `/projects/${project.id}?tab=overview#purchase-orders`,
+          }),
         }}
       />
       <DetailLayout

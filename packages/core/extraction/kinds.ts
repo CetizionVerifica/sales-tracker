@@ -1,20 +1,30 @@
 import type { Prisma, QuotationStatus } from '@sales-tracker/db';
 import type { Db } from '../clients.ts';
 import type { Ctx } from '../context.ts';
-import { quotationManagersSelect, quotationResource } from '../rbac/scope.ts';
+import {
+  purchaseOrderAccessSelect,
+  purchaseOrderResource,
+  quotationManagersSelect,
+  quotationResource,
+} from '../rbac/scope.ts';
 import type { Actor, Resource } from '../rbac/types.ts';
 import { toCalendarDateString } from '../schemas/common.ts';
 import type { DocumentKindValue } from '../schemas/document.ts';
-import { QUOTATION_EXTRACTION_FIELDS, type ExtractionFields } from '../schemas/extraction.ts';
+import {
+  PURCHASE_ORDER_EXTRACTION_FIELDS,
+  QUOTATION_EXTRACTION_FIELDS,
+  type ExtractionFields,
+} from '../schemas/extraction.ts';
 import { toAmountString } from '../schemas/money.ts';
-import { targetFor } from '../services/follow-up-targets.ts';
+import { purchaseOrderLabel, targetFor } from '../services/follow-up-targets.ts';
+import { updatePurchaseOrder } from '../services/purchase-order.service.ts';
 import { updateQuotation } from '../services/quotation.service.ts';
 import { isActiveQuotation } from '../status/quotation.ts';
 
 /**
  * The document-kind registry (M7), the same pattern as M5's follow-up targets: everything
  * the document service and review screen need to know about a record type lives here.
- * M9 (PURCHASE_ORDER) and M10 (INVOICE) each add one entry; nothing else changes.
+ * M9 added PURCHASE_ORDER; M10 (INVOICE) adds one entry; nothing else changes.
  */
 
 /** The record a document is attached to, as the document service sees it. */
@@ -40,7 +50,7 @@ export interface ParentRecord {
 export interface ReviewField {
   name: string;
   label: string;
-  input: 'text' | 'date' | 'money' | 'textarea';
+  input: 'text' | 'date' | 'money' | 'textarea' | 'integer';
   from: readonly string[];
   applies: readonly string[];
 }
@@ -172,8 +182,106 @@ const quotationKind: DocumentKindSpec = {
   },
 };
 
+/**
+ * A client's purchase order (M9). Nothing is locked in M9; M10 may lock the amount once
+ * invoices exist. The date printed on the PO is shown for information only: it is not the
+ * received date (Decision 12).
+ */
+const purchaseOrderKind: DocumentKindSpec = {
+  label: 'Purchase order',
+  parentModel: 'PurchaseOrder',
+  fields: PURCHASE_ORDER_EXTRACTION_FIELDS,
+  reviewFields: [
+    {
+      name: 'poNumber',
+      label: 'PO number',
+      input: 'text',
+      from: ['poNumber'],
+      applies: ['poNumber'],
+    },
+    {
+      name: 'amount',
+      label: 'Amount',
+      input: 'money',
+      from: ['amount', 'currency'],
+      applies: ['amount', 'currency'],
+    },
+    {
+      name: 'paymentTerms',
+      label: 'Payment terms',
+      input: 'textarea',
+      from: ['paymentTerms'],
+      applies: ['paymentTerms'],
+    },
+    {
+      name: 'paymentTermsDays',
+      label: 'Net days',
+      input: 'integer',
+      from: ['paymentTermsDays'],
+      applies: ['paymentTermsDays'],
+    },
+  ],
+  infoFields: [
+    { name: 'documentDate', label: 'Date on the PO' },
+    { name: 'clientName', label: 'Client on the PO' },
+  ],
+
+  async load(db, id) {
+    const row = await db.purchaseOrder.findFirst({
+      where: { id },
+      select: {
+        id: true,
+        poNumber: true,
+        clientId: true,
+        amountMinor: true,
+        currency: true,
+        paymentTerms: true,
+        paymentTermsDays: true,
+        documentId: true,
+        client: { select: { name: true } },
+        ...purchaseOrderAccessSelect,
+      },
+    });
+    if (!row) return null;
+    return {
+      id: row.id,
+      label: purchaseOrderLabel(row),
+      clientId: row.clientId,
+      clientName: row.client.name,
+      documentId: row.documentId,
+      resource: purchaseOrderResource(row),
+      values: {
+        poNumber: row.poNumber,
+        amount: toAmountString(row.amountMinor, row.currency),
+        currency: row.currency,
+        paymentTerms: row.paymentTerms,
+        paymentTermsDays: row.paymentTermsDays === null ? null : String(row.paymentTermsDays),
+      },
+      locked: {},
+    };
+  },
+
+  visibleIds: (db, user, clientId) => targetFor('PURCHASE_ORDER').visibleIds(db, user, clientId),
+  labels: (db, ids) => targetFor('PURCHASE_ORDER').labels(db, ids),
+
+  async setDocument(db, id, documentId, expected) {
+    const { count } = await db.purchaseOrder.updateMany({
+      where: { id, documentId: expected },
+      data: { documentId },
+    });
+    return count === 1;
+  },
+
+  currentWhere: { purchaseOrder: { isNot: null } },
+
+  async applyConfirmed(ctx, id, values) {
+    await updatePurchaseOrder(ctx, id, values as Parameters<typeof updatePurchaseOrder>[2]);
+  },
+};
+
 export const DOCUMENT_KINDS_REGISTRY: Partial<Record<DocumentKindValue, DocumentKindSpec>> = {
   QUOTATION: quotationKind,
+  PURCHASE_ORDER: purchaseOrderKind,
 };
 
 /** Kinds whose module has shipped. */

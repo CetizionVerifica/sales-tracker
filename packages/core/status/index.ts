@@ -1,5 +1,5 @@
 // Status-machine functions (enquiry, quotation, invoice, derived PO status).
-// Enquiry added in M4, quotation in M6, project in M8; PO and invoice follow in M9 and M10.
+// Enquiry added in M4, quotation in M6, project in M8, PO in M9; invoice follows in M10.
 export { assertEnquiryTransition, canTransitionEnquiry } from './enquiry.ts';
 export {
   ACTIVE_QUOTATION_STATUSES,
@@ -23,6 +23,12 @@ export {
   assertCanRetry,
   assertExtractionTransition,
   canTransitionExtraction,
+  documentStateOf,
   EXTRACTION_STATUS_LABELS,
   FINISHED_EXTRACTION,
 } from './document.ts';
+export {
+  derivePurchaseOrderStatus,
+  PURCHASE_ORDER_STATUS_LABELS,
+  type InvoiceForStatus,
+} from './purchase-order.ts';

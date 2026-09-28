@@ -1,10 +1,21 @@
-import type { EnquiryStatus, ProjectStatus, QuotationStatus } from '@sales-tracker/db';
+import type {
+  EnquiryStatus,
+  ProjectStatus,
+  PurchaseOrderStatus,
+  QuotationStatus,
+} from '@sales-tracker/db';
 import { getDb } from '../clients.ts';
 import { assertCan, type Ctx } from '../context.ts';
-import { scopeEnquiries, scopeProjects, scopeQuotations } from '../rbac/scope.ts';
+import {
+  scopeEnquiries,
+  scopeProjects,
+  scopePurchaseOrders,
+  scopeQuotations,
+} from '../rbac/scope.ts';
 import { todayInIST } from '../schemas/common.ts';
 import { ACTIVE_PROJECT_STATUSES } from '../status/project.ts';
 import { ACTIVE_QUOTATION_STATUSES } from '../status/quotation.ts';
+import { PO_DOCUMENT_WHERE } from './purchase-order-queries.ts';
 
 /*
  * Counts for the list pages' summary strips (UI guide §4.1). Scoped exactly like the
@@ -68,6 +79,22 @@ export async function projectStatusCounts(
     CANCELLED: 0,
     behindSchedule,
   };
+  for (const row of rows) counts[row.status] = row._count._all;
+  return counts;
+}
+
+/** M9: PO status chips, plus current PO documents waiting for review (the list's filter). */
+export async function purchaseOrderStatusCounts(
+  ctx: Ctx,
+): Promise<Record<PurchaseOrderStatus, number> & { toReview: number }> {
+  assertCan(ctx, 'list', 'purchaseOrder');
+  const db = getDb();
+  const scope = scopePurchaseOrders(ctx.user);
+  const [rows, toReview] = await Promise.all([
+    db.purchaseOrder.groupBy({ by: ['status'], where: { AND: [scope] }, _count: { _all: true } }),
+    db.purchaseOrder.count({ where: { AND: [scope, PO_DOCUMENT_WHERE.toReview] } }),
+  ]);
+  const counts = { PENDING: 0, PAID: 0, OVERDUE: 0, toReview };
   for (const row of rows) counts[row.status] = row._count._all;
   return counts;
 }

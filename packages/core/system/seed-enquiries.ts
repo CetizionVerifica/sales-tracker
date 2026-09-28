@@ -7,9 +7,10 @@ import { createClient } from '../services/client.service.ts';
 import { convertEnquiry, createEnquiry, markEnquiryLost } from '../services/enquiry.service.ts';
 import { logFollowUp } from '../services/follow-up.service.ts';
 import { changeProjectStatus, createProject, updateProject } from '../services/project.service.ts';
+import { createPurchaseOrder } from '../services/purchase-order.service.ts';
 import { changeQuotationStatus, createQuotation } from '../services/quotation.service.ts';
 import { updateSettings } from '../services/settings.service.ts';
-import { parseAmount } from '../schemas/money.ts';
+import { parseAmount, toAmountString } from '../schemas/money.ts';
 
 /** Dev-only sample clients, created when there are none. */
 const SAMPLE_CLIENTS = [
@@ -249,7 +250,10 @@ const daysAgo = (days: number) =>
 /** The sample's follow-up as its author: the enquiry owner, audited as `system`. */
 async function logSample(
   author: { id: string; role: Ctx['user']['role'] },
-  link: { entityType: 'CLIENT' | 'ENQUIRY' | 'QUOTATION' | 'PROJECT'; entityId: string },
+  link: {
+    entityType: 'CLIENT' | 'ENQUIRY' | 'QUOTATION' | 'PROJECT' | 'PURCHASE_ORDER';
+    entityId: string;
+  },
   { daysAgo: ago, nextInDays, ...fields }: SampleFollowUp,
 ) {
   const ctx: Ctx = { user: { ...author, active: true }, source: 'system' };
@@ -338,7 +342,12 @@ async function addSampleFollowUps(tx: Db): Promise<number> {
     await logSample(author, { entityType: 'CLIENT', entityId: client.id }, note.followUp);
     count += 1;
   }
-  return count + (await addSampleQuotationFollowUps(tx)) + (await addSampleProjectFollowUps(tx));
+  return (
+    count +
+    (await addSampleQuotationFollowUps(tx)) +
+    (await addSampleProjectFollowUps(tx)) +
+    (await addSamplePurchaseOrderFollowUps(tx))
+  );
 }
 
 /**
@@ -605,11 +614,141 @@ async function createSampleProjects(ctx: Ctx, tx: Db): Promise<number> {
   return count;
 }
 
+// ─── M9 sample purchase orders ──────────────────────────────────────────────────────
+
+interface SamplePurchaseOrder {
+  /** The sample project it is on, by name. */
+  project: string;
+  poNumber: string;
+  /** Defaults to the quotation's PO received date (the first PO on a project). */
+  receivedDaysAgo?: number;
+  /** Defaults to the project revenue (the quotation amount). */
+  amount?: string;
+  paymentTerms?: string;
+  paymentTermsDays?: number;
+  description?: string;
+  /** Logged by the dev PM. */
+  followUp?: SampleFollowUp;
+}
+
+/**
+ * One PO on most sample projects, as their Sales owner: one with net days, one with
+ * text-only terms, and a project with a second, extra-scope PO that takes it over revenue.
+ * The unassigned project stays without a PO (for the create flow), and the cancelled one
+ * gets none. All PENDING: there are no invoices until M10.
+ */
+const SAMPLE_PURCHASE_ORDERS: SamplePurchaseOrder[] = [
+  {
+    project: 'Plant QA training, phase 1',
+    poNumber: '4500012345',
+    paymentTerms: 'Net 45 days from invoice',
+    paymentTermsDays: 45,
+    followUp: {
+      daysAgo: 20,
+      channel: 'EMAIL',
+      notes: 'Client procurement sent the signed PO copy',
+    },
+  },
+  {
+    project: 'SOP writing workshop',
+    poNumber: 'PO/SOP/2026/07',
+    paymentTerms: '50% advance, balance on completion',
+  },
+  {
+    project: 'Export line inspection',
+    poNumber: 'EXP-PO-8812',
+    paymentTerms: 'Net 30',
+    paymentTermsDays: 30,
+  },
+  {
+    project: 'Warehouse audit',
+    poNumber: 'WH-2026-114',
+    paymentTerms: 'Net 60',
+    paymentTermsDays: 60,
+  },
+  {
+    project: 'Warehouse audit',
+    poNumber: 'WH-2026-131',
+    receivedDaysAgo: 30,
+    amount: '1,50,000.00',
+    paymentTerms: 'Net 60',
+    paymentTermsDays: 60,
+    description: 'Extra scope: cold-storage area',
+  },
+];
+
+async function findSampleProject(tx: Db, name: string) {
+  return tx.project.findFirst({
+    where: { name, status: { not: 'CANCELLED' } },
+    select: {
+      id: true,
+      currency: true,
+      revenueMinor: true,
+      quotation: { select: { poReceivedDate: true, owner: { select: { id: true, role: true } } } },
+      services: { select: { serviceId: true } },
+    },
+  });
+}
+
+/** M9 sample follow-ups on existing sample POs (found by number), as the dev PM. */
+async function addSamplePurchaseOrderFollowUps(tx: Db): Promise<number> {
+  const pm = await devUser(tx, PM_EMAIL);
+  let count = 0;
+  for (const sample of SAMPLE_PURCHASE_ORDERS) {
+    if (!sample.followUp) continue;
+    const po = await tx.purchaseOrder.findFirst({
+      where: { poNumber: sample.poNumber },
+      select: { id: true },
+    });
+    if (!po) continue;
+    await logSample(pm, { entityType: 'PURCHASE_ORDER', entityId: po.id }, sample.followUp);
+    count += 1;
+  }
+  return count;
+}
+
+/**
+ * M9 sample POs on the sample projects (found by name), created by the quotation's owner,
+ * audited as `system`. Projects a developer has since deleted or cancelled are skipped.
+ */
+async function createSamplePurchaseOrders(tx: Db): Promise<number> {
+  const pm = await devUser(tx, PM_EMAIL);
+  let count = 0;
+  for (const sample of SAMPLE_PURCHASE_ORDERS) {
+    const project = await findSampleProject(tx, sample.project);
+    if (!project) continue;
+    const owner: Ctx = { user: { ...project.quotation.owner, active: true }, source: 'system' };
+    const { purchaseOrder } = await createPurchaseOrder(owner, {
+      projectId: project.id,
+      poNumber: sample.poNumber,
+      receivedDate:
+        sample.receivedDaysAgo !== undefined || !project.quotation.poReceivedDate
+          ? daysAgo(sample.receivedDaysAgo ?? 0)
+          : toCalendarDateString(project.quotation.poReceivedDate),
+      amount: sample.amount ?? toAmountString(project.revenueMinor, project.currency),
+      currency: project.currency,
+      serviceIds: project.services.map((link) => link.serviceId),
+      paymentTerms: sample.paymentTerms,
+      paymentTermsDays: sample.paymentTermsDays,
+      description: sample.description,
+    });
+    if (sample.followUp) {
+      await logSample(
+        pm,
+        { entityType: 'PURCHASE_ORDER', entityId: purchaseOrder.id },
+        sample.followUp,
+      );
+    }
+    count += 1;
+  }
+  return count;
+}
+
 /**
  * Dev-only sample pipeline, written through the services (audited as `system`).
  * Idempotent: enquiries are created only when there are none, and likewise quotations and
- * follow-ups, and projects with the quotations made for them (so a database seeded before
- * M5, M6 or M8 gets them too). Each part runs in one
+ * follow-ups, projects with the quotations made for them, and POs (so a database seeded
+ * before M5, M6, M8 or M9 gets them too). Each part runs in one
  * transaction (the services join it), so a failure part-way leaves nothing behind and the
  * next seed starts over instead of skipping a half-made pipeline.
  */
@@ -624,6 +763,7 @@ export async function ensureSampleEnquiries(log: (message: string) => void): Pro
       log(`created ${await createSampleQuotations(ctx, tx)} sample quotations`);
       log(`created ${await addSampleFollowUps(tx)} sample follow-ups`);
       log(`created ${await createSampleProjects(ctx, tx)} sample projects`);
+      log(`created ${await createSamplePurchaseOrders(tx)} sample purchase orders`);
     });
     return;
   }
@@ -643,6 +783,11 @@ export async function ensureSampleEnquiries(log: (message: string) => void): Pro
   if ((await db.project.count({ where: { deletedAt: undefined } })) === 0) {
     await withTx(ctx, async (tx) =>
       log(`created ${await createSampleProjects(ctx, tx)} sample projects`),
+    );
+  }
+  if ((await db.purchaseOrder.count({ where: { deletedAt: undefined } })) === 0) {
+    await withTx(ctx, async (tx) =>
+      log(`created ${await createSamplePurchaseOrders(tx)} sample purchase orders`),
     );
   }
 }

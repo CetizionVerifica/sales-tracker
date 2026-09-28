@@ -13,9 +13,19 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const isAdmin = can(user, 'list', 'user');
 
   // Only modules that exist, and only what the role can use (UI guide §3). My today,
-  // Dashboard, POs, Invoices and MCP access join as M9–M13 ship.
+  // Dashboard, Invoices and MCP access join as M10–M13 ship.
   const projects = can(user, 'list', 'project')
     ? [{ href: '/projects', label: 'Projects', icon: 'projects', stage: 'project' } as const]
+    : [];
+  const purchaseOrders = can(user, 'list', 'purchaseOrder')
+    ? [
+        {
+          href: '/purchase-orders',
+          label: 'Purchase orders',
+          icon: 'purchaseOrders',
+          stage: 'po',
+        } as const,
+      ]
     : [];
   const groups: NavGroup[] = [
     { items: [{ href: '/', label: 'Home', icon: 'home', exact: true }] },
@@ -23,7 +33,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       label: 'Pipeline',
       items: [
         // Projects lead for project managers, whose work starts there (M8).
-        ...(user.role === 'PROJECT_MANAGER' ? projects : []),
+        ...(user.role === 'PROJECT_MANAGER' ? [...projects, ...purchaseOrders] : []),
         ...(can(user, 'list', 'enquiry')
           ? [
               {
@@ -44,7 +54,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               } as const,
             ]
           : []),
-        ...(user.role === 'PROJECT_MANAGER' ? [] : projects),
+        ...(user.role === 'PROJECT_MANAGER' ? [] : [...projects, ...purchaseOrders]),
         ...(can(user, 'list', 'client')
           ? [{ href: '/clients', label: 'Clients', icon: 'clients' } as const]
           : []),
@@ -74,6 +84,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     ...(can(user, 'create', 'enquiry') ? [{ href: '/enquiries/new', label: 'Enquiry' }] : []),
     ...(can(user, 'create', 'project')
       ? [{ href: '/quotations?status=PO_RECEIVED&hasProject=false', label: 'Project' }]
+      : []),
+    // A PO is recorded on a project; the page starts with a project picker (M9).
+    ...(can(user, 'create', 'purchaseOrder')
+      ? [{ href: '/purchase-orders/new', label: 'PO' }]
       : []),
     ...(isAdmin ? [{ href: '/admin/clients/new', label: 'Client' }] : []),
   ];

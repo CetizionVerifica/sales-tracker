@@ -11,6 +11,7 @@ export {
   EnquiryStatus,
   ExtractionStatus,
   ProjectStatus,
+  PurchaseOrderStatus,
   QuotationStatus,
   Role,
 } from './generated/prisma/enums.ts';

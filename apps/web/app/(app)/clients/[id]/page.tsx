@@ -6,6 +6,7 @@ import {
   listEnquiries,
   listFollowUpTargets,
   listProjects,
+  listPurchaseOrders,
   listQuotations,
   NotFoundError,
 } from '@sales-tracker/core';
@@ -68,17 +69,21 @@ export default async function ClientPage({
 
   const search = await searchParams;
   const query = timelineQuery(client.id, search);
-  const [timeline, targets, enquiries, quotations, projects, documents] = await Promise.all([
-    getClientTimeline(ctx, query).catch((error: unknown) => {
-      if (error instanceof NotFoundError) notFound();
-      throw error;
-    }),
-    deleted ? [] : listFollowUpTargets(ctx, client.id),
-    listEnquiries(ctx, { clientId: client.id, pageSize: 10 }),
-    listQuotations(ctx, { clientId: client.id, pageSize: 10 }),
-    listProjects(ctx, { clientId: client.id, pageSize: 10 }),
-    listDocuments(ctx, { clientId: client.id, pageSize: 25 }),
-  ]);
+  const [timeline, targets, enquiries, quotations, projects, purchaseOrders, documents] =
+    await Promise.all([
+      getClientTimeline(ctx, query).catch((error: unknown) => {
+        if (error instanceof NotFoundError) notFound();
+        throw error;
+      }),
+      deleted ? [] : listFollowUpTargets(ctx, client.id),
+      listEnquiries(ctx, { clientId: client.id, pageSize: 10 }),
+      listQuotations(ctx, { clientId: client.id, pageSize: 10 }),
+      listProjects(ctx, { clientId: client.id, pageSize: 10 }),
+      can(ctx.user, 'list', 'purchaseOrder')
+        ? listPurchaseOrders(ctx, { clientId: client.id, pageSize: 10 })
+        : null,
+      listDocuments(ctx, { clientId: client.id, pageSize: 25 }),
+    ]);
   const primary = client.contacts.find((c) => c.isPrimary);
   const contacts = client.contacts.map((c) => ({ id: c.id, name: c.name }));
   const today = istToday();
@@ -254,7 +259,7 @@ export default async function ClientPage({
   const documentsTab = (
     <Panel bodyClassName="p-0">
       {documents.items.length === 0 ? (
-        <EmptyState message="No documents yet. Upload them on the client’s quotations." />
+        <EmptyState message="No documents yet. Upload them on the client’s quotations and POs." />
       ) : (
         <ul className="divide-y">
           {documents.items.map((d) => (
@@ -269,7 +274,11 @@ export default async function ClientPage({
               </a>
               <Link
                 className="text-muted-foreground text-[13px] hover:underline"
-                href={`/quotations/${d.entityId}?tab=documents`}
+                href={
+                  d.kind === 'PURCHASE_ORDER'
+                    ? `/purchase-orders/${d.entityId}`
+                    : `/quotations/${d.entityId}?tab=documents`
+                }
               >
                 {d.entityLabel}
               </Link>
@@ -328,23 +337,67 @@ export default async function ClientPage({
           />
         }
         side={
-          <Panel title="Key facts">
-            <FieldGrid
-              columns={1}
-              items={[
-                {
-                  label: 'Primary contact',
-                  value: primary
-                    ? [primary.name, primary.phone, primary.email].filter(Boolean).join(' · ')
-                    : '—',
-                },
-                { label: 'Enquiries', value: <span className="num">{enquiries.total}</span> },
-                { label: 'Quotations', value: <span className="num">{quotations.total}</span> },
-                { label: 'Projects', value: <span className="num">{projects.total}</span> },
-                { label: 'Documents', value: <span className="num">{documents.total}</span> },
-              ]}
-            />
-          </Panel>
+          <div className="flex flex-col gap-4">
+            <Panel title="Key facts">
+              <FieldGrid
+                columns={1}
+                items={[
+                  {
+                    label: 'Primary contact',
+                    value: primary
+                      ? [primary.name, primary.phone, primary.email].filter(Boolean).join(' · ')
+                      : '—',
+                  },
+                  { label: 'Enquiries', value: <span className="num">{enquiries.total}</span> },
+                  { label: 'Quotations', value: <span className="num">{quotations.total}</span> },
+                  { label: 'Projects', value: <span className="num">{projects.total}</span> },
+                  { label: 'Documents', value: <span className="num">{documents.total}</span> },
+                ]}
+              />
+            </Panel>
+            {purchaseOrders && (
+              <Panel
+                title="Purchase orders"
+                bodyClassName="p-0"
+                actions={
+                  purchaseOrders.total > 0 && (
+                    <Link
+                      className="text-primary text-[13px] hover:underline"
+                      href={`/purchase-orders?clientId=${client.id}`}
+                    >
+                      {purchaseOrders.total > purchaseOrders.items.length
+                        ? `All ${purchaseOrders.total}`
+                        : 'View list'}
+                    </Link>
+                  )
+                }
+              >
+                {purchaseOrders.items.length === 0 ? (
+                  <EmptyState message="No purchase orders you can see for this client." />
+                ) : (
+                  <ul className="divide-y">
+                    {purchaseOrders.items.map((po) => (
+                      <li key={po.id} className="flex flex-col gap-0.5 px-4 py-2.5">
+                        <span className="flex items-center justify-between gap-2">
+                          <Link
+                            className="font-medium hover:underline"
+                            href={`/purchase-orders/${po.id}`}
+                          >
+                            PO {po.poNumber}
+                          </Link>
+                          <StatusBadge entity="po" status={po.status} />
+                        </span>
+                        <span className="text-muted-foreground flex items-center justify-between gap-2 text-[13px]">
+                          <Money amountMinor={po.amountMinor} currency={po.currency} />
+                          <DateDisplay value={po.receivedDate} />
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Panel>
+            )}
+          </div>
         }
       />
     </>

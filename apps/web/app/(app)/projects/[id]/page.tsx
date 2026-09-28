@@ -1,4 +1,10 @@
-import { can, getClient, getClientTimeline, listProjectManagerOptions } from '@sales-tracker/core';
+import {
+  can,
+  getClient,
+  getClientTimeline,
+  listProjectManagerOptions,
+  purchaseOrderResource,
+} from '@sales-tracker/core';
 import { toCalendarDateString } from '@sales-tracker/core/schemas';
 import Link from 'next/link';
 import { RecordAudit } from '@/components/audit/RecordAudit';
@@ -20,12 +26,14 @@ import { FollowUpSheet } from '@/components/timeline/FollowUpSheet';
 import { Timeline } from '@/components/timeline/Timeline';
 import { Button } from '@/components/ui/button';
 import { requireUser } from '@/lib/auth';
+import { EXTRACTION_STATUS_TEXT } from '@/lib/document-labels';
 import { istToday } from '@/lib/display';
 import { isOpenProject } from '@/lib/project-labels';
 import { loadRecordAudit } from '@/lib/record-audit';
 import { deleteProjectAction, restoreProjectAction } from '../actions';
 import { loadProjectOr404 } from '../load';
 import { ProjectStatusDialog, ReassignDialog, UpdateProgress } from './ProjectActions';
+import { ProjectPurchaseOrders } from './ProjectPurchaseOrders';
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireUser();
@@ -65,6 +73,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const revenueDiffers =
     project.revenueMinor !== project.quotation.amountMinor ||
     project.currency !== project.quotation.currency;
+  // M9: POs are recorded on live, non-cancelled projects by the pipeline owner, PM or admins.
+  const { purchaseOrders } = project;
+  const canAddPo =
+    !deleted &&
+    project.status !== 'CANCELLED' &&
+    can(ctx.user, 'create', purchaseOrderResource({ project }));
+  const [onlyPo] = purchaseOrders.length === 1 ? purchaseOrders : [];
 
   const menu: RecordMenuItem[] = [];
   if (permissions.canDelete && !deleted) {
@@ -79,6 +94,15 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         'use server';
         return deleteProjectAction({ id: project.id });
       },
+    });
+  }
+  if (permissions.deleteBlockedReason && !deleted) {
+    menu.push({
+      label: 'Delete',
+      destructive: true,
+      blocked: true,
+      title: `${project.number} has purchase orders`,
+      description: `Delete its purchase orders first (${purchaseOrders.length}). A project with purchase orders cannot be deleted.`,
     });
   }
   if (permissions.canDelete && deleted) {
@@ -162,9 +186,30 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           ]}
         />
       </Panel>
-      <Panel title="Purchase orders">
-        <EmptyState message="Purchase orders arrive in a later release." />
-      </Panel>
+      <ProjectPurchaseOrders
+        projectId={project.id}
+        purchaseOrders={purchaseOrders.map((po) => ({
+          id: po.id,
+          poNumber: po.poNumber,
+          receivedDate: po.receivedDate.toISOString(),
+          amountMinor: po.amountMinor.toString(),
+          currency: po.currency,
+          paymentTerms: po.paymentTerms,
+          status: po.status,
+          documentState: po.documentState,
+        }))}
+        totals={{
+          byCurrency: project.poTotals.byCurrency.map((t) => ({
+            currency: t.currency,
+            amountMinor: t.amountMinor.toString(),
+          })),
+          currency: project.poTotals.currency,
+          coveredMinor: project.poTotals.coveredMinor.toString(),
+          revenueMinor: project.poTotals.revenueMinor.toString(),
+          overCovered: project.poTotals.overCovered,
+        }}
+        canAdd={canAddPo}
+      />
     </>
   );
 
@@ -226,9 +271,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       />
       <PipelineStrip
         current="project"
+        reached={purchaseOrders.length > 0 ? 'po' : 'project'}
         links={{
           enquiry: `/enquiries/${project.quotation.enquiry.id}`,
           quotation: `/quotations/${project.quotation.id}`,
+          // The PO when there is one, otherwise the section listing them (M9).
+          po: onlyPo ? `/purchase-orders/${onlyPo.id}` : '?tab=overview#purchase-orders',
         }}
       />
       <DetailLayout
@@ -256,8 +304,46 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                 id: 'documents',
                 label: 'Documents',
                 content: (
-                  <Panel>
-                    <EmptyState message="Purchase order and invoice documents will show here once POs arrive." />
+                  <Panel bodyClassName="p-0">
+                    {purchaseOrders.every((po) => !po.document) ? (
+                      <EmptyState message="No documents yet. Upload each client PO on its page." />
+                    ) : (
+                      <ul className="divide-y">
+                        {purchaseOrders.flatMap(({ document: d, ...po }) =>
+                          d
+                            ? [
+                                <li
+                                  key={d.id}
+                                  className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5"
+                                >
+                                  <a
+                                    className="font-medium hover:underline"
+                                    href={`/api/documents/${d.id}/file`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {d.originalFilename}
+                                  </a>
+                                  <Link
+                                    className="text-muted-foreground text-[13px] hover:underline"
+                                    href={`/purchase-orders/${po.id}`}
+                                  >
+                                    PO {po.poNumber}
+                                  </Link>
+                                  <span className="text-muted-foreground text-[13px]">
+                                    {d.uploadedBy.name} · <DateDisplay value={d.createdAt} />
+                                  </span>
+                                  <span className="ml-auto text-[13px]">
+                                    {d.reviewStatus === 'CONFIRMED'
+                                      ? 'Confirmed'
+                                      : EXTRACTION_STATUS_TEXT[d.extractionStatus]}
+                                  </span>
+                                </li>,
+                              ]
+                            : [],
+                        )}
+                      </ul>
+                    )}
                   </Panel>
                 ),
               },

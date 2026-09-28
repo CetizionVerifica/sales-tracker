@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
 import { Button } from '@/components/ui/button';
-import type { ActionResult } from '@/lib/action-core';
 import { applyResult } from '@/lib/apply-result';
 import {
   ACCEPTED_TYPES,
@@ -16,7 +15,8 @@ import {
   formatBytes,
 } from '@/lib/document-labels';
 import { formatDateTime } from '@/lib/format';
-import { deleteDocumentAction, retryExtractionAction } from '../../documents/actions';
+import { deleteDocumentAction, retryExtractionAction } from '@/app/(app)/documents/actions';
+import { uploadDocumentFile } from '@/lib/document-upload';
 
 /** What the card needs about the current document (serialisable from the server page). */
 export interface DocumentSummary {
@@ -35,26 +35,17 @@ export interface DocumentSummary {
 
 const POLL_MS = 3000;
 
-/** Sends the file to the upload route; the reply has the server-action result shape. */
-async function upload(kind: DocumentKindValue, entityId: string, file: File) {
-  const body = new FormData();
-  body.set('kind', kind);
-  body.set('entityId', entityId);
-  body.set('file', file);
-  try {
-    const response = await fetch('/api/documents', { method: 'POST', body });
-    return (await response.json()) as ActionResult<{ id: string }>;
-  } catch {
-    return {
-      ok: false as const,
-      error: 'The upload did not finish. Check your connection and try again.',
-    };
-  }
-}
+/** How the card names its record, per kind. */
+const RECORD_NOUN: Record<DocumentKindValue, { title: string; noun: string }> = {
+  QUOTATION: { title: 'Quotation document', noun: 'quotation' },
+  PURCHASE_ORDER: { title: 'PO document', noun: 'PO' },
+  INVOICE: { title: 'Invoice document', noun: 'invoice' },
+};
 
 /**
- * The record's document (M7): upload, view, replace, delete, and where extraction is.
- * Polls while the document is being read, so "Ready to review" appears on its own.
+ * The record's document (M7; shared with POs in M9): upload, view, replace, delete, and
+ * where extraction is. Polls while the document is being read, so "Ready to review" appears
+ * on its own.
  */
 export function DocumentCard({
   kind,
@@ -76,6 +67,7 @@ export function DocumentCard({
   const [retrying, startRetry] = useTransition();
   const reading =
     document?.extractionStatus === 'QUEUED' || document?.extractionStatus === 'RUNNING';
+  const { title, noun } = RECORD_NOUN[kind];
 
   useEffect(() => {
     if (!reading) return;
@@ -86,7 +78,7 @@ export function DocumentCard({
   async function send(file: File | undefined) {
     if (!file) return;
     setUploading(true);
-    const result = await upload(kind, entityId, file);
+    const result = await uploadDocumentFile(kind, entityId, file);
     setUploading(false);
     if (input.current) input.current.value = '';
     if (applyResult(result, undefined, 'Document uploaded')) router.refresh();
@@ -109,7 +101,7 @@ export function DocumentCard({
       className="bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4"
     >
       <h2 id="document-heading" className="text-base font-semibold">
-        Quotation document
+        {title}
       </h2>
 
       {!document && !canUpdate && (
@@ -137,7 +129,7 @@ export function DocumentCard({
             <Upload className="text-muted-foreground size-5" aria-hidden />
           )}
           <span className="text-sm font-medium">
-            {uploading ? 'Uploading…' : 'Upload quotation document'}
+            {uploading ? 'Uploading…' : `Upload ${noun} document`}
           </span>
           <span className="text-muted-foreground text-[13px]">
             Drop a file here or choose one. PDF, PNG, JPEG or WebP, up to {maxMb} MB.
@@ -183,7 +175,7 @@ export function DocumentCard({
                     label="Delete"
                     variant="destructive"
                     title={`Delete ${document.originalFilename}?`}
-                    description="The quotation will have no document. You can upload another one."
+                    description={`The ${noun} will have no document. You can upload another one.`}
                     success="Document deleted"
                     run={() => deleteDocumentAction({ id: document.id })}
                   />
@@ -216,7 +208,7 @@ export function DocumentCard({
                 )}
                 {document.extractionStatus === 'SKIPPED' && (
                   <p className="text-muted-foreground text-[13px]">
-                    Enter the values on the quotation yourself, or ask an admin to turn on reading
+                    Enter the values on the {noun} yourself, or ask an admin to turn on reading
                     documents with AI.
                   </p>
                 )}

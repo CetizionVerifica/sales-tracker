@@ -6,6 +6,7 @@ export type NavIcon =
   | 'enquiries'
   | 'quotations'
   | 'projects'
+  | 'purchaseOrders'
   | 'clients'
   | 'users'
   | 'sectors'

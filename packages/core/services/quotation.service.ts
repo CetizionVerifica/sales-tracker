@@ -45,9 +45,21 @@ const quotationInclude = {
     orderBy: { service: { name: 'asc' } },
   },
   // The live project (at most one, M8 Decision 2): its link, and quotationResource's PMs.
+  // Up to two of its live POs (M9): the pipeline strip links the PO only when there is one.
   projects: {
     where: { deletedAt: null },
-    select: { id: true, number: true, status: true, managerId: true },
+    select: {
+      id: true,
+      number: true,
+      status: true,
+      managerId: true,
+      purchaseOrders: {
+        where: { deletedAt: null },
+        select: { id: true },
+        orderBy: [{ receivedDate: 'asc' }, { id: 'asc' }],
+        take: 2,
+      },
+    },
   },
 } satisfies Prisma.QuotationInclude;
 

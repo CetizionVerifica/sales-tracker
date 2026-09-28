@@ -88,7 +88,7 @@ describe('AC8: seed (integration)', () => {
     const followUps = await db.followUp.findMany();
     expect(new Set(followUps.map((f) => f.channel)).size).toBe(6);
     expect(new Set(followUps.map((f) => f.entityType))).toEqual(
-      new Set(['CLIENT', 'ENQUIRY', 'QUOTATION', 'PROJECT']),
+      new Set(['CLIENT', 'ENQUIRY', 'QUOTATION', 'PROJECT', 'PURCHASE_ORDER']),
     );
 
     const today = todayInIST().getTime();
@@ -150,11 +150,13 @@ describe('AC8: seed (integration)', () => {
     const db = getDb();
     const quotations = await db.quotation.count();
     const followUps = await db.followUp.count();
-    // Test-only reset of the fixture: quotations are soft-delete only in app code. Projects
-    // (M8) point at quotations, so they go first; the seed recreates both.
+    // Test-only reset of the fixture: quotations are soft-delete only in app code. POs (M9)
+    // and projects (M8) point at quotations, so they go first; the seed recreates them all.
     await db.$executeRawUnsafe(
-      `DELETE FROM "follow_up" WHERE "entityType" IN ('QUOTATION', 'PROJECT')`,
+      `DELETE FROM "follow_up" WHERE "entityType" IN ('QUOTATION', 'PROJECT', 'PURCHASE_ORDER')`,
     );
+    await db.$executeRawUnsafe('DELETE FROM "purchase_order_service"');
+    await db.$executeRawUnsafe('DELETE FROM "purchase_order"');
     await db.$executeRawUnsafe('DELETE FROM "project_service"');
     await db.$executeRawUnsafe('DELETE FROM "project"');
     await db.$executeRawUnsafe('DELETE FROM "quotation_service"');
@@ -199,6 +201,63 @@ describe('AC8: seed (integration)', () => {
 
     await seed({ ...options, devUsers: true });
     expect(await db.project.count()).toBe(projects.length);
+  });
+
+  it('M9: dev seed adds POs once, with a two-PO project over revenue and a live project without', async () => {
+    const db = getDb();
+    const pos = await db.purchaseOrder.findMany({ include: { project: true } });
+    expect(pos.length).toBeGreaterThanOrEqual(5);
+    expect(pos.every((po) => po.status === 'PENDING' && po.clientId === po.project.clientId)).toBe(
+      true,
+    );
+    expect(pos.some((po) => po.project.status === 'CANCELLED')).toBe(false);
+
+    const byProject = new Map<string, typeof pos>();
+    for (const po of pos) byProject.set(po.projectId, [...(byProject.get(po.projectId) ?? []), po]);
+    const overRevenue = [...byProject.values()].filter(
+      (list) =>
+        list.length === 2 &&
+        list
+          .filter((po) => po.currency === po.project.currency)
+          .reduce((sum, po) => sum + po.amountMinor, 0n) > list[0]!.project.revenueMinor,
+    );
+    expect(overRevenue).toHaveLength(1);
+
+    const withoutPo = await db.project.count({
+      where: { status: { not: 'CANCELLED' }, purchaseOrders: { none: { deletedAt: null } } },
+    });
+    expect(withoutPo).toBeGreaterThanOrEqual(1);
+    expect(pos.some((po) => po.paymentTerms && po.paymentTermsDays === null)).toBe(true);
+    expect(pos.some((po) => po.paymentTermsDays === 45)).toBe(true);
+
+    const followUp = await db.followUp.findFirst({
+      where: { entityType: 'PURCHASE_ORDER' },
+      include: { user: true },
+    });
+    expect(followUp?.user.email).toBe('pm@example.com');
+    const audit = await db.auditLog.findMany({
+      where: { entityType: { in: ['PurchaseOrder', 'PurchaseOrderService'] } },
+    });
+    expect(audit.length).toBeGreaterThan(0);
+    expect(audit.every((row) => row.source === 'system')).toBe(true);
+
+    await seed({ ...options, devUsers: true });
+    expect(await db.purchaseOrder.count()).toBe(pos.length);
+  });
+
+  it('M9: a database seeded before M9 (projects, no POs) gets the sample POs', async () => {
+    const db = getDb();
+    const pos = await db.purchaseOrder.count();
+    const projects = await db.project.count();
+    const followUps = await db.followUp.count();
+    // Test-only reset of the fixture: POs are soft-delete only in app code.
+    await db.$executeRawUnsafe(`DELETE FROM "follow_up" WHERE "entityType" = 'PURCHASE_ORDER'`);
+    await db.$executeRawUnsafe('DELETE FROM "purchase_order_service"');
+    await db.$executeRawUnsafe('DELETE FROM "purchase_order"');
+    await seed({ ...options, devUsers: true });
+    expect(await db.purchaseOrder.count()).toBe(pos);
+    expect(await db.project.count()).toBe(projects);
+    expect(await db.followUp.count()).toBe(followUps);
   });
 
   it('fails clearly when the admin credentials are missing', async () => {

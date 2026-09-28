@@ -39,5 +39,52 @@
         "sourceText": "Scope: Third-party inspection of two boilers"
       }
     }
+  },
+  "ae87eb8701b7fe828d5acdd5ba9a524e8a2f4154588c62055d8a3cd2e1bc5f32": {
+    "type": "result",
+    "wire": {
+      "poNumber": {
+        "value": "4500098765",
+        "confidence": "high",
+        "page": 1,
+        "sourceText": "PO No: 4500098765"
+      },
+      "documentDate": {
+        "value": "2026-09-22",
+        "confidence": "high",
+        "page": 1,
+        "sourceText": "Date: 2026-09-22"
+      },
+      "clientName": {
+        "value": "Globex Ltd",
+        "confidence": "high",
+        "page": 1,
+        "sourceText": "From: Globex Ltd"
+      },
+      "amount": {
+        "value": "340000.00",
+        "confidence": "high",
+        "page": 1,
+        "sourceText": "PO total: INR 3,40,000.00"
+      },
+      "currency": {
+        "value": "INR",
+        "confidence": "high",
+        "page": 1,
+        "sourceText": "INR"
+      },
+      "paymentTerms": {
+        "value": "30% advance, balance within 45 days of invoice",
+        "confidence": "high",
+        "page": 1,
+        "sourceText": "Payment terms: 30% advance, balance within 45 days of invoice"
+      },
+      "paymentTermsDays": {
+        "value": "30",
+        "confidence": "low",
+        "page": 1,
+        "sourceText": "30% advance"
+      }
+    }
   }
 }
