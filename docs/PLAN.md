@@ -73,7 +73,7 @@ Status rules:
 
 - **Enquiry:** IN\_PROGRESS → CONVERTED or LOST. CONVERTED requires a proposal sent date and prompts quotation creation.
 - **Quotation:** SENT ⇄ UNDER\_NEGOTIATION → PO\_RECEIVED or LOST. Next follow-up date is required in SENT and UNDER\_NEGOTIATION. PO\_RECEIVED prompts project creation. LOST requires a reason (M6 Decision 11).
-- **Invoice:** PENDING → PAID, or PENDING → OVERDUE (nightly job, once past due date) → PAID.
+- **Invoice:** PENDING → PAID, or PENDING → OVERDUE (nightly job, once past due date) → PAID. A corrected due date moves OVERDUE back to PENDING, and admins can Mark unpaid with a reason (M10 Decisions 7 and 8).
 - **PurchaseOrder:** derived, never set by hand. OVERDUE when any invoice is overdue; PAID when it has invoices, all are paid and they cover the PO amount (M9 Decision 5); otherwise PENDING.
 
 ## Modules and build order
@@ -142,7 +142,7 @@ Still open (settle before the module that needs it):
 
 - [x] Can a quotation have revisions, or is it edited in place? (M6) Edited in place; the audit log is the history: see M6 Decision 2.
 - [x] Can one enquiry cover several services? (M4) Yes: see M4 Decision 2.
-- [ ] Are partial invoice payments needed? (M10)
+- [x] Are partial invoice payments needed? (M10) Not in v1; an invoice is paid in full or not: see M10 Decision 13.
 - [ ] Should reports convert USD and other currencies to INR, and at which rate: quote date or current? (M12)
-- [ ] Who can mark an invoice PAID: sales, PM, or admin only? (M10)
+- [x] Who can mark an invoice PAID: sales, PM, or admin only? (M10) Anyone who can update the invoice (pipeline owner, PM, admin): see M10 Decision 14.
 - [ ] Where will it be hosted: company VPS, AWS Mumbai, or another cloud? (M14)

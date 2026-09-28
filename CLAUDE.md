@@ -100,7 +100,7 @@ docker compose up -d  # postgres, redis
 
 - **Enquiry:** `IN_PROGRESS → CONVERTED | LOST`. `CONVERTED` requires `proposalSentDate` and offers to create a Quotation pre-filled from the enquiry.
 - **Quotation:** `SENT ⇄ UNDER_NEGOTIATION → PO_RECEIVED | LOST`. `nextFollowUpDate` required while `SENT` or `UNDER_NEGOTIATION`. `PO_RECEIVED` requires `poReceivedDate` and offers to create a Project. `LOST` requires `lostReason`. Both are terminal.
-- **Invoice:** `PENDING → PAID`; `PENDING → OVERDUE` (nightly job when `dueDate < today` and unpaid); `OVERDUE → PAID`.
+- **Invoice:** `PENDING → PAID`; `PENDING → OVERDUE` (nightly job when `dueDate < today` and unpaid, and on create or due-date edit); `OVERDUE → PAID`; `OVERDUE → PENDING` only when the due date is corrected to today or later; `PAID → PENDING | OVERDUE` only by an admin "Mark unpaid" with a reason. `PAID` requires `paidAt`. No partial payments. Anyone who can update the invoice can mark it paid.
 - **PurchaseOrder:** derived — `OVERDUE` if any invoice is overdue; `PAID` if it has invoices, all are paid, and they total at least the PO amount; else `PENDING` (including a PO with no invoices). Recompute whenever an invoice changes. Never set manually.
 - **Invoice due date** = `invoiceDate` + the PO's `paymentTermsDays`, or `CompanySettings.defaultInvoiceDueDays` when the PO has none; overridable per invoice.
 
