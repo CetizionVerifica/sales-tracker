@@ -35,7 +35,7 @@ import { DUE_DATE_BASIS_LABELS } from '@/lib/invoice-labels';
 import { loadRecordAudit } from '@/lib/record-audit';
 import { deleteInvoiceAction, restoreInvoiceAction } from '../actions';
 import { loadInvoiceOr404 } from '../load';
-import { MarkPaidDialog, MarkUnpaidDialog } from '../PaymentDialogs';
+import { MarkPaidDialog, MarkUnpaidDialog } from '@/components/invoices/PaymentDialogs';
 
 /**
  * An invoice (UI guide §4.2). Mark paid is the one user-chosen status move (Decision 14);

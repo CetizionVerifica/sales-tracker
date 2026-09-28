@@ -29,7 +29,9 @@ export type ResourceInstance =
   | { type: 'followUp'; userId: string; canReadLinked: boolean }
   /** A document's permissions are its record's (M7 Decision 4). */
   | { type: 'document'; canReadParent: boolean; canUpdateParent: boolean }
-  | { type: 'dashboard'; scope: 'company' | 'personal' | 'project' };
+  | { type: 'dashboard'; scope: 'company' | 'personal' | 'project' }
+  /** Whose My Today list is being read (M11). */
+  | { type: 'myToday'; userId: string };
 
 export type ResourceType = ResourceInstance['type'];
 

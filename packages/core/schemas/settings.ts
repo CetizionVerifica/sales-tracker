@@ -25,6 +25,13 @@ export const updateSettingsSchema = z
       .refine((codes) => codes.includes(BASE_CURRENCY), `${BASE_CURRENCY} must stay enabled`),
     /** M7 Decision 6: whether uploaded documents are sent to the Claude API. */
     documentExtractionEnabled: z.boolean().optional(),
+    /** M11 Decision 5: days without activity before an in-progress enquiry is stale. */
+    staleEnquiryDays: z.coerce
+      .number()
+      .int('Use whole days')
+      .min(1, 'At least 1 day')
+      .max(365, 'At most 365 days')
+      .optional(),
   })
   .strict(); // rejects baseCurrency and any other unknown key
 

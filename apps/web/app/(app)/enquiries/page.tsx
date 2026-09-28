@@ -52,6 +52,12 @@ export default async function EnquiriesPage({
   const filters: FilterDef[] = [
     { param: 'status', label: 'Statuses', options: toOptions(STATUS_LABELS), multi: true },
     { param: 'source', label: 'Sources', options: toOptions(SOURCE_LABELS), multi: true },
+    // M11: in progress with no next step planned, untouched for the company's stale days.
+    {
+      param: 'stale',
+      label: 'Activity',
+      options: [{ value: 'true', label: 'Stale' }],
+    },
     // Sales always see only their own enquiries; the owner filter is for admins.
     ...(owners ? [{ param: 'ownerId', label: 'Owners', options: asOptions(owners) }] : []),
     { param: 'clientId', label: 'Clients', options: asOptions(clients) },

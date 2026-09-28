@@ -11,9 +11,13 @@ test('⌘K finds my records (not other reps’) and pages', async ({ page }) => 
   const enquiryUrl = await convertedEnquiry(page, client);
   const number = (await page.getByRole('heading', { level: 1 }).textContent())!.trim();
 
-  await page.goto('/');
-  await page.keyboard.press('ControlOrMeta+k');
+  await page.goto('/today');
   const palette = page.getByRole('dialog', { name: 'Search' });
+  // The shortcut works once the shell has hydrated; retry until the palette opens.
+  await expect(async () => {
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(palette).toBeVisible({ timeout: 1_000 });
+  }).toPass();
   await palette.getByRole('combobox', { name: 'Search' }).fill(client);
   await expect(palette.getByRole('option', { name: new RegExp(number) })).toBeVisible();
   await palette.getByRole('option', { name: new RegExp(number) }).click();
@@ -31,7 +35,10 @@ test('⌘K finds my records (not other reps’) and pages', async ({ page }) => 
 
   // Another rep finds the client (everyone reads clients) but not the rep's enquiry.
   await signIn(page, E2E_USERS.sales2.email, E2E_USERS.sales2.password);
-  await page.keyboard.press('ControlOrMeta+k');
+  await expect(async () => {
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(palette).toBeVisible({ timeout: 1_000 });
+  }).toPass();
   await palette.getByRole('combobox', { name: 'Search' }).fill(client);
   await expect(palette.getByRole('option', { name: new RegExp(client) })).toBeVisible();
   await expect(palette.getByRole('option', { name: new RegExp(number) })).toHaveCount(0);

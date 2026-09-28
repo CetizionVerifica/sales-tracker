@@ -16,7 +16,7 @@ import {
 import { enqueueExtraction } from '../extraction/queue.ts';
 import { EXTRACTION_MESSAGES, RetryableExtractionError } from '../extraction/types.ts';
 import { can } from '../rbac/can.ts';
-import { documentResource, scopeDocuments } from '../rbac/scope.ts';
+import { documentResource } from '../rbac/scope.ts';
 import type { Action } from '../rbac/types.ts';
 import type { Page } from '../schemas/common.ts';
 import {
@@ -44,6 +44,7 @@ import {
   assertExtractionTransition,
   canTransitionExtraction,
 } from '../status/document.ts';
+import { documentScopeFor, findDocumentsPendingReview } from './document-queries.ts';
 import { SETTINGS_ID } from './settings.service.ts';
 
 /*
@@ -650,13 +651,8 @@ export async function getDocumentFile(ctx: Ctx, id: string): Promise<DocumentFil
 }
 
 /** Document scope for the actor: admins all, others per kind's readable records. */
-async function documentScope(db: Db, ctx: Ctx): Promise<Prisma.DocumentWhereInput> {
-  if (ctx.user.role === 'ADMIN') return {};
-  const visible: Partial<Record<DocumentKindValue, string[]>> = {};
-  for (const [kind, spec] of supportedKinds()) {
-    visible[kind] = await spec.visibleIds(db, ctx.user);
-  }
-  return scopeDocuments(ctx.user, visible);
+function documentScope(db: Db, ctx: Ctx): Promise<Prisma.DocumentWhereInput> {
+  return documentScopeFor(db, ctx.user);
 }
 
 async function toRows(db: Db, docs: DocumentWithUsers[]): Promise<DocumentRow[]> {
@@ -720,51 +716,7 @@ export async function listDocuments(
 export async function listDocumentsPendingReview(ctx: Ctx): Promise<DocumentRow[]> {
   assertCan(ctx, 'list', 'document');
   const db = getDb();
-  const mine: Prisma.DocumentWhereInput[] = [{ uploadedById: ctx.user.id }];
-  const current: Prisma.DocumentWhereInput[] = [];
-  for (const [kind, spec] of supportedKinds()) {
-    current.push({ kind, ...spec.currentWhere });
-    if (kind === 'QUOTATION') mine.push({ kind, quotation: { is: { ownerId: ctx.user.id } } });
-    // M9: a PO document is its pipeline owner's and its project manager's to review.
-    if (kind === 'PURCHASE_ORDER') {
-      mine.push({
-        kind,
-        purchaseOrder: {
-          is: {
-            project: {
-              OR: [{ managerId: ctx.user.id }, { quotation: { ownerId: ctx.user.id } }],
-            },
-          },
-        },
-      });
-    }
-    // M10: likewise an invoice document, through its PO's project.
-    if (kind === 'INVOICE') {
-      mine.push({
-        kind,
-        invoice: {
-          is: {
-            purchaseOrder: {
-              project: {
-                OR: [{ managerId: ctx.user.id }, { quotation: { ownerId: ctx.user.id } }],
-              },
-            },
-          },
-        },
-      });
-    }
-  }
-  const docs = await db.document.findMany({
-    where: {
-      deletedAt: null,
-      extractionStatus: 'SUCCEEDED',
-      reviewStatus: 'PENDING',
-      AND: [{ OR: mine }, { OR: current }, await documentScope(db, ctx)],
-    },
-    include: documentInclude,
-    orderBy: [{ extractedAt: 'asc' }, { id: 'asc' }],
-  });
-  return toRows(db, docs);
+  return toRows(db, await findDocumentsPendingReview(db, ctx.user));
 }
 
 // ─── Review, retry, delete ──────────────────────────────────────────────────────────

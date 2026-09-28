@@ -320,7 +320,8 @@ async function addSampleQuotationFollowUps(tx: Db): Promise<number> {
 async function addSampleFollowUps(tx: Db): Promise<number> {
   const user = (email: string) => devUser(tx, email);
   let count = 0;
-  for (const sample of SAMPLE_ENQUIRIES) {
+  // M11's stale samples too, when they exist (a database whose follow-ups were cleared).
+  for (const sample of [...SAMPLE_ENQUIRIES, ...SAMPLE_STALE_ENQUIRIES]) {
     if (!sample.followUps) continue;
     const owner = await user(sample.owner);
     const enquiry = await tx.enquiry.findFirst({
@@ -818,7 +819,7 @@ async function addSampleInvoiceFollowUps(tx: Db): Promise<number> {
     await logSample(pm, { entityType: 'INVOICE', entityId: invoice.id }, sample.followUp);
     count += 1;
   }
-  return count;
+  return count + (await addPaidInvoiceFollowUp(tx));
 }
 
 /**
@@ -860,6 +861,7 @@ async function createSampleInvoices(tx: Db): Promise<number> {
     }
     count += 1;
   }
+  await addPaidInvoiceFollowUp(tx);
   return count;
 }
 
@@ -885,6 +887,7 @@ export async function ensureSampleEnquiries(log: (message: string) => void): Pro
       log(`created ${await createSamplePurchaseOrders(tx)} sample purchase orders`);
       log(`created ${await createSampleInvoices(tx)} sample invoices`);
     });
+    await ensureMyTodaySamples(log);
     return;
   }
   const hasFollowUps = (await db.followUp.count({ where: { deletedAt: undefined } })) > 0;
@@ -915,9 +918,106 @@ export async function ensureSampleEnquiries(log: (message: string) => void): Pro
       log(`created ${await createSampleInvoices(tx)} sample invoices`),
     );
   }
+  await ensureMyTodaySamples(log);
 }
 
-async function createSampleEnquiries(ctx: Ctx, tx: Db): Promise<void> {
+// ─── M11: My Today ──────────────────────────────────────────────────────────────────
+
+/**
+ * Enquiries that have gone quiet (M11 Decision 5, with the default 30 days): one never
+ * touched since it arrived 45 days ago (stale since 15 days ago), and one whose last call,
+ * 50 days ago, set no next step (stale since 20 days ago). The other My Today cases come
+ * from the M4–M10 samples: missed, due-today and upcoming follow-ups; follow-ups superseded
+ * by newer ones; a lost quotation and a won one with old next dates; an overdue invoice with
+ * a chase follow-up (one merged row); a project past its end date.
+ */
+const SAMPLE_STALE_ENQUIRIES: SampleEnquiry[] = [
+  {
+    client: 'Coastal Infra Projects',
+    services: ['Inspection'],
+    owner: 'sales@example.com',
+    receivedDaysAgo: 45,
+    source: 'WEBSITE',
+    description: 'Third-party inspection of a new jetty',
+  },
+  {
+    client: 'Acme Pharma',
+    services: ['Audit'],
+    owner: 'sales2@example.com',
+    receivedDaysAgo: 70,
+    source: 'PHONE',
+    description: 'Supplier audit programme',
+    followUps: [
+      { daysAgo: 50, channel: 'CALL', notes: 'Client will revert after their vendor review' },
+    ],
+  },
+];
+
+/** A follow-up on a paid invoice: its next date has passed, but a paid invoice is closed. */
+const PAID_INVOICE_FOLLOW_UP = {
+  invoiceNumber: 'INV/26-27/0001',
+  followUp: {
+    daysAgo: 12,
+    channel: 'EMAIL',
+    notes: 'Sent the invoice copy accounts asked for',
+    nextInDays: -2,
+  } satisfies SampleFollowUp,
+};
+
+/**
+ * The M11 paid-invoice follow-up, by the dev PM, when that sample invoice is paid. Safe to
+ * call from every path that (re)creates invoices or follow-ups: it adds it at most once.
+ */
+async function addPaidInvoiceFollowUp(tx: Db): Promise<number> {
+  const paid = await tx.invoice.findFirst({
+    where: { invoiceNumber: PAID_INVOICE_FOLLOW_UP.invoiceNumber, status: 'PAID' },
+    select: { id: true },
+  });
+  if (!paid) return 0;
+  const exists = await tx.followUp.count({
+    where: {
+      entityType: 'INVOICE',
+      entityId: paid.id,
+      notes: PAID_INVOICE_FOLLOW_UP.followUp.notes,
+    },
+  });
+  if (exists) return 0;
+  const pm = await devUser(tx, PM_EMAIL);
+  await logSample(pm, { entityType: 'INVOICE', entityId: paid.id }, PAID_INVOICE_FOLLOW_UP.followUp);
+  return 1;
+}
+
+/**
+ * Idempotent: added once, when the first stale sample enquiry is missing, so a database
+ * seeded before M11 gets them on the next `pnpm db:seed`.
+ */
+async function ensureMyTodaySamples(log: (message: string) => void): Promise<void> {
+  const ctx = await systemCtx();
+  await withTx(ctx, async (tx) => {
+    const [first] = SAMPLE_STALE_ENQUIRIES;
+    if (!first || (await findSampleEnquiry(tx, first))) return;
+    await createSampleEnquiries(ctx, tx, SAMPLE_STALE_ENQUIRIES);
+    let followUps = 0;
+    for (const sample of SAMPLE_STALE_ENQUIRIES) {
+      const enquiry = await findSampleEnquiry(tx, sample);
+      if (!enquiry) continue;
+      for (const followUp of sample.followUps ?? []) {
+        await logSample(enquiry.owner, { entityType: 'ENQUIRY', entityId: enquiry.id }, followUp);
+        followUps += 1;
+      }
+    }
+    followUps += await addPaidInvoiceFollowUp(tx);
+    log(
+      `created ${SAMPLE_STALE_ENQUIRIES.length} stale sample enquiries and ${followUps} follow-ups (M11)`,
+    );
+  });
+}
+
+async function createSampleEnquiries(
+  ctx: Ctx,
+  tx: Db,
+  samples: readonly SampleEnquiry[] = SAMPLE_ENQUIRIES,
+): Promise<void> {
   // Reads use the transaction too, so they see the clients created in it.
   const byName = async (model: 'sector' | 'service', name: string) => {
     const row = await (model === 'sector'
@@ -935,7 +1035,7 @@ async function createSampleEnquiries(ctx: Ctx, tx: Db): Promise<void> {
     clients.set(name, { id: client.id, sectorId: client.sectorId });
   }
 
-  for (const sample of SAMPLE_ENQUIRIES) {
+  for (const sample of samples) {
     const client = clients.get(sample.client)!;
     const owner = await tx.user.findUnique({
       where: { email: sample.owner },

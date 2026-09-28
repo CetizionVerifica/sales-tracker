@@ -288,7 +288,7 @@ const projectTarget: FollowUpTarget = {
   },
 };
 
-function projectLabel(row: { number: string; name: string }): string {
+export function projectLabel(row: { number: string; name: string }): string {
   return `${row.number} · ${row.name}`;
 }
 

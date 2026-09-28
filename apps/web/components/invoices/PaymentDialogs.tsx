@@ -19,7 +19,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { applyResult } from '@/lib/apply-result';
-import { markInvoicePaidAction, markInvoiceUnpaidAction } from './actions';
+import { markInvoicePaidAction, markInvoiceUnpaidAction } from '@/app/(app)/invoices/actions';
 
 interface PaidValues {
   id: string;

@@ -7,7 +7,7 @@ import {
   todayInIST,
   withId,
 } from './common.ts';
-import { listParamsSchema, multi } from './list-params.ts';
+import { flag, listParamsSchema, multi } from './list-params.ts';
 
 export const ENQUIRY_STATUSES = ['IN_PROGRESS', 'CONVERTED', 'LOST'] as const;
 export const ENQUIRY_SOURCES = [
@@ -120,6 +120,8 @@ export const listEnquiriesSchema = listParamsSchema.extend({
   proposalSentFrom: calendarDateSchema.optional(),
   proposalSentTo: calendarDateSchema.optional(),
   recordStatus: z.enum(['live', 'deleted']).default('live'),
+  /** M11: in progress, no next step planned, untouched for `staleEnquiryDays`. */
+  stale: flag,
   sort: z.enum(ENQUIRY_SORTS).optional(),
 });
 

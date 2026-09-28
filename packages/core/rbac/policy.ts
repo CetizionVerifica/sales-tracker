@@ -102,4 +102,7 @@ export const policy: { [T in ResourceType]: Rule<T> } = {
 
   dashboard: (user, action, i) =>
     action === 'read' && i !== undefined && i.scope === DASHBOARD_SCOPE[user.role],
+
+  // M11: everyone reads their own My Today; admins may read anyone's (Decision 6).
+  myToday: (user, action, i) => action === 'read' && i?.userId === user.id,
 };

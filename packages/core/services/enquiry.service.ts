@@ -5,7 +5,7 @@ import { DomainError, NotFoundError } from '../errors.ts';
 import { can } from '../rbac/can.ts';
 import { enquiryManagersSelect, enquiryResource, scopeEnquiries } from '../rbac/scope.ts';
 import type { Action } from '../rbac/types.ts';
-import type { Page } from '../schemas/common.ts';
+import { todayInIST, type Page } from '../schemas/common.ts';
 import {
   convertEnquirySchema,
   createEnquirySchema,
@@ -22,8 +22,10 @@ import {
   type UpdateEnquiryInput,
 } from '../schemas/enquiry.ts';
 import { assertEnquiryTransition } from '../status/enquiry.ts';
+import { findStaleEnquiries } from './enquiry-queries.ts';
 import { invoiceStage, type InvoiceStage } from './invoice-queries.ts';
 import { nextNumber } from './number-sequence.ts';
+import { SETTINGS_ID } from './settings.service.ts';
 
 // Relations loaded with `include` are not soft-delete filtered, so a deleted client or a
 // retired sector or service still shows its name on existing enquiries (as in M3 AC12).
@@ -156,6 +158,15 @@ const SORT_COLUMNS = {
 const between = (from: Date | undefined, to: Date | undefined) =>
   from || to ? { ...(from && { gte: from }), ...(to && { lte: to }) } : undefined;
 
+async function staleEnquiryIds(db: Db): Promise<string[]> {
+  const { staleEnquiryDays } = await db.companySettings.findUniqueOrThrow({
+    where: { id: SETTINGS_ID },
+    select: { staleEnquiryDays: true },
+  });
+  const rows = await findStaleEnquiries(db, { today: todayInIST(), days: staleEnquiryDays });
+  return rows.map((r) => r.id);
+}
+
 export async function listEnquiries(
   ctx: Ctx,
   input: ListEnquiriesInput,
@@ -186,10 +197,12 @@ export async function listEnquiries(
       ],
     }),
   };
+  // M11: the stale predicate needs the latest follow-up, so it resolves to ids first.
+  const stale = p.stale ? await staleEnquiryIds(getDb()) : null;
   // `deletedAt` stays top-level: that is the soft-delete extension's opt-in (M3).
   const where: Prisma.EnquiryWhereInput = {
     ...(p.recordStatus === 'deleted' && { deletedAt: { not: null } }),
-    AND: [scopeEnquiries(ctx.user), filters],
+    AND: [scopeEnquiries(ctx.user), filters, ...(stale ? [{ id: { in: stale } }] : [])],
   };
   const dir = p.dir ?? (p.sort ? 'asc' : 'desc');
 

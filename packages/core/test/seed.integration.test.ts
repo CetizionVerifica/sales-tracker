@@ -369,7 +369,8 @@ describe('M4: dev seed sample pipeline after a failure', () => {
     );
     await seed({ ...options, devUsers: true });
     const statuses = await db.enquiry.findMany({ select: { status: true } });
-    expect(statuses).toHaveLength(8);
+    // The eight M4 samples and M11's two stale enquiries.
+    expect(statuses).toHaveLength(10);
     expect(new Set(statuses.map((e) => e.status))).toEqual(
       new Set(['IN_PROGRESS', 'CONVERTED', 'LOST']),
     );

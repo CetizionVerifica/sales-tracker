@@ -27,6 +27,7 @@ export function SettingsForm({
     defaultInvoiceDueDays: number;
     enabledCurrencies: string[];
     documentExtractionEnabled: boolean;
+    staleEnquiryDays: number;
   };
   baseCurrency: string;
 }) {
@@ -61,6 +62,21 @@ export function SettingsForm({
             Invoice due date = invoice date + this many days (overridable per invoice).
           </FieldDescription>
           <FieldError errors={[errors.defaultInvoiceDueDays]} />
+        </Field>
+        <Field data-invalid={Boolean(errors.staleEnquiryDays)}>
+          <FieldLabel htmlFor="settings-stale-days">Stale enquiry after (days)</FieldLabel>
+          <Input
+            id="settings-stale-days"
+            type="number"
+            min={1}
+            max={365}
+            {...form.register('staleEnquiryDays')}
+          />
+          <FieldDescription>
+            An in-progress enquiry with no activity and no next follow-up for this long shows in
+            its owner&apos;s My today.
+          </FieldDescription>
+          <FieldError errors={[errors.staleEnquiryDays]} />
         </Field>
         <Field data-invalid={Boolean(errors.enabledCurrencies)}>
           <FieldLabel htmlFor="settings-currencies">Enabled currencies</FieldLabel>

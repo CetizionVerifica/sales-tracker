@@ -15,7 +15,7 @@ describe('safeNext (post-login redirect guard)', () => {
     ['empty string', ''],
     ['null', null],
     ['undefined', undefined],
-  ])('falls back to / for a %s', (_label, value) => {
-    expect(safeNext(value)).toBe('/');
+  ])('falls back to My today for a %s', (_label, value) => {
+    expect(safeNext(value)).toBe('/today');
   });
 });
