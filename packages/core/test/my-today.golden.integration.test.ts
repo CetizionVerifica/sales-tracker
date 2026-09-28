@@ -83,7 +83,10 @@ describe('AC1: My Today on the development seed (golden)', () => {
       select: { id: true, email: true, role: true, active: true },
     });
     for (const user of users.sort((a, b) => a.email.localeCompare(b.email))) {
-      const ctx: Ctx = { user: { id: user.id, role: user.role, active: user.active }, source: 'web' };
+      const ctx: Ctx = {
+        user: { id: user.id, role: user.role, active: user.active },
+        source: 'web',
+      };
       actual[user.email] = summarise(await getMyToday(ctx));
     }
   });
@@ -103,7 +106,11 @@ describe('AC1: My Today on the development seed (golden)', () => {
   });
 
   it('covers every row kind, the merge and the section boundaries', () => {
-    const lines = Object.values(actual).flatMap((s) => [...s.overdue, ...s.dueToday, ...s.comingUp]);
+    const lines = Object.values(actual).flatMap((s) => [
+      ...s.overdue,
+      ...s.dueToday,
+      ...s.comingUp,
+    ]);
     for (const kind of [
       'INVOICE_OVERDUE',
       'INVOICE_DUE',
@@ -113,11 +120,20 @@ describe('AC1: My Today on the development seed (golden)', () => {
       'STALE_ENQUIRY',
       'DOCUMENT_TO_REVIEW',
     ]) {
-      expect(lines.some((l) => l.startsWith(`${kind} |`)), kind).toBe(true);
+      expect(
+        lines.some((l) => l.startsWith(`${kind} |`)),
+        kind,
+      ).toBe(true);
     }
-    expect(lines.some((l) => l.includes('also FOLLOW_UP_DUE')), 'a merged row').toBe(true);
+    expect(
+      lines.some((l) => l.includes('also FOLLOW_UP_DUE')),
+      'a merged row',
+    ).toBe(true);
     for (const section of ['overdue', 'dueToday', 'comingUp'] as const) {
-      expect(Object.values(actual).some((s) => s[section].length > 0), section).toBe(true);
+      expect(
+        Object.values(actual).some((s) => s[section].length > 0),
+        section,
+      ).toBe(true);
     }
   });
 });

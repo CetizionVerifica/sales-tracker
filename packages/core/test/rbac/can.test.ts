@@ -289,7 +289,13 @@ describe('AC2: PLAN.md role table', () => {
     // My Today (M11 Decision 6)
     ['sales reads own My Today', sales, 'read', { type: 'myToday', userId: sales.id }, true],
     ['pm reads own My Today', pm, 'read', { type: 'myToday', userId: pm.id }, true],
-    ['sales cannot read another’s My Today', sales, 'read', { type: 'myToday', userId: other }, false],
+    [
+      'sales cannot read another’s My Today',
+      sales,
+      'read',
+      { type: 'myToday', userId: other },
+      false,
+    ],
     ['pm cannot read another’s My Today', pm, 'read', { type: 'myToday', userId: other }, false],
     ['admin reads anyone’s My Today', admin, 'read', { type: 'myToday', userId: other }, true],
     ['My Today is read-only', sales, 'update', { type: 'myToday', userId: sales.id }, false],

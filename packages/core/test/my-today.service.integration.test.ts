@@ -25,22 +25,11 @@ import {
   softDeleteEnquiry,
   updateEnquiry,
 } from '../services/enquiry.service.ts';
-import {
-  logFollowUp,
-  restoreFollowUp,
-  softDeleteFollowUp,
-} from '../services/follow-up.service.ts';
-import {
-  getInvoice,
-  markInvoicePaid,
-  softDeleteInvoice,
-} from '../services/invoice.service.ts';
+import { logFollowUp, restoreFollowUp, softDeleteFollowUp } from '../services/follow-up.service.ts';
+import { getInvoice, markInvoicePaid, softDeleteInvoice } from '../services/invoice.service.ts';
 import { getMyToday, myTodayBadgeCount } from '../services/my-today.service.ts';
 import { changeProjectStatus, getProject, updateProject } from '../services/project.service.ts';
-import {
-  getPurchaseOrder,
-  softDeletePurchaseOrder,
-} from '../services/purchase-order.service.ts';
+import { getPurchaseOrder, softDeletePurchaseOrder } from '../services/purchase-order.service.ts';
 import {
   changeQuotationStatus,
   createQuotation,
@@ -112,7 +101,12 @@ async function openQuotation(ctx: Ctx, next: number) {
 }
 
 const mock = createMockExtractor();
-const field = (value: string | null) => ({ value, confidence: 'high' as const, page: 1, sourceText: value });
+const field = (value: string | null) => ({
+  value,
+  confidence: 'high' as const,
+  page: 1,
+  sourceText: value,
+});
 const invoiceWire = (): WireExtraction => ({
   invoiceNumber: field('INV/26-27/0042'),
   invoiceDate: field(daysFromToday(-2)),
@@ -481,7 +475,11 @@ describe('AC6: projects behind schedule and documents to review', () => {
       to: 'COMPLETED',
       completedDate: daysFromToday(0),
     });
-    await changeProjectStatus(w.admin, { id: cancelled.id, to: 'CANCELLED', cancelReason: 'Scope' });
+    await changeProjectStatus(w.admin, {
+      id: cancelled.id,
+      to: 'CANCELLED',
+      cancelReason: 'Scope',
+    });
 
     for (const p of [notStarted, inProgress, onHold]) {
       expect(await rowFor(w.pm, p.id)).toMatchObject({
@@ -545,9 +543,9 @@ describe('AC7: sections, merging and the IST boundary', () => {
     const invoices = await getMyToday(w.sales, { kind: 'invoices' }, { today: today() });
     const rowsShown = flatten(invoices);
     expect(rowsShown.length).toBeGreaterThan(0);
-    expect(
-      rowsShown.every((r) => r.kind === 'INVOICE_OVERDUE' || r.kind === 'INVOICE_DUE'),
-    ).toBe(true);
+    expect(rowsShown.every((r) => r.kind === 'INVOICE_OVERDUE' || r.kind === 'INVOICE_DUE')).toBe(
+      true,
+    );
     const { counts } = invoices;
     expect(counts.overdue + counts.dueToday + counts.comingUp).toBe(
       whole.counts.byKind.INVOICE_OVERDUE + whole.counts.byKind.INVOICE_DUE,

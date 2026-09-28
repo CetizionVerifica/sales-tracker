@@ -983,7 +983,11 @@ async function addPaidInvoiceFollowUp(tx: Db): Promise<number> {
   });
   if (exists) return 0;
   const pm = await devUser(tx, PM_EMAIL);
-  await logSample(pm, { entityType: 'INVOICE', entityId: paid.id }, PAID_INVOICE_FOLLOW_UP.followUp);
+  await logSample(
+    pm,
+    { entityType: 'INVOICE', entityId: paid.id },
+    PAID_INVOICE_FOLLOW_UP.followUp,
+  );
   return 1;
 }
 

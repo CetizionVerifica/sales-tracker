@@ -19,15 +19,15 @@ PLAN.md "done when": shows correct items for seeded data. AC1 proves it with a g
 
 Every row has a `kind`, the record it points to, the client, a one-line "what to do", and a **`dueDate`** (an IST calendar day). The page groups rows by `dueDate` alone (Decision 3). `today` is `todayInIST()`; the look-ahead is `today + 7` days.
 
-| Kind | Rows for | Included when | `dueDate` | "What to do" |
-| --- | --- | --- | --- | --- |
-| `INVOICE_OVERDUE` | Project's PM and pipeline owner (quotation's `ownerId`) | Live invoice, `status = OVERDUE` | `dueDate` | "Chase payment — 12 days overdue" |
-| `INVOICE_DUE` | Same | Live invoice, `status = PENDING`, `dueDate` today to +7 (`dueWindowWhere('next7')`) | `dueDate` | "Payment due" |
-| `QUOTATION_AWAITING_REPLY` | Quotation owner | Live quotation, `status ∈ ACTIVE_QUOTATION_STATUSES`, `nextFollowUpDate ≤ today + 7` | `nextFollowUpDate` | "Follow up on QUO-2026-0042" + `lastFollowUpHighlights` |
-| `FOLLOW_UP_DUE` | See Decision 2 | The **latest** live follow-up on a record (M5 Decision 1) has `nextFollowUpDate ≤ today + 7` and the record is still open (below) | `nextFollowUpDate` | The latest follow-up's notes, truncated |
-| `PROJECT_BEHIND_SCHEDULE` | Project's PM | Live project, `status ∈ ACTIVE_PROJECT_STATUSES`, `endDate < today` (M8's rule) | `endDate` | "Past planned end — 64% complete" |
-| `STALE_ENQUIRY` | Enquiry owner | Live enquiry, `IN_PROGRESS`, no open follow-up (Decision 5), last touch ≤ today − `staleEnquiryDays` | last touch + `staleEnquiryDays` | "No activity for 34 days" |
-| `DOCUMENT_TO_REVIEW` | `listDocumentsPendingReview` (uploader + record owner, M7) | Current document, extraction `SUCCEEDED`, review `PENDING` | `extractedAt` (IST day) | "Review extracted fields" |
+| Kind                       | Rows for                                                   | Included when                                                                                                                     | `dueDate`                       | "What to do"                                            |
+| -------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------- |
+| `INVOICE_OVERDUE`          | Project's PM and pipeline owner (quotation's `ownerId`)    | Live invoice, `status = OVERDUE`                                                                                                  | `dueDate`                       | "Chase payment — 12 days overdue"                       |
+| `INVOICE_DUE`              | Same                                                       | Live invoice, `status = PENDING`, `dueDate` today to +7 (`dueWindowWhere('next7')`)                                               | `dueDate`                       | "Payment due"                                           |
+| `QUOTATION_AWAITING_REPLY` | Quotation owner                                            | Live quotation, `status ∈ ACTIVE_QUOTATION_STATUSES`, `nextFollowUpDate ≤ today + 7`                                              | `nextFollowUpDate`              | "Follow up on QUO-2026-0042" + `lastFollowUpHighlights` |
+| `FOLLOW_UP_DUE`            | See Decision 2                                             | The **latest** live follow-up on a record (M5 Decision 1) has `nextFollowUpDate ≤ today + 7` and the record is still open (below) | `nextFollowUpDate`              | The latest follow-up's notes, truncated                 |
+| `PROJECT_BEHIND_SCHEDULE`  | Project's PM                                               | Live project, `status ∈ ACTIVE_PROJECT_STATUSES`, `endDate < today` (M8's rule)                                                   | `endDate`                       | "Past planned end — 64% complete"                       |
+| `STALE_ENQUIRY`            | Enquiry owner                                              | Live enquiry, `IN_PROGRESS`, no open follow-up (Decision 5), last touch ≤ today − `staleEnquiryDays`                              | last touch + `staleEnquiryDays` | "No activity for 34 days"                               |
+| `DOCUMENT_TO_REVIEW`       | `listDocumentsPendingReview` (uploader + record owner, M7) | Current document, extraction `SUCCEEDED`, review `PENDING`                                                                        | `extractedAt` (IST day)         | "Review extracted fields"                               |
 
 **"Record still open"** for `FOLLOW_UP_DUE`:
 
@@ -142,7 +142,7 @@ Follows `docs/UI-GUIDE.md` 4.4 ("My today") and its checklist.
 
 ## Decisions
 
-1. **My Today is about responsibility, not visibility.** Scope decides what a user *may* see; My Today shows what is *theirs to act on*. An admin can read every invoice but their list shows only what they own or manage, otherwise it would be the whole company's receivables.
+1. **My Today is about responsibility, not visibility.** Scope decides what a user _may_ see; My Today shows what is _theirs to act on_. An admin can read every invoice but their list shows only what they own or manage, otherwise it would be the whole company's receivables.
 2. **Who owns a follow-up row.** Enquiry follow-ups go to the enquiry's owner, so reassigning an enquiry hands over its chasing (as quotations do through their owner). Client-level, project, PO and invoice follow-ups go to the follow-up's author, provided they can still read the record: those records have two people on them (PM and owner), and the one who promised the next call is the one to make it.
 3. **Every row has one due date, and the date alone decides its section.** This keeps the three panels of UI guide 4.4 and a single sort. Kinds without a natural due date get one: a stale enquiry is due when it crossed the threshold, a document when its extraction finished, a late project on its planned end.
 4. **One row per record.** An overdue invoice with a chase follow-up due is one job, not two rows. The priority order puts money first, then client-facing promises, then internal hygiene.

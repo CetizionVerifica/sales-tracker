@@ -101,7 +101,9 @@ export function TodaySection({
           ))}
         </ul>
       )}
-      {footer && <div className="text-muted-foreground border-t px-4 py-3 text-[13px]">{footer}</div>}
+      {footer && (
+        <div className="text-muted-foreground border-t px-4 py-3 text-[13px]">{footer}</div>
+      )}
     </Panel>
   );
 }

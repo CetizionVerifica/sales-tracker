@@ -327,7 +327,8 @@ async function followUpRows(
     (f) => f.entityType === 'ENQUIRY' || f.userId === subject.id,
   );
   const byType = new Map<LatestFollowUp['entityType'], string[]>();
-  for (const f of latest) byType.set(f.entityType, [...(byType.get(f.entityType) ?? []), f.entityId]);
+  for (const f of latest)
+    byType.set(f.entityType, [...(byType.get(f.entityType) ?? []), f.entityId]);
   const open = await openRecords(db, subject, byType);
 
   return latest.flatMap((f): MyTodayCandidate[] => {
@@ -438,20 +439,18 @@ async function documentRows(db: Db, subject: Actor) {
     const ids = docs.filter((d) => d.kind === kind).map((d) => d.entityId);
     for (const [id, { label }] of await targetFor(kind).labels(db, ids)) labels.set(id, label);
   }
-  return docs.map(
-    (d): MyTodayCandidate => ({
-      key: `DOCUMENT:${d.id}`,
-      kind: 'DOCUMENT_TO_REVIEW',
-      dueDate: istDayOf(d.extractedAt ?? d.updatedAt),
-      record: { type: 'DOCUMENT', id: d.id, label: labels.get(d.entityId) ?? d.originalFilename },
-      client: { id: d.clientId, name: d.client.name },
-      title: 'Review extracted fields',
-      detail: d.originalFilename,
-      amount: null,
-      invoiceDate: null,
-      followUpTarget: { entityType: d.kind, entityId: d.entityId },
-    }),
-  );
+  return docs.map((d): MyTodayCandidate => ({
+    key: `DOCUMENT:${d.id}`,
+    kind: 'DOCUMENT_TO_REVIEW',
+    dueDate: istDayOf(d.extractedAt ?? d.updatedAt),
+    record: { type: 'DOCUMENT', id: d.id, label: labels.get(d.entityId) ?? d.originalFilename },
+    client: { id: d.clientId, name: d.client.name },
+    title: 'Review extracted fields',
+    detail: d.originalFilename,
+    amount: null,
+    invoiceDate: null,
+    followUpTarget: { entityType: d.kind, entityId: d.entityId },
+  }));
 }
 
 // ─── Assembly ───────────────────────────────────────────────────────────────────────
@@ -561,9 +560,6 @@ export async function getMyToday(
 }
 
 /** The nav badge: the actor's overdue and due-today rows, on the same code path. */
-export async function myTodayBadgeCount(
-  ctx: Ctx,
-  options: { today?: Date } = {},
-): Promise<number> {
+export async function myTodayBadgeCount(ctx: Ctx, options: { today?: Date } = {}): Promise<number> {
   return (await getMyToday(ctx, {}, options)).counts.badge;
 }

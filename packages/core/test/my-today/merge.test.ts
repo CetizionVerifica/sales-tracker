@@ -34,7 +34,10 @@ function candidate(
 
 describe('M11 merge: one row per record (Decision 4)', () => {
   it('keeps the highest-priority kind, the earliest due date, and lists the others', () => {
-    const shared = { key: 'INVOICE:x', record: { type: 'INVOICE' as const, id: 'x', label: 'INV-x' } };
+    const shared = {
+      key: 'INVOICE:x',
+      record: { type: 'INVOICE' as const, id: 'x', label: 'INV-x' },
+    };
     const rows = mergeCandidates([
       candidate('FOLLOW_UP_DUE', -5, { ...shared, title: 'Chase', detail: 'Promised Friday' }),
       candidate('INVOICE_OVERDUE', -2, { ...shared, title: 'Chase payment' }),
@@ -57,10 +60,7 @@ describe('M11 merge: one row per record (Decision 4)', () => {
     for (const [i, higher] of MY_TODAY_KINDS.entries()) {
       for (const lower of MY_TODAY_KINDS.slice(i + 1)) {
         const shared = { key: 'K:1', record: { type: 'INVOICE' as const, id: '1', label: 'x' } };
-        const [row] = mergeCandidates([
-          candidate(lower, 0, shared),
-          candidate(higher, 0, shared),
-        ]);
+        const [row] = mergeCandidates([candidate(lower, 0, shared), candidate(higher, 0, shared)]);
         expect(row!.kind).toBe(higher);
       }
     }

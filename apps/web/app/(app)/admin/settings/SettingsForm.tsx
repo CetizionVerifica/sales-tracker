@@ -73,8 +73,8 @@ export function SettingsForm({
             {...form.register('staleEnquiryDays')}
           />
           <FieldDescription>
-            An in-progress enquiry with no activity and no next follow-up for this long shows in
-            its owner&apos;s My today.
+            An in-progress enquiry with no activity and no next follow-up for this long shows in its
+            owner&apos;s My today.
           </FieldDescription>
           <FieldError errors={[errors.staleEnquiryDays]} />
         </Field>

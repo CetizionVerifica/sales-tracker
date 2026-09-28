@@ -24,7 +24,9 @@ async function badgeCount(page: Page): Promise<number> {
 
 // AC12: a Sales user lands on My today, logs a follow-up on a missed quotation follow-up,
 // and the row moves from Overdue to Coming up.
-test('sales: sign in to My today, log a follow-up, the row moves to Coming up', async ({ page }) => {
+test('sales: sign in to My today, log a follow-up, the row moves to Coming up', async ({
+  page,
+}) => {
   await signIn(page, E2E_USERS.sales2.email, E2E_USERS.sales2.password);
   await expect(page.getByRole('heading', { level: 1, name: 'My today' })).toBeVisible();
   const before = await badgeCount(page);
@@ -42,7 +44,9 @@ test('sales: sign in to My today, log a follow-up, the row moves to Coming up', 
   await sheet.getByRole('button', { name: 'Log follow-up' }).click();
   await expect(page.getByText('Follow-up logged')).toBeVisible();
 
-  await expect(section(page, 'Overdue').getByText('Client asked for revised payment terms')).toHaveCount(0);
+  await expect(
+    section(page, 'Overdue').getByText('Client asked for revised payment terms'),
+  ).toHaveCount(0);
   await expect(
     section(page, 'Coming up').getByRole('listitem').filter({ hasText: 'Sent revised terms' }),
   ).toBeVisible();
@@ -77,7 +81,9 @@ test('pm: mark an overdue invoice paid, then open a document to review', async (
   const card = page.getByRole('region', { name: 'Invoice document' });
   await expect(card.getByText('Ready to review')).toBeVisible({ timeout: 30_000 });
 
-  await mainNav(page).getByRole('link', { name: /My today/ }).click();
+  await mainNav(page)
+    .getByRole('link', { name: /My today/ })
+    .click();
   const review = section(page, 'Due today')
     .getByRole('listitem')
     .filter({ hasText: 'Review extracted fields' })
@@ -97,7 +103,9 @@ test('admin: view a Sales user’s My today with Open as the only action', async
     .getByRole('region', { name: /^(Overdue|Due today|Coming up)/ })
     .getByRole('listitem');
   await expect(rows.first()).toBeVisible();
-  await expect(page.getByRole('main').getByRole('button', { name: 'Log follow-up' })).toHaveCount(0);
+  await expect(page.getByRole('main').getByRole('button', { name: 'Log follow-up' })).toHaveCount(
+    0,
+  );
   await expect(page.getByRole('main').getByRole('button', { name: 'Mark paid' })).toHaveCount(0);
   await expect(rows.first().getByRole('link', { name: /^Open / })).toBeVisible();
 

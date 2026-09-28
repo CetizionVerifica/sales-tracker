@@ -28,9 +28,7 @@ export async function findStaleEnquiries(
   const cutoff = toCalendarDateString(
     new Date(options.today.getTime() - options.days * 86_400_000),
   );
-  const owner = options.ownerId
-    ? Prisma.sql`AND e."ownerId" = ${options.ownerId}`
-    : Prisma.empty;
+  const owner = options.ownerId ? Prisma.sql`AND e."ownerId" = ${options.ownerId}` : Prisma.empty;
   const rows = await db.$queryRaw<{ id: string; lastTouch: string }[]>`
     WITH latest AS (
       SELECT DISTINCT ON (f."entityId") f."entityId", f."date", f."nextFollowUpDate"

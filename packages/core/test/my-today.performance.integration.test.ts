@@ -16,7 +16,10 @@ import type { PoWorld } from './purchase-order-fixtures.ts';
  */
 
 /** Runs `fn` with getDb() returning a client that counts model calls and raw queries. */
-async function countQueries<T>(ctx: Ctx, fn: () => Promise<T>): Promise<{ result: T; queries: number }> {
+async function countQueries<T>(
+  ctx: Ctx,
+  fn: () => Promise<T>,
+): Promise<{ result: T; queries: number }> {
   const root = getRootDb();
   let queries = 0;
   const counted = new Proxy(root, {
@@ -28,7 +31,12 @@ async function countQueries<T>(ctx: Ctx, fn: () => Promise<T>): Promise<{ result
           return (value as (...a: unknown[]) => unknown).apply(target, args);
         };
       }
-      if (typeof property === 'string' && !property.startsWith('$') && value && typeof value === 'object') {
+      if (
+        typeof property === 'string' &&
+        !property.startsWith('$') &&
+        value &&
+        typeof value === 'object'
+      ) {
         return new Proxy(value, {
           get(delegate, method, r) {
             const fnValue = Reflect.get(delegate, method, r) as unknown;

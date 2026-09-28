@@ -46,11 +46,7 @@ async function load(userId: string | undefined, kind: MyTodayKindGroup | undefin
  * My today (M11, UI guide 4.4): what needs the user, in three panels by due date. Admins can
  * view another user's list, read-only (Decision 6).
  */
-export default async function TodayPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
+export default async function TodayPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const ctx = await requireUser();
   const params = await searchParams;
   const userParam = typeof params.user === 'string' ? params.user : undefined;

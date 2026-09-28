@@ -75,4 +75,3 @@ export async function findDocumentsPendingReview(db: Db, user: Actor) {
     orderBy: [{ extractedAt: 'asc' }, { id: 'asc' }],
   });
 }
-

@@ -9,19 +9,14 @@
       "INVOICE_OVERDUE | Invoice INV/26-27/0003 | -10 | also FOLLOW_UP_DUE",
       "PROJECT_BEHIND_SCHEDULE | PRJ-2026-0004 · Export line inspection | -5"
     ],
-    "dueToday": [
-      "DOCUMENT_TO_REVIEW | Invoice INV/26-27/0003 | +0"
-    ],
+    "dueToday": ["DOCUMENT_TO_REVIEW | Invoice INV/26-27/0003 | +0"],
     "comingUp": [
       "INVOICE_DUE | Invoice INV/26-27/0004 | +3",
       "FOLLOW_UP_DUE | PRJ-2026-0002 · Plant QA training, phase 1 | +7"
     ]
   },
   "sales@example.com": {
-    "overdue": [
-      "STALE_ENQUIRY | ENQ-2026-0009 | -15",
-      "FOLLOW_UP_DUE | ENQ-2026-0002 | -5"
-    ],
+    "overdue": ["STALE_ENQUIRY | ENQ-2026-0009 | -15", "FOLLOW_UP_DUE | ENQ-2026-0002 | -5"],
     "dueToday": [
       "QUOTATION_AWAITING_REPLY | QUO-2026-0001 | +0",
       "FOLLOW_UP_DUE | ENQ-2026-0001 | +0"
@@ -39,11 +34,7 @@
       "QUOTATION_AWAITING_REPLY | QUO-2026-0004 | -3",
       "FOLLOW_UP_DUE | ENQ-2026-0008 | -1"
     ],
-    "dueToday": [
-      "DOCUMENT_TO_REVIEW | Invoice INV/26-27/0003 | +0"
-    ],
-    "comingUp": [
-      "FOLLOW_UP_DUE | ENQ-2026-0006 | +3"
-    ]
+    "dueToday": ["DOCUMENT_TO_REVIEW | Invoice INV/26-27/0003 | +0"],
+    "comingUp": ["FOLLOW_UP_DUE | ENQ-2026-0006 | +3"]
   }
 }
