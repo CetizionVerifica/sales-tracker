@@ -9,6 +9,9 @@ const FIELD_LABELS: Record<string, string> = {
   poNumber: 'PO number',
   paymentTerms: 'payment terms',
   paymentTermsDays: 'net days',
+  invoiceNumber: 'invoice number',
+  invoiceDate: 'invoice date',
+  dueDate: 'due date',
 };
 
 export function fieldLabel(name: string): string {

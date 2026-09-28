@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const document = await uploadDocument(
       ctx,
       {
-        kind: String(form.get('kind') ?? '') as 'QUOTATION' | 'PURCHASE_ORDER',
+        kind: String(form.get('kind') ?? '') as 'QUOTATION' | 'PURCHASE_ORDER' | 'INVOICE',
         entityId: String(form.get('entityId') ?? ''),
       },
       { bytes: new Uint8Array(await file.arrayBuffer()), mimeType: file.type, filename: file.name },
@@ -51,6 +51,10 @@ export async function POST(request: Request) {
     if (document.kind === 'PURCHASE_ORDER') {
       revalidatePath(`/purchase-orders/${document.entityId}`);
       revalidatePath('/purchase-orders');
+    }
+    if (document.kind === 'INVOICE') {
+      revalidatePath(`/invoices/${document.entityId}`);
+      revalidatePath('/invoices');
     }
     return reply({ ok: true, data: { id: document.id } });
   } catch (error) {

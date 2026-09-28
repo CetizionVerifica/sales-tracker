@@ -9,6 +9,7 @@ import {
   FileText,
   Inbox,
   Loader2,
+  Receipt,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -41,6 +42,7 @@ const RECORD_HREF: Record<SearchResult['type'], (id: string) => string> = {
   QUOTATION: (id) => `/quotations/${id}`,
   PROJECT: (id) => `/projects/${id}`,
   PURCHASE_ORDER: (id) => `/purchase-orders/${id}`,
+  INVOICE: (id) => `/invoices/${id}`,
   CLIENT: (id) => `/clients/${id}`,
 };
 
@@ -49,6 +51,7 @@ const RECORD_ICON = {
   QUOTATION: FileText,
   PROJECT: Briefcase,
   PURCHASE_ORDER: FileCheck,
+  INVOICE: Receipt,
   CLIENT: Building2,
 };
 const RECORD_GROUP = {
@@ -56,6 +59,7 @@ const RECORD_GROUP = {
   QUOTATION: 'Quotations',
   PROJECT: 'Projects',
   PURCHASE_ORDER: 'Purchase orders',
+  INVOICE: 'Invoices',
   CLIENT: 'Clients',
 };
 

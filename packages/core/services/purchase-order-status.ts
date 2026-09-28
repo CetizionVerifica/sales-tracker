@@ -15,15 +15,15 @@ export const CONCURRENT_PURCHASE_ORDER_CHANGE =
 
 export type InvoiceLoader = (tx: Db, purchaseOrderId: string) => Promise<InvoiceForStatus[]>;
 
-/**
- * The PO's live invoices. There is no Invoice model until M10, which replaces this body with
- * the query; until then every PO is PENDING.
- */
+/** The PO's live invoices (M10), as the derivation sees them. */
 export async function liveInvoicesFor(
-  _tx: Db,
-  _purchaseOrderId: string,
+  tx: Db,
+  purchaseOrderId: string,
 ): Promise<InvoiceForStatus[]> {
-  return [];
+  return tx.invoice.findMany({
+    where: { purchaseOrderId },
+    select: { status: true, amountMinor: true },
+  });
 }
 
 /**

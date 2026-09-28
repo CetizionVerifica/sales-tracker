@@ -13,6 +13,7 @@ export const SEARCH_RESULT_TYPES = [
   'QUOTATION',
   'PROJECT',
   'PURCHASE_ORDER',
+  'INVOICE',
   'CLIENT',
 ] as const;
 export type SearchResultType = (typeof SEARCH_RESULT_TYPES)[number];

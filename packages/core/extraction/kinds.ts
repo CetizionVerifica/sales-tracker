@@ -2,6 +2,8 @@ import type { Prisma, QuotationStatus } from '@sales-tracker/db';
 import type { Db } from '../clients.ts';
 import type { Ctx } from '../context.ts';
 import {
+  invoiceAccessSelect,
+  invoiceResource,
   purchaseOrderAccessSelect,
   purchaseOrderResource,
   quotationManagersSelect,
@@ -11,12 +13,15 @@ import type { Actor, Resource } from '../rbac/types.ts';
 import { toCalendarDateString } from '../schemas/common.ts';
 import type { DocumentKindValue } from '../schemas/document.ts';
 import {
+  INVOICE_EXTRACTION_FIELDS,
   PURCHASE_ORDER_EXTRACTION_FIELDS,
   QUOTATION_EXTRACTION_FIELDS,
   type ExtractionFields,
+  type StoredExtraction,
 } from '../schemas/extraction.ts';
 import { toAmountString } from '../schemas/money.ts';
-import { purchaseOrderLabel, targetFor } from '../services/follow-up-targets.ts';
+import { invoiceLabel, purchaseOrderLabel, targetFor } from '../services/follow-up-targets.ts';
+import { updateInvoice } from '../services/invoice.service.ts';
 import { updatePurchaseOrder } from '../services/purchase-order.service.ts';
 import { updateQuotation } from '../services/quotation.service.ts';
 import { isActiveQuotation } from '../status/quotation.ts';
@@ -24,7 +29,7 @@ import { isActiveQuotation } from '../status/quotation.ts';
 /**
  * The document-kind registry (M7), the same pattern as M5's follow-up targets: everything
  * the document service and review screen need to know about a record type lives here.
- * M9 added PURCHASE_ORDER; M10 (INVOICE) adds one entry; nothing else changes.
+ * M9 added PURCHASE_ORDER and M10 INVOICE, each as one entry.
  */
 
 /** The record a document is attached to, as the document service sees it. */
@@ -33,6 +38,8 @@ export interface ParentRecord {
   label: string;
   clientId: string;
   clientName: string;
+  /** The client's GSTIN, when known: it decides the client check when the document has one. */
+  clientGstin?: string | null;
   /** The record's current document. */
   documentId: string | null;
   /** The can() resource of the record; a document's permissions are its record's. */
@@ -53,6 +60,11 @@ export interface ReviewField {
   input: 'text' | 'date' | 'money' | 'textarea' | 'integer';
   from: readonly string[];
   applies: readonly string[];
+  /**
+   * A money row whose currency is the record's and cannot change (invoices, M10 Decision 3):
+   * only the amount applies, and a document in another currency is not suggested.
+   */
+  fixedCurrency?: boolean;
 }
 
 export interface DocumentKindSpec {
@@ -63,6 +75,11 @@ export interface DocumentKindSpec {
   reviewFields: readonly ReviewField[];
   /** Extracted fields shown for information only (e.g. the printed number, client name). */
   infoFields: readonly { name: string; label: string }[];
+  /**
+   * Other mismatches between the document and the record, shown as warnings above the
+   * review form and never blocking (UI guide 4.5). The client check is common to all kinds.
+   */
+  warnings?(parent: ParentRecord, extraction: StoredExtraction): string[];
   /** Live record, or null when it does not exist or is soft deleted. */
   load(db: Db, id: string): Promise<ParentRecord | null>;
   /** Ids of this kind's records the user may read (for scoping documents and the timeline). */
@@ -279,9 +296,134 @@ const purchaseOrderKind: DocumentKindSpec = {
   },
 };
 
+/** Case and spacing do not count when comparing reference numbers. */
+const sameReference = (a: string, b: string) =>
+  a.replace(/\s+/g, '').toLowerCase() === b.replace(/\s+/g, '').toLowerCase();
+
+/**
+ * One of our invoices (M10). The amount applies in the PO's currency, which is fixed
+ * (Decision 3); the client, GSTIN, PO number and currency on the document are information
+ * that drives the mismatch warnings. Nothing is locked (Decision 9).
+ */
+const invoiceKind: DocumentKindSpec = {
+  label: 'Invoice',
+  parentModel: 'Invoice',
+  fields: INVOICE_EXTRACTION_FIELDS,
+  reviewFields: [
+    {
+      name: 'invoiceNumber',
+      label: 'Invoice number',
+      input: 'text',
+      from: ['invoiceNumber'],
+      applies: ['invoiceNumber'],
+    },
+    {
+      name: 'invoiceDate',
+      label: 'Invoice date',
+      input: 'date',
+      from: ['invoiceDate'],
+      applies: ['invoiceDate'],
+    },
+    {
+      name: 'amount',
+      label: 'Amount',
+      input: 'money',
+      from: ['amount', 'currency'],
+      applies: ['amount'],
+      fixedCurrency: true,
+    },
+    {
+      name: 'dueDate',
+      label: 'Due date',
+      input: 'date',
+      from: ['dueDate'],
+      applies: ['dueDate'],
+    },
+  ],
+  infoFields: [
+    { name: 'clientName', label: 'Billed to' },
+    { name: 'clientGstin', label: 'GSTIN on the invoice' },
+    { name: 'poNumber', label: 'PO number on the invoice' },
+    { name: 'currency', label: 'Currency on the invoice' },
+  ],
+
+  async load(db, id) {
+    const row = await db.invoice.findFirst({
+      where: { id },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        clientId: true,
+        invoiceDate: true,
+        dueDate: true,
+        amountMinor: true,
+        currency: true,
+        documentId: true,
+        client: { select: { name: true, gstin: true } },
+        purchaseOrder: {
+          select: { ...invoiceAccessSelect.purchaseOrder.select, poNumber: true },
+        },
+      },
+    });
+    if (!row) return null;
+    return {
+      id: row.id,
+      label: invoiceLabel(row),
+      clientId: row.clientId,
+      clientName: row.client.name,
+      clientGstin: row.client.gstin,
+      documentId: row.documentId,
+      resource: invoiceResource(row),
+      values: {
+        invoiceNumber: row.invoiceNumber,
+        invoiceDate: toCalendarDateString(row.invoiceDate),
+        amount: toAmountString(row.amountMinor, row.currency),
+        currency: row.currency,
+        dueDate: toCalendarDateString(row.dueDate),
+        poNumber: row.purchaseOrder.poNumber,
+      },
+      locked: {},
+    };
+  },
+
+  warnings(parent, extraction) {
+    const warnings: string[] = [];
+    const poNumber = extraction.poNumber?.value;
+    const current = parent.values.poNumber;
+    if (poNumber && current && !sameReference(poNumber, current)) {
+      warnings.push(`The invoice quotes PO ${poNumber}, but it is recorded against PO ${current}.`);
+    }
+    const currency = extraction.currency?.value;
+    if (currency && parent.values.currency && currency !== parent.values.currency) {
+      warnings.push(
+        `The invoice is in ${currency}, but its PO is in ${parent.values.currency}. The amount is not applied unless you tick it.`,
+      );
+    }
+    return warnings;
+  },
+
+  visibleIds: (db, user, clientId) => targetFor('INVOICE').visibleIds(db, user, clientId),
+  labels: (db, ids) => targetFor('INVOICE').labels(db, ids),
+
+  async setDocument(db, id, documentId, expected) {
+    const { count } = await db.invoice.updateMany({
+      where: { id, documentId: expected },
+      data: { documentId },
+    });
+    return count === 1;
+  },
+
+  currentWhere: { invoice: { isNot: null } },
+
+  async applyConfirmed(ctx, id, values) {
+    await updateInvoice(ctx, id, values as Parameters<typeof updateInvoice>[2]);
+  },
+};
+
 export const DOCUMENT_KINDS_REGISTRY: Partial<Record<DocumentKindValue, DocumentKindSpec>> = {
   QUOTATION: quotationKind,
   PURCHASE_ORDER: purchaseOrderKind,
+  INVOICE: invoiceKind,
 };
 
 /** Kinds whose module has shipped. */

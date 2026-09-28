@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { GSTIN_PATTERN } from './client.ts';
 
 /**
  * What Claude returns for a document (M7), in two layers:
@@ -33,7 +34,7 @@ const wireField = z.object({
 });
 
 /** How each extracted field is cleaned before it is stored. */
-type FieldFormat = 'text' | 'date' | 'amount' | 'currency' | 'integer';
+type FieldFormat = 'text' | 'date' | 'amount' | 'currency' | 'integer' | 'gstin';
 
 export interface ExtractionFieldSpec {
   format: FieldFormat;
@@ -120,6 +121,51 @@ export const PURCHASE_ORDER_EXTRACTION_FIELDS = {
   },
 } as const satisfies Record<string, ExtractionFieldSpec>;
 
+/** The fields Claude reads from one of our invoices (M10, INVOICE kind). */
+export const INVOICE_EXTRACTION_FIELDS = {
+  invoiceNumber: {
+    format: 'text',
+    max: 64,
+    description: 'The invoice number exactly as printed.',
+  },
+  invoiceDate: {
+    format: 'date',
+    description: 'The invoice date printed on the invoice, as YYYY-MM-DD.',
+  },
+  dueDate: {
+    format: 'date',
+    description:
+      'The payment due date, as YYYY-MM-DD, only when the invoice prints one. Otherwise null.',
+  },
+  clientName: {
+    format: 'text',
+    max: 200,
+    description:
+      'The name of the company being billed (the "Bill to" party), not the company issuing the invoice.',
+  },
+  clientGstin: {
+    format: 'gstin',
+    description:
+      'The GSTIN of the company being billed, exactly as printed (15 characters), when printed. ' +
+      'Not the GSTIN of the company issuing the invoice.',
+  },
+  poNumber: {
+    format: 'text',
+    max: 64,
+    description: "The client's purchase order number the invoice refers to, when printed.",
+  },
+  amount: {
+    format: 'amount',
+    description:
+      'The invoice grand total including taxes, as digits with an optional decimal point ' +
+      '(e.g. 590000.00). No currency symbol.',
+  },
+  currency: {
+    format: 'currency',
+    description: 'The ISO 4217 code of the invoice total (e.g. INR, USD).',
+  },
+} as const satisfies Record<string, ExtractionFieldSpec>;
+
 export type ExtractionFields = Record<string, ExtractionFieldSpec>;
 
 /** The wire schema for a set of fields: every field present, value possibly null. */
@@ -174,6 +220,11 @@ function cleanValue(value: string | null, spec: ExtractionFieldSpec): string | n
     case 'currency': {
       const code = trimmed.toUpperCase();
       return /^[A-Z]{3}$/.test(code) ? code : null;
+    }
+    case 'gstin': {
+      // The M3 client format; anything else is left for the reviewer rather than guessed at.
+      const code = trimmed.replace(/\s+/g, '').toUpperCase();
+      return GSTIN_PATTERN.test(code) ? code : null;
     }
     case 'integer': {
       // Digits only: "45 days" or "-5" is left for the reviewer rather than guessed at.

@@ -4,6 +4,7 @@ export * from './client.service.ts';
 export * from './document.service.ts';
 export * from './enquiry.service.ts';
 export * from './follow-up.service.ts';
+export * from './invoice.service.ts';
 export * from './project.service.ts';
 export * from './purchase-order.service.ts';
 export * from './quotation.service.ts';

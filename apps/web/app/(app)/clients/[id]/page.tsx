@@ -6,6 +6,7 @@ import {
   listEnquiries,
   listFollowUpTargets,
   listProjects,
+  listInvoicesForClient,
   listPurchaseOrders,
   listQuotations,
   NotFoundError,
@@ -18,6 +19,7 @@ import { FilterBar } from '@/components/data/FilterBar';
 import { DateDisplay } from '@/components/display/DateDisplay';
 import { FieldGrid } from '@/components/display/FieldGrid';
 import { Money } from '@/components/display/Money';
+import { RelativeDue } from '@/components/display/RelativeDue';
 import { Progress } from '@/components/display/Progress';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { DetailLayout } from '@/components/layout/DetailLayout';
@@ -69,7 +71,7 @@ export default async function ClientPage({
 
   const search = await searchParams;
   const query = timelineQuery(client.id, search);
-  const [timeline, targets, enquiries, quotations, projects, purchaseOrders, documents] =
+  const [timeline, targets, enquiries, quotations, projects, purchaseOrders, documents, invoices] =
     await Promise.all([
       getClientTimeline(ctx, query).catch((error: unknown) => {
         if (error instanceof NotFoundError) notFound();
@@ -83,6 +85,7 @@ export default async function ClientPage({
         ? listPurchaseOrders(ctx, { clientId: client.id, pageSize: 10 })
         : null,
       listDocuments(ctx, { clientId: client.id, pageSize: 25 }),
+      can(ctx.user, 'list', 'invoice') ? listInvoicesForClient(ctx, client.id) : null,
     ]);
   const primary = client.contacts.find((c) => c.isPrimary);
   const contacts = client.contacts.map((c) => ({ id: c.id, name: c.name }));
@@ -277,7 +280,9 @@ export default async function ClientPage({
                 href={
                   d.kind === 'PURCHASE_ORDER'
                     ? `/purchase-orders/${d.entityId}`
-                    : `/quotations/${d.entityId}?tab=documents`
+                    : d.kind === 'INVOICE'
+                      ? `/invoices/${d.entityId}`
+                      : `/quotations/${d.entityId}?tab=documents`
                 }
               >
                 {d.entityLabel}
@@ -390,6 +395,50 @@ export default async function ClientPage({
                         <span className="text-muted-foreground flex items-center justify-between gap-2 text-[13px]">
                           <Money amountMinor={po.amountMinor} currency={po.currency} />
                           <DateDisplay value={po.receivedDate} />
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Panel>
+            )}
+            {invoices && (
+              <Panel
+                title="Invoices"
+                bodyClassName="p-0"
+                actions={
+                  invoices.length > 0 && (
+                    <Link
+                      className="text-primary text-[13px] hover:underline"
+                      href={`/invoices?clientId=${client.id}`}
+                    >
+                      View list
+                    </Link>
+                  )
+                }
+              >
+                {invoices.length === 0 ? (
+                  <EmptyState message="No invoices you can see for this client." />
+                ) : (
+                  <ul className="divide-y">
+                    {invoices.map((invoice) => (
+                      <li key={invoice.id} className="flex flex-col gap-0.5 px-4 py-2.5">
+                        <span className="flex items-center justify-between gap-2">
+                          <Link
+                            className="font-medium hover:underline"
+                            href={`/invoices/${invoice.id}`}
+                          >
+                            {invoice.invoiceNumber}
+                          </Link>
+                          <StatusBadge entity="invoice" status={invoice.status} />
+                        </span>
+                        <span className="text-muted-foreground flex items-center justify-between gap-2 text-[13px]">
+                          <Money amountMinor={invoice.amountMinor} currency={invoice.currency} />
+                          <RelativeDue
+                            date={invoice.dueDate}
+                            today={today}
+                            active={invoice.status !== 'PAID'}
+                          />
                         </span>
                       </li>
                     ))}

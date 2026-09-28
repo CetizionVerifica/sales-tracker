@@ -165,11 +165,12 @@ describe('follow-ups (integration)', () => {
       ).toBe('contactId');
     });
 
-    it('rejects a record type whose module has not shipped', async () => {
+    // Every record type has shipped with M10: an id that is not an invoice is not found.
+    it('treats an id of another record type as not found', async () => {
       const error = await rejection(
         logFollowUp(sales, { ...onEnquiry('x'), entityType: 'INVOICE' }),
       );
-      expect(fieldOf(error)).toBe('entityType');
+      expect(error).toBeInstanceOf(NotFoundError);
     });
 
     it('rejects a missing or deleted enquiry as not found', async () => {

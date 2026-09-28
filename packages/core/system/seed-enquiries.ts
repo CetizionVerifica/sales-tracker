@@ -7,6 +7,7 @@ import { createClient } from '../services/client.service.ts';
 import { convertEnquiry, createEnquiry, markEnquiryLost } from '../services/enquiry.service.ts';
 import { logFollowUp } from '../services/follow-up.service.ts';
 import { changeProjectStatus, createProject, updateProject } from '../services/project.service.ts';
+import { createInvoice } from '../services/invoice.service.ts';
 import { createPurchaseOrder } from '../services/purchase-order.service.ts';
 import { changeQuotationStatus, createQuotation } from '../services/quotation.service.ts';
 import { updateSettings } from '../services/settings.service.ts';
@@ -251,7 +252,7 @@ const daysAgo = (days: number) =>
 async function logSample(
   author: { id: string; role: Ctx['user']['role'] },
   link: {
-    entityType: 'CLIENT' | 'ENQUIRY' | 'QUOTATION' | 'PROJECT' | 'PURCHASE_ORDER';
+    entityType: 'CLIENT' | 'ENQUIRY' | 'QUOTATION' | 'PROJECT' | 'PURCHASE_ORDER' | 'INVOICE';
     entityId: string;
   },
   { daysAgo: ago, nextInDays, ...fields }: SampleFollowUp,
@@ -346,7 +347,8 @@ async function addSampleFollowUps(tx: Db): Promise<number> {
     count +
     (await addSampleQuotationFollowUps(tx)) +
     (await addSampleProjectFollowUps(tx)) +
-    (await addSamplePurchaseOrderFollowUps(tx))
+    (await addSamplePurchaseOrderFollowUps(tx)) +
+    (await addSampleInvoiceFollowUps(tx))
   );
 }
 
@@ -635,7 +637,7 @@ interface SamplePurchaseOrder {
  * One PO on most sample projects, as their Sales owner: one with net days, one with
  * text-only terms, and a project with a second, extra-scope PO that takes it over revenue.
  * The unassigned project stays without a PO (for the create flow), and the cancelled one
- * gets none. All PENDING: there are no invoices until M10.
+ * gets none. Their statuses follow the M10 sample invoices below.
  */
 const SAMPLE_PURCHASE_ORDERS: SamplePurchaseOrder[] = [
   {
@@ -744,11 +746,128 @@ async function createSamplePurchaseOrders(tx: Db): Promise<number> {
   return count;
 }
 
+interface SampleInvoice {
+  /** The sample PO it is raised on, by number. */
+  poNumber: string;
+  invoiceNumber: string;
+  invoiceDaysAgo: number;
+  /** The share of the PO amount billed (1 = all of it). */
+  share: 1 | 0.5;
+  /** Recorded as paid this many days ago. */
+  paidDaysAgo?: number;
+  paymentReference?: string;
+  /** Logged by the dev PM. */
+  followUp?: SampleFollowUp;
+}
+
+/**
+ * M10: one PO fully invoiced and paid (PO PAID), one with a paid 50% advance on net-45 terms
+ * (PO PENDING), one billed 70 days ago on net 60, so 10 days overdue (PO OVERDUE), and one on
+ * text-only terms with the company default, due in 3 days. WH-2026-131 has none, so the
+ * create flow can be tried by hand. A back-dated invoice is OVERDUE from its creation
+ * (Decision 7); the nightly job then keeps the rest current.
+ */
+const SAMPLE_INVOICES: SampleInvoice[] = [
+  {
+    poNumber: 'EXP-PO-8812',
+    invoiceNumber: 'INV/26-27/0001',
+    invoiceDaysAgo: 50,
+    share: 1,
+    paidDaysAgo: 10,
+    paymentReference: 'NEFT UTR 612345678901',
+  },
+  {
+    poNumber: '4500012345',
+    invoiceNumber: 'INV/26-27/0002',
+    invoiceDaysAgo: 20,
+    share: 0.5,
+    paidDaysAgo: 5,
+    paymentReference: 'NEFT UTR 612399887766',
+  },
+  {
+    poNumber: 'WH-2026-114',
+    invoiceNumber: 'INV/26-27/0003',
+    invoiceDaysAgo: 70,
+    share: 1,
+    followUp: {
+      daysAgo: 2,
+      channel: 'CALL',
+      notes: 'Chased accounts; payment promised Friday',
+      nextInDays: 3,
+    },
+  },
+  {
+    poNumber: 'PO/SOP/2026/07',
+    invoiceNumber: 'INV/26-27/0004',
+    invoiceDaysAgo: 27,
+    share: 0.5,
+  },
+];
+
+/** M10 sample follow-ups on existing sample invoices (found by number), as the dev PM. */
+async function addSampleInvoiceFollowUps(tx: Db): Promise<number> {
+  const pm = await devUser(tx, PM_EMAIL);
+  let count = 0;
+  for (const sample of SAMPLE_INVOICES) {
+    if (!sample.followUp) continue;
+    const invoice = await tx.invoice.findFirst({
+      where: { invoiceNumber: sample.invoiceNumber },
+      select: { id: true },
+    });
+    if (!invoice) continue;
+    await logSample(pm, { entityType: 'INVOICE', entityId: invoice.id }, sample.followUp);
+    count += 1;
+  }
+  return count;
+}
+
+/**
+ * M10 sample invoices on the sample POs (found by number), raised by the pipeline owner,
+ * audited as `system`. POs a developer has since deleted are skipped.
+ */
+async function createSampleInvoices(tx: Db): Promise<number> {
+  const pm = await devUser(tx, PM_EMAIL);
+  let count = 0;
+  for (const sample of SAMPLE_INVOICES) {
+    const po = await tx.purchaseOrder.findFirst({
+      where: { poNumber: sample.poNumber },
+      select: {
+        id: true,
+        amountMinor: true,
+        currency: true,
+        services: { select: { serviceId: true }, orderBy: { createdAt: 'asc' }, take: 1 },
+        project: {
+          select: { quotation: { select: { owner: { select: { id: true, role: true } } } } },
+        },
+      },
+    });
+    if (!po) continue;
+    const owner: Ctx = { user: { ...po.project.quotation.owner, active: true }, source: 'system' };
+    const amountMinor = sample.share === 1 ? po.amountMinor : po.amountMinor / 2n;
+    const { invoice } = await createInvoice(owner, {
+      purchaseOrderId: po.id,
+      invoiceNumber: sample.invoiceNumber,
+      invoiceDate: daysAgo(sample.invoiceDaysAgo),
+      serviceId: po.services[0]!.serviceId,
+      amount: toAmountString(amountMinor, po.currency),
+      ...(sample.paidDaysAgo !== undefined && {
+        paidAt: daysAgo(sample.paidDaysAgo),
+        paymentReference: sample.paymentReference,
+      }),
+    });
+    if (sample.followUp) {
+      await logSample(pm, { entityType: 'INVOICE', entityId: invoice.id }, sample.followUp);
+    }
+    count += 1;
+  }
+  return count;
+}
+
 /**
  * Dev-only sample pipeline, written through the services (audited as `system`).
  * Idempotent: enquiries are created only when there are none, and likewise quotations and
- * follow-ups, projects with the quotations made for them, and POs (so a database seeded
- * before M5, M6, M8 or M9 gets them too). Each part runs in one
+ * follow-ups, projects with the quotations made for them, POs and invoices (so a database
+ * seeded before M5, M6, M8, M9 or M10 gets them too). Each part runs in one
  * transaction (the services join it), so a failure part-way leaves nothing behind and the
  * next seed starts over instead of skipping a half-made pipeline.
  */
@@ -764,6 +883,7 @@ export async function ensureSampleEnquiries(log: (message: string) => void): Pro
       log(`created ${await addSampleFollowUps(tx)} sample follow-ups`);
       log(`created ${await createSampleProjects(ctx, tx)} sample projects`);
       log(`created ${await createSamplePurchaseOrders(tx)} sample purchase orders`);
+      log(`created ${await createSampleInvoices(tx)} sample invoices`);
     });
     return;
   }
@@ -788,6 +908,11 @@ export async function ensureSampleEnquiries(log: (message: string) => void): Pro
   if ((await db.purchaseOrder.count({ where: { deletedAt: undefined } })) === 0) {
     await withTx(ctx, async (tx) =>
       log(`created ${await createSamplePurchaseOrders(tx)} sample purchase orders`),
+    );
+  }
+  if ((await db.invoice.count({ where: { deletedAt: undefined } })) === 0) {
+    await withTx(ctx, async (tx) =>
+      log(`created ${await createSampleInvoices(tx)} sample invoices`),
     );
   }
 }

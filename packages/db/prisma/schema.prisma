@@ -167,6 +167,7 @@ model Service {
   quotations     QuotationService[]
   projects       ProjectService[]
   purchaseOrders PurchaseOrderService[]
+  invoices       Invoice[]
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
   deletedAt      DateTime?
@@ -189,6 +190,7 @@ model Client {
   quotations     Quotation[]
   projects       Project[]
   purchaseOrders PurchaseOrder[]
+  invoices       Invoice[]
   documents      Document[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -570,6 +572,7 @@ model Document {
   appliedFields      String[]             @default([])
   quotation          Quotation?
   purchaseOrder      PurchaseOrder?
+  invoice            Invoice?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   deletedAt          DateTime?
@@ -626,6 +629,7 @@ model PurchaseOrder {
   /// The PO's current document (M7 Decision 2).
   documentId       String?                @unique
   document         Document?              @relation(fields: [documentId], references: [id])
+  invoices         Invoice[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
   deletedAt        DateTime?
@@ -651,4 +655,73 @@ model PurchaseOrderService {
   @@unique([purchaseOrderId, serviceId])
   @@index([serviceId])
   @@map("purchase_order_service")
+}
+
+// ─── M10: invoices ──────────────────────────────────────────────────────────────
+
+/// Changed only through packages/core/status/invoice.ts (CLAUDE.md rule 8). OVERDUE is set by
+/// the nightly job, and on create or a due-date edit (M10 Decision 7).
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+/// How an invoice's due date was set (M10 Decision 6): the PO's net days, the company
+/// default, or typed by hand. Only MANUAL due dates stay put when the invoice date changes.
+enum DueDateBasis {
+  PO_TERMS
+  COMPANY_DEFAULT
+  MANUAL
+}
+
+/**
+ * What we bill the client against one of their POs (M10). The client and currency are the
+ * PO's (Decisions 1 and 3). CHECKs in migration m10_invoices: positive amount, ISO currency, a
+ * 1–64 character number, due date on or after the invoice date, PAID exactly when paidAt is
+ * set, and paidAt on or after the invoice date. The partial unique index
+ * "invoice_live_number_key" on lower("invoiceNumber") among live rows (Decision 2) is SQL
+ * only: Prisma cannot express it, so keep it when editing this model.
+ */
+model Invoice {
+  id                 String        @id @default(uuid())
+  purchaseOrderId    String
+  purchaseOrder      PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  clientId           String
+  client             Client        @relation(fields: [clientId], references: [id])
+  /// Our number from the accounting system; unique company-wide among live invoices,
+  /// ignoring case (Decision 2).
+  invoiceNumber      String
+  invoiceDate        DateTime      @db.Date
+  /// One of the PO's services (Decision 4).
+  serviceId          String
+  service            Service       @relation(fields: [serviceId], references: [id])
+  /// The invoice total as printed, including taxes, in integer minor units (M6 Decision 3).
+  amountMinor        BigInt
+  /// The PO's currency, copied and fixed (Decision 3).
+  currency           String
+  dueDate            DateTime      @db.Date
+  dueDateBasis       DueDateBasis
+  status             InvoiceStatus @default(PENDING)
+  statusChangedAt    DateTime?
+  /// The day the payment was received; set exactly when the status is PAID.
+  paidAt             DateTime?     @db.Date
+  /// UTR, cheque number or other payment note.
+  paymentReference   String?
+  /// Why an admin last reversed a payment (Decision 8).
+  unmarkedPaidReason String?
+  description        String?
+  /// The invoice's current document (M7 Decision 2).
+  documentId         String?       @unique
+  document           Document?     @relation(fields: [documentId], references: [id])
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  deletedAt          DateTime?
+
+  @@index([purchaseOrderId])
+  @@index([clientId, invoiceDate])
+  @@index([status, dueDate])
+  @@index([serviceId])
+  @@index([invoiceNumber])
+  @@map("invoice")
 }

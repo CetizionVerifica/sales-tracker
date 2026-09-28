@@ -36,6 +36,7 @@ import {
 } from '../status/project.ts';
 import { nextNumber } from './number-sequence.ts';
 import { lockProject } from './project-lock.ts';
+import { billingFor, invoiceStage, type InvoiceStage, type PoBilling } from './invoice-queries.ts';
 import { poTotals, type PoTotals } from './purchase-order-queries.ts';
 import { SETTINGS_ID } from './settings.service.ts';
 import { guardUnique } from './unique.ts';
@@ -113,13 +114,15 @@ const projectPurchaseOrderSelect = {
 
 export type ProjectPurchaseOrder = Prisma.PurchaseOrderGetPayload<{
   select: typeof projectPurchaseOrderSelect;
-}> & { documentState: DocumentState };
+}> & { documentState: DocumentState; billing: PoBilling };
 
 export type ProjectView = ProjectDetail & {
   permissions: ProjectPermissions;
   /** Live POs, oldest first (M9); anyone who reads the project reads its POs. */
   purchaseOrders: ProjectPurchaseOrder[];
   poTotals: PoTotals;
+  /** The pipeline strip's Invoice stage (M10). */
+  invoiceStage: InvoiceStage;
 };
 
 export const PROJECT_HAS_PURCHASE_ORDERS = 'Has purchase orders';
@@ -360,22 +363,26 @@ export async function getProject(ctx: Ctx, id: string): Promise<ProjectView> {
   const db = getDb();
   await findAccessible(db, ctx, id, 'read', 'any');
   const project = await loadProject(db, id);
-  const [purchaseOrders, totals] = await Promise.all([
+  const [purchaseOrders, totals, stage] = await Promise.all([
     db.purchaseOrder.findMany({
       where: { projectId: id },
       select: projectPurchaseOrderSelect,
       orderBy: [{ receivedDate: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     }),
     poTotals(db, project),
+    invoiceStage(db, ctx.user, { purchaseOrder: { projectId: id } }),
   ]);
+  const billing = await billingFor(db, purchaseOrders);
   return {
     ...project,
     permissions: projectPermissions(ctx.user, project, purchaseOrders.length),
     purchaseOrders: purchaseOrders.map((po) => ({
       ...po,
       documentState: documentStateOf(po.document),
+      billing: billing.get(po.id)!,
     })),
     poTotals: totals,
+    invoiceStage: stage,
   };
 }
 

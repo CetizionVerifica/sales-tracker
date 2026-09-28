@@ -189,6 +189,7 @@ export function PurchaseOrderForm({
       data: data as Parameters<typeof updatePurchaseOrderAction>[0]['data'],
     });
     if (applyResult(result, form, 'Purchase order saved')) {
+      if (result.ok && result.data.warning) toast.warning(result.data.warning);
       router.push(`/purchase-orders/${purchaseOrder.id}`);
       router.refresh();
     }

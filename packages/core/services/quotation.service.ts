@@ -30,6 +30,7 @@ import {
   CLOSED_QUOTATION_EDITABLE,
   isActiveQuotation,
 } from '../status/quotation.ts';
+import { invoiceStage, type InvoiceStage } from './invoice-queries.ts';
 import { nextNumber } from './number-sequence.ts';
 import { SETTINGS_ID } from './settings.service.ts';
 
@@ -260,9 +261,18 @@ export async function listQuotations(
 }
 
 /** Includes a soft-deleted quotation the user can see (restore view). */
-export async function getQuotation(ctx: Ctx, id: string): Promise<QuotationDetail> {
-  await findAccessible(getDb(), ctx, id, 'read', 'any');
-  return loadQuotation(getDb(), id);
+export async function getQuotation(
+  ctx: Ctx,
+  id: string,
+): Promise<QuotationDetail & { invoiceStage: InvoiceStage }> {
+  const db = getDb();
+  await findAccessible(db, ctx, id, 'read', 'any');
+  const [quotation, stage] = await Promise.all([
+    loadQuotation(db, id),
+    // The pipeline strip's Invoice stage (M10): invoices on the live project's POs.
+    invoiceStage(db, ctx.user, { purchaseOrder: { project: { quotationId: id } } }),
+  ]);
+  return { ...quotation, invoiceStage: stage };
 }
 
 /** Live quotations on an enquiry the user can read, newest number first (enquiry page). */

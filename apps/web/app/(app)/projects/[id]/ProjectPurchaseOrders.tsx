@@ -20,6 +20,9 @@ export interface ProjectPoRow {
   paymentTerms: string | null;
   status: PurchaseOrderStatusValue;
   documentState: DocumentState;
+  /** Live invoices on the PO, in its currency (M10). */
+  invoicedMinor: string;
+  paidMinor: string;
 }
 
 export interface ProjectPoTotals {
@@ -31,8 +34,8 @@ export interface ProjectPoTotals {
 }
 
 /**
- * The project's live POs (M9): a compact table (cards on phones), totals per currency, and
- * how much of the revenue they cover. Over-coverage is a warning, not an error (Decision 6).
+ * The project's live POs (M9): a compact table (cards on phones) with what each has invoiced
+ * and been paid (M10), totals per currency, and how much of the revenue they cover. Over-coverage is a warning, not an error (Decision 6).
  */
 export function ProjectPurchaseOrders({
   projectId,
@@ -103,6 +106,12 @@ export function ProjectPurchaseOrders({
                     <th scope="col" className="px-4 py-2 text-right font-medium">
                       Amount
                     </th>
+                    <th scope="col" className="px-4 py-2 text-right font-medium">
+                      Invoiced
+                    </th>
+                    <th scope="col" className="px-4 py-2 text-right font-medium">
+                      Paid
+                    </th>
                     <th scope="col" className="px-4 py-2 font-medium">
                       Terms
                     </th>
@@ -130,6 +139,12 @@ export function ProjectPurchaseOrders({
                       </td>
                       <td className="px-4 py-2.5 text-right whitespace-nowrap">
                         <Money amountMinor={po.amountMinor} currency={po.currency} />
+                      </td>
+                      <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                        <Money amountMinor={po.invoicedMinor} currency={po.currency} />
+                      </td>
+                      <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                        <Money amountMinor={po.paidMinor} currency={po.currency} />
                       </td>
                       <td className="px-4 py-2.5">
                         {po.paymentTerms ? (

@@ -48,6 +48,7 @@ export default async function ReviewDocumentPage({ params }: { params: Promise<{
     current: row.current,
     lockedReason: row.lockedReason,
     suggested: row.suggested,
+    fixedCurrency: row.fixedCurrency,
   }));
 
   return (
@@ -104,7 +105,7 @@ export default async function ReviewDocumentPage({ params }: { params: Promise<{
           {document.extractionStatus === 'SKIPPED' && !reviewed && (
             <p role="status" className="text-sm">
               Reading documents with AI was turned off when this was uploaded, so there are no
-              values to review. Enter them on the quotation yourself, or use Try again on{' '}
+              values to review. Enter them on {document.entityLabel} yourself, or use Try again on{' '}
               <Link className="underline" href={recordHref}>
                 {document.entityLabel}
               </Link>{' '}
@@ -120,6 +121,7 @@ export default async function ReviewDocumentPage({ params }: { params: Promise<{
               rows={rows}
               info={document.review.info}
               clientMismatch={document.review.clientMismatch}
+              warnings={document.review.warnings}
               currencies={settings.enabledCurrencies}
               editable={editable}
               appliedFields={reviewed ? document.appliedFields : null}

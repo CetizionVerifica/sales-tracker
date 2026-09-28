@@ -6,13 +6,16 @@ import { uploadDocument } from '../services/document.service.ts';
 
 /**
  * Development only (M7): attaches the sample quotation PDF to up to two open quotations
- * that have no document, and (M9) the sample PO PDF to one PO without a document, through
+ * that have no document, (M9) the sample PO PDF to one PO without a document, and (M10) the
+ * sample invoice PDF to one invoice without a document (its client differs, so the review
+ * screen shows the mismatch warning), through
  * the real upload path (dev Cloudinary account, queue, and the worker if it is running).
  * Not part of `pnpm db:seed`, which must work offline.
  */
 const env = getEnv();
 const sample = new URL('../test/fixtures/documents/globex-quotation.pdf', import.meta.url);
 const samplePo = new URL('../test/fixtures/documents/globex-po.pdf', import.meta.url);
+const sampleInvoice = new URL('../test/fixtures/documents/globex-invoice.pdf', import.meta.url);
 
 try {
   if (env.NODE_ENV !== 'development') throw new Error('seed:documents runs in development only');
@@ -65,6 +68,40 @@ try {
       },
     );
     console.log(`seed:documents — attached ${doc.originalFilename} to PO ${po.poNumber}`);
+  }
+
+  // The invoice is uploaded by its pipeline owner too.
+  const invoice = await getDb().invoice.findFirst({
+    where: { documentId: null },
+    select: {
+      id: true,
+      invoiceNumber: true,
+      purchaseOrder: {
+        select: {
+          project: {
+            select: {
+              quotation: { select: { owner: { select: { id: true, role: true, active: true } } } },
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ invoiceDate: 'desc' }, { id: 'asc' }],
+  });
+  if (!invoice) console.log('seed:documents — no invoices without a document');
+  else {
+    const doc = await uploadDocument(
+      { user: invoice.purchaseOrder.project.quotation.owner, source: 'system' },
+      { kind: 'INVOICE', entityId: invoice.id },
+      {
+        bytes: new Uint8Array(readFileSync(sampleInvoice)),
+        mimeType: 'application/pdf',
+        filename: 'sample-invoice.pdf',
+      },
+    );
+    console.log(
+      `seed:documents — attached ${doc.originalFilename} to invoice ${invoice.invoiceNumber}`,
+    );
   }
 } catch (error) {
   console.error(`seed:documents failed: ${error instanceof Error ? error.message : String(error)}`);
