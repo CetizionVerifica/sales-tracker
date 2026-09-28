@@ -31,14 +31,20 @@ export interface ImportUploadFile {
  * file is still caught (M10b Security). Text formats (csv/tsv/txt) have no reliable magic
  * bytes — `parseWorkbook` catching a garbled read is the backstop for those.
  */
-export function assertImportFileAcceptable(file: ImportUploadFile): { extension: string; mimeType: string } {
+export function assertImportFileAcceptable(file: ImportUploadFile): {
+  extension: string;
+  mimeType: string;
+} {
   if (file.bytes.length === 0) throw new DomainError('The file is empty', { field: 'file' });
-  if (file.bytes.length > MAX_BYTES) throw new DomainError('The file is larger than 20 MB', { field: 'file' });
+  if (file.bytes.length > MAX_BYTES)
+    throw new DomainError('The file is larger than 20 MB', { field: 'file' });
 
   const extension = (file.filename.split('.').pop() ?? '').toLowerCase();
   const mimeType = IMPORT_FILE_TYPES[extension];
   if (!mimeType) {
-    throw new DomainError('Upload a .xlsx, .xlsm, .xls, .ods, .csv, .tsv or .txt file', { field: 'file' });
+    throw new DomainError('Upload a .xlsx, .xlsm, .xls, .ods, .csv, .tsv or .txt file', {
+      field: 'file',
+    });
   }
 
   if (['xlsx', 'xlsm', 'ods'].includes(extension) && !startsWith(file.bytes, ZIP_MAGIC)) {

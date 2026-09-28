@@ -87,12 +87,10 @@ describe('sliceDataRows', () => {
   });
 
   it('supports a user-corrected header row further down the sheet', () => {
-    const rows = [
-      ['Title row'],
-      ['Client', 'Sector'],
-      ['Sun Pharma', 'Pharma'],
-    ];
+    const rows = [['Title row'], ['Client', 'Sector'], ['Sun Pharma', 'Pharma']];
     const sliced = sliceDataRows(rows, ['Client', 'Sector'], 3, 3);
-    expect(sliced).toEqual([{ rowNumber: 3, original: { Client: 'Sun Pharma', Sector: 'Pharma' } }]);
+    expect(sliced).toEqual([
+      { rowNumber: 3, original: { Client: 'Sun Pharma', Sector: 'Pharma' } },
+    ]);
   });
 });

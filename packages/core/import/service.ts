@@ -43,7 +43,11 @@ import { actorCtxFor } from './actor.ts';
 import { commitBatch } from './commit/commit-batch.ts';
 import { rollbackBatch, type RollbackResult } from './commit/rollback-batch.ts';
 import { detectTable, headersAt, sliceDataRows } from './detect/table.ts';
-import { assertImportFileAcceptable, IMPORT_FILE_TYPES, type ImportUploadFile } from './file-types.ts';
+import {
+  assertImportFileAcceptable,
+  IMPORT_FILE_TYPES,
+  type ImportUploadFile,
+} from './file-types.ts';
 import { parseWorkbook } from './parse/read-workbook.ts';
 import { enqueueImportCommit, enqueueImportParse } from './queue.ts';
 import { ENQUIRY_FIELD_CATALOG } from './suggest/field-catalog.ts';
@@ -191,7 +195,14 @@ function toJson(value: unknown): Prisma.InputJsonValue {
 }
 
 function countStatuses(rows: readonly { status: ImportRowStatusValue }[]): ImportCounts {
-  const counts: ImportCounts = { total: rows.length, ready: 0, warning: 0, error: 0, duplicate: 0, excluded: 0 };
+  const counts: ImportCounts = {
+    total: rows.length,
+    ready: 0,
+    warning: 0,
+    error: 0,
+    duplicate: 0,
+    excluded: 0,
+  };
   for (const row of rows) {
     if (row.status === 'READY') counts.ready++;
     else if (row.status === 'WARNING') counts.warning++;
@@ -203,7 +214,10 @@ function countStatuses(rows: readonly { status: ImportRowStatusValue }[]): Impor
 }
 
 async function actorFor(ctx: Ctx): Promise<ImportActor> {
-  const user = await getDb().user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { name: true } });
+  const user = await getDb().user.findUniqueOrThrow({
+    where: { id: ctx.user.id },
+    select: { name: true },
+  });
   return { id: ctx.user.id, role: ctx.user.role, name: user.name };
 }
 
@@ -240,7 +254,12 @@ export async function createImportBatch(
   const { mimeType } = assertImportFileAcceptable(file);
 
   const store = getFileStore();
-  const stored = await store.put({ bytes: file.bytes, mimeType, folder: 'imports', resourceType: RAW });
+  const stored = await store.put({
+    bytes: file.bytes,
+    mimeType,
+    folder: 'imports',
+    resourceType: RAW,
+  });
 
   const options: ImportOptions = { mode: 'createOnly' };
   let batchId: string;
@@ -295,10 +314,18 @@ async function regenerateRows(
   // so a stale client-submitted header text never desyncs the `original` lookup key.
   const resolvedColumns = columns.map((c) => ({ ...c, header: headers[c.column] ?? c.header }));
 
-  const sliced = sliceDataRows(parsed.rows, headers, sheetConfig.dataStartRow, sheetConfig.dataEndRow);
-  if (sliced.length === 0) throw new DomainError('No data rows were found for this header/data range.');
+  const sliced = sliceDataRows(
+    parsed.rows,
+    headers,
+    sheetConfig.dataStartRow,
+    sheetConfig.dataEndRow,
+  );
+  if (sliced.length === 0)
+    throw new DomainError('No data rows were found for this header/data range.');
   if (sliced.length > MAX_ROWS) {
-    throw new DomainError(`This file has more than ${MAX_ROWS.toLocaleString('en-IN')} rows; split it and import in parts.`);
+    throw new DomainError(
+      `This file has more than ${MAX_ROWS.toLocaleString('en-IN')} rows; split it and import in parts.`,
+    );
   }
 
   const [refs, actor, existingKeys] = await Promise.all([
@@ -366,7 +393,9 @@ export async function runImportParseJob(batchId: string): Promise<void> {
   const batch = await getDb().importBatch.findUniqueOrThrow({ where: { id: batchId } });
   const ctx = await actorCtxFor(batch.createdById);
   try {
-    await withTx(ctx, (tx) => tx.importBatch.update({ where: { id: batchId }, data: { status: 'PARSING' } }));
+    await withTx(ctx, (tx) =>
+      tx.importBatch.update({ where: { id: batchId }, data: { status: 'PARSING' } }),
+    );
 
     const extension = (batch.fileName.split('.').pop() ?? '').toLowerCase();
     const mimeType = IMPORT_FILE_TYPES[extension] ?? 'application/octet-stream';
@@ -380,8 +409,9 @@ export async function runImportParseJob(batchId: string): Promise<void> {
     const workbook = parseWorkbook(bytes, batch.fileName);
     // Phase 1 is single-sheet: pick the first sheet that actually has content.
     const sheet =
-      workbook.sheets.find((s) => s.rows.some((r) => r.some((c) => c != null && String(c).trim() !== ''))) ??
-      workbook.sheets[0]!;
+      workbook.sheets.find((s) =>
+        s.rows.some((r) => r.some((c) => c != null && String(c).trim() !== '')),
+      ) ?? workbook.sheets[0]!;
 
     const detected = detectTable(sheet.rows);
     if (detected.dataEndRow < detected.dataStartRow) {
@@ -389,7 +419,9 @@ export async function runImportParseJob(batchId: string): Promise<void> {
     }
 
     const settings = await getSettings(ctx);
-    const defaultDateFormat = (DATE_FORMATS as readonly string[]).includes(settings.importDateFormat)
+    const defaultDateFormat = (DATE_FORMATS as readonly string[]).includes(
+      settings.importDateFormat,
+    )
       ? (settings.importDateFormat as DateFormatValue)
       : 'DD/MM/YYYY';
 
@@ -399,7 +431,9 @@ export async function runImportParseJob(batchId: string): Promise<void> {
         column: s.column,
         header: s.header,
         field: s.field,
-        ...(s.field === 'receivedDate' || s.field === 'proposalSentDate' ? { dateFormat: defaultDateFormat } : {}),
+        ...(s.field === 'receivedDate' || s.field === 'proposalSentDate'
+          ? { dateFormat: defaultDateFormat }
+          : {}),
         ...(s.field === 'services' ? { separator: ',' } : {}),
       }),
     );
@@ -413,16 +447,23 @@ export async function runImportParseJob(batchId: string): Promise<void> {
     await withTx(ctx, (tx) =>
       tx.importBatch.update({
         where: { id: batchId },
-        data: { parsed: toJson({ sheetName: sheet.name, rows: sheet.rows } satisfies ParsedSheetData) },
+        data: {
+          parsed: toJson({ sheetName: sheet.name, rows: sheet.rows } satisfies ParsedSheetData),
+        },
       }),
     );
 
     await regenerateRows(ctx, batchId, sheetConfig, columns, []);
   } catch (error) {
     const message =
-      error instanceof DomainError ? error.message : 'Could not read this file. It may be corrupt or unsupported.';
+      error instanceof DomainError
+        ? error.message
+        : 'Could not read this file. It may be corrupt or unsupported.';
     await withTx(ctx, (tx) =>
-      tx.importBatch.update({ where: { id: batchId }, data: { status: 'FAILED', errorMessage: message } }),
+      tx.importBatch.update({
+        where: { id: batchId },
+        data: { status: 'FAILED', errorMessage: message },
+      }),
     );
   }
 }
@@ -439,7 +480,10 @@ export async function getImportBatch(ctx: Ctx, id: string): Promise<ImportBatchV
   return toView(batch);
 }
 
-export async function listImportBatches(ctx: Ctx, input: ListImportBatchesInput): Promise<Page<ImportBatchView>> {
+export async function listImportBatches(
+  ctx: Ctx,
+  input: ListImportBatchesInput,
+): Promise<Page<ImportBatchView>> {
   const { page, pageSize, status, entity, sort, dir } = listImportBatchesSchema.parse(input);
   assertCan(ctx, 'list', 'importBatch');
   const where = {
@@ -460,7 +504,10 @@ export async function listImportBatches(ctx: Ctx, input: ListImportBatchesInput)
   return { items: items.map(toView), total, page, pageSize };
 }
 
-export async function listImportRows(ctx: Ctx, input: ListImportRowsInput): Promise<Page<ImportRowView>> {
+export async function listImportRows(
+  ctx: Ctx,
+  input: ListImportRowsInput,
+): Promise<Page<ImportRowView>> {
   const { batchId, status, page, pageSize } = listImportRowsSchema.parse(input);
   await loadBatch(ctx, batchId, 'read');
   const where = { batchId, ...(status?.length ? { status: { in: status } } : {}) };
@@ -476,7 +523,10 @@ export async function listImportRows(ctx: Ctx, input: ListImportRowsInput): Prom
   return { items: items.map(toRowView), total, page, pageSize };
 }
 
-export async function updateImportMapping(ctx: Ctx, input: UpdateColumnMappingInput): Promise<ImportBatchView> {
+export async function updateImportMapping(
+  ctx: Ctx,
+  input: UpdateColumnMappingInput,
+): Promise<ImportBatchView> {
   const data = updateColumnMappingSchema.parse(input);
   const batch = await loadBatch(ctx, data.batchId, 'update');
   assertEditable(batch);
@@ -499,7 +549,10 @@ export async function getDistinctImportValues(
   );
 }
 
-export async function updateImportValueMapping(ctx: Ctx, input: UpdateValueMappingInput): Promise<ImportBatchView> {
+export async function updateImportValueMapping(
+  ctx: Ctx,
+  input: UpdateValueMappingInput,
+): Promise<ImportBatchView> {
   const data = updateValueMappingSchema.parse(input);
   const batch = await loadBatch(ctx, data.batchId, 'update');
   assertEditable(batch);
@@ -555,7 +608,10 @@ export async function editImportRow(ctx: Ctx, input: EditImportRowInput): Promis
   return toRowView(updated);
 }
 
-export async function setImportRowsExcluded(ctx: Ctx, input: SetImportRowsExcludedInput): Promise<void> {
+export async function setImportRowsExcluded(
+  ctx: Ctx,
+  input: SetImportRowsExcludedInput,
+): Promise<void> {
   const data = setImportRowsExcludedSchema.parse(input);
   const rows = await getDb().importRow.findMany({ where: { id: { in: data.rowIds } } });
   if (rows.length === 0) return;
@@ -577,7 +633,13 @@ export async function setImportRowsExcluded(ctx: Ctx, input: SetImportRowsExclud
         continue;
       }
       if (!mapping || !refs || !actor || !lookup || !existingKeys) continue;
-      const result = validateRow(row.original as Record<string, unknown>, mapping.columns, lookup, refs, actor);
+      const result = validateRow(
+        row.original as Record<string, unknown>,
+        mapping.columns,
+        lookup,
+        refs,
+        actor,
+      );
       const [checked] = applyDuplicateChecks([{ id: row.id, result }], existingKeys);
       await tx.importRow.update({
         where: { id: row.id },
@@ -605,7 +667,10 @@ export async function commitImportBatch(ctx: Ctx, input: { id: string }): Promis
   }
 
   const claim = await withTx(ctx, (tx) =>
-    tx.importBatch.updateMany({ where: { id: batch.id, status: 'READY' }, data: { status: 'COMMITTING' } }),
+    tx.importBatch.updateMany({
+      where: { id: batch.id, status: 'READY' },
+      data: { status: 'COMMITTING' },
+    }),
   );
   if (claim.count === 0) throw new DomainError('This import is not ready to commit.');
 
@@ -638,14 +703,22 @@ export async function runImportCommitJob(batchId: string): Promise<void> {
     await commitBatch(ctx, batchId);
   } catch (error) {
     const message =
-      error instanceof DomainError ? error.message : 'The import could not be completed. Nothing was saved.';
+      error instanceof DomainError
+        ? error.message
+        : 'The import could not be completed. Nothing was saved.';
     await withTx(ctx, (tx) =>
-      tx.importBatch.update({ where: { id: batchId }, data: { status: 'READY', errorMessage: message } }),
+      tx.importBatch.update({
+        where: { id: batchId },
+        data: { status: 'READY', errorMessage: message },
+      }),
     );
   }
 }
 
-export async function undoImportBatch(ctx: Ctx, input: UndoImportBatchInput): Promise<RollbackResult> {
+export async function undoImportBatch(
+  ctx: Ctx,
+  input: UndoImportBatchInput,
+): Promise<RollbackResult> {
   const data = undoImportBatchSchema.parse(input);
   const batch = await loadBatch(ctx, data.id, 'delete');
   if (batch.status !== 'COMMITTED') {
@@ -666,7 +739,10 @@ export async function expireImportDrafts(ctx: Ctx): Promise<{ expired: number }>
   });
   if (stale.length === 0) return { expired: 0 };
   await withTx(ctx, (tx) =>
-    tx.importBatch.updateMany({ where: { id: { in: stale.map((s) => s.id) } }, data: { status: 'EXPIRED' } }),
+    tx.importBatch.updateMany({
+      where: { id: { in: stale.map((s) => s.id) } },
+      data: { status: 'EXPIRED' },
+    }),
   );
   return { expired: stale.length };
 }

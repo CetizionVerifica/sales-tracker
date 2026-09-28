@@ -11,14 +11,14 @@ Let users upload a spreadsheet in **whatever layout they already keep**, then ma
 
 "Any format" means:
 
-| Variation | Examples |
-|---|---|
-| File types | `.xlsx`, `.xlsm` (macros ignored), `.xls`, `.ods`, `.csv`, `.tsv`, `.txt` (delimited) |
-| Sheet structure | Several sheets; title/logo rows above the header; header not in row 1; two-row or merged headers; blank rows; subtotal/total rows; notes below the data |
-| Column naming | Any names in any order: "Client", "Customer Name", "Party", "Company" |
-| Values | Dates as `12/03/2025`, `12-Mar-25`, `March 12 2025` or Excel serials; amounts as `12,50,000`, `₹12.5 L`, `1.2 Cr`, `USD 5,000`, or a separate currency column; statuses in the user's own words ("Won", "Dropped", "Negotiation"); several services in one cell ("ESG, HSE") |
-| Content | One entity per sheet, **or a combined register** where one row covers enquiry → quotation → PO → invoice |
-| CSV quirks | Comma/semicolon/tab delimiters, quoted fields, UTF-8 or Windows-1252 encoding, BOM |
+| Variation       | Examples                                                                                                                                                                                                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File types      | `.xlsx`, `.xlsm` (macros ignored), `.xls`, `.ods`, `.csv`, `.tsv`, `.txt` (delimited)                                                                                                                                                                                        |
+| Sheet structure | Several sheets; title/logo rows above the header; header not in row 1; two-row or merged headers; blank rows; subtotal/total rows; notes below the data                                                                                                                      |
+| Column naming   | Any names in any order: "Client", "Customer Name", "Party", "Company"                                                                                                                                                                                                        |
+| Values          | Dates as `12/03/2025`, `12-Mar-25`, `March 12 2025` or Excel serials; amounts as `12,50,000`, `₹12.5 L`, `1.2 Cr`, `USD 5,000`, or a separate currency column; statuses in the user's own words ("Won", "Dropped", "Negotiation"); several services in one cell ("ESG, HSE") |
+| Content         | One entity per sheet, **or a combined register** where one row covers enquiry → quotation → PO → invoice                                                                                                                                                                     |
+| CSV quirks      | Comma/semicolon/tab delimiters, quoted fields, UTF-8 or Windows-1252 encoding, BOM                                                                                                                                                                                           |
 
 The design principle: **AI suggests the mapping once per sheet; code transforms every row deterministically; the user confirms before anything is saved.** AI never processes rows one by one and never writes to the database.
 
@@ -35,7 +35,7 @@ A six-step wizard at `/imports/new`, with a step indicator at the top (UI-GUIDE:
 **1. Upload**
 
 - Drag-and-drop or browse. Max 20 MB, 50,000 rows per file.
-- Optional choice of what the file contains: *Let the app detect it* (default), Clients, Enquiries, Quotations, Projects, Purchase orders, Invoices, Follow-ups, or Combined pipeline register.
+- Optional choice of what the file contains: _Let the app detect it_ (default), Clients, Enquiries, Quotations, Projects, Purchase orders, Invoices, Follow-ups, or Combined pipeline register.
 - Import options: **Mode** (Add new records only / Add new and update existing); **Historical data** (allow final statuses like Lost or Paid directly; on by default for files with dates older than 30 days); **Create missing clients** (ask / yes / no); **Default owner** (sales users: themselves, fixed).
 - The file goes to Cloudinary (raw, private), then a worker job parses it. The page shows progress: "Reading file…", "Finding tables…", "Suggesting column mapping…".
 
@@ -61,15 +61,15 @@ A six-step wizard at `/imports/new`, with a step indicator at the top (UI-GUIDE:
 
 For each mapped field with a fixed set of values, list the **distinct values found** in the file with counts, and map each one:
 
-| Field | File value → App value |
-|---|---|
+| Field                    | File value → App value                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
 | Enquiry/quotation status | "Won" → PO received · "Dropped" → Lost · "Negotiation" → Under negotiation · "Follow up" → Sent |
-| Sector | "Pharma" → Pharmaceutical · "Steel" → Metal industry · "Agri" → Agriculture |
-| Service | "Eco Vadis" → EcoVadis · "E.S.I.A" → ESIA |
-| Owner / PM | "Rahul" → rahul.sharma@… |
-| Client | "Sun Pharma", "SUN PHARMACEUTICAL" → Sun Pharmaceutical Industries Ltd (existing) |
+| Sector                   | "Pharma" → Pharmaceutical · "Steel" → Metal industry · "Agri" → Agriculture                     |
+| Service                  | "Eco Vadis" → EcoVadis · "E.S.I.A" → ESIA                                                       |
+| Owner / PM               | "Rahul" → rahul.sharma@…                                                                        |
+| Client                   | "Sun Pharma", "SUN PHARMACEUTICAL" → Sun Pharmaceutical Industries Ltd (existing)               |
 
-- Values are pre-matched with this order: saved aliases → exact match → fuzzy match → AI suggestion. Each is marked *auto* or *needs check*.
+- Values are pre-matched with this order: saved aliases → exact match → fuzzy match → AI suggestion. Each is marked _auto_ or _needs check_.
 - Unmatched values offer: **map to existing**, **create new** (masters and clients; admin only for sectors/services), or **leave blank** (only if the field is optional).
 - Client matching uses `pg_trgm` against existing clients **and** groups spelling variants within the file, so "Sun Pharma" and "Sun Pharma Ltd" become one client.
 - "Remember these matches" (default on) saves them as `SectorAlias`, `ServiceAlias`, `ClientAlias` and status aliases for future imports.
@@ -184,7 +184,7 @@ Client (resolve or create)
 Each staged row stores: original cells, transformed values, resolved references, and a status: **ready**, **warning**, **error**, **duplicate** or **excluded**, with messages `{ field, code, message }`.
 
 - **References:** clients (alias → GSTIN → exact name → fuzzy ≥ 0.9 auto, 0.75–0.9 "needs check", lower = unmatched), masters (alias → exact → fuzzy), people (email → name), parents (by number within the file first, then the database).
-- **Natural keys** for duplicates and updates: Client (GSTIN, else normalised name), Enquiry (`externalRef`, else a *possible* duplicate on client + received date + service, shown as a warning), Quotation (number), PO (client + PO number), Invoice (invoice number). Also detect duplicates **within the file**.
+- **Natural keys** for duplicates and updates: Client (GSTIN, else normalised name), Enquiry (`externalRef`, else a _possible_ duplicate on client + received date + service, shown as a warning), Quotation (number), PO (client + PO number), Invoice (invoice number). Also detect duplicates **within the file**.
 - **Rules:** the shared Zod schemas plus the status-machine field rules from `CLAUDE.md`. Historical mode allows final statuses directly but still requires their fields (`PAID` → `paidAt`, `LOST` → `lostReason`; a missing reason defaults to "Imported — reason not recorded" with a warning). Without historical mode, imported records start in their initial status only.
 - **RBAC:** sales users can only import records they will own (owner forced to themselves; other owner values are errors) and can't create sectors or services; project managers can import follow-ups, POs and invoices for assigned projects only; admins can import anything.
 - Validation runs in the worker, in chunks of 1,000 rows, with progress reported to the page.
@@ -220,10 +220,10 @@ Before planning, read the existing code for M11, M12 and M12b (and `docs/modules
 Historical data would otherwise fill My today with hundreds of old items and trigger reminder emails.
 
 - **Import option: "Past follow-up dates"** (shown when historical mode is on and any open quotation or follow-up has a `nextFollowUpDate` before today):
-  - *Keep as is*: they appear as overdue in My today.
-  - *Move to a date*: set all past next-follow-up dates on **open** records to a chosen date (default: 7 days from today), noted in the audit log.
-  - *Clear them*: only for records where it's allowed; open quotations require a date, so they fall back to *Move*.
-  The Review step shows how many items each choice will add to each owner's My today.
+  - _Keep as is_: they appear as overdue in My today.
+  - _Move to a date_: set all past next-follow-up dates on **open** records to a chosen date (default: 7 days from today), noted in the audit log.
+  - _Clear them_: only for records where it's allowed; open quotations require a date, so they fall back to _Move_.
+    The Review step shows how many items each choice will add to each owner's My today.
 - **No reminders for the import itself:** suppress notifications and reminder emails caused by the commit (pass `ctx.source = 'import'`; the reminder jobs skip events with that source). The next scheduled reminder run treats imported items like any other.
 - Unpaid imported invoices past their due date are set to `OVERDUE` at commit, matching the nightly job, so M11 and the receivables ageing in M12 are correct immediately.
 

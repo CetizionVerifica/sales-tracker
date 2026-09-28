@@ -77,7 +77,10 @@ export async function rollbackBatch(
   // still act on it, rather than looking undone while records it created still exist.
   if (blocked.length === 0) {
     await withTx(ctx, (tx) =>
-      tx.importBatch.update({ where: { id: batchId }, data: { status: 'UNDONE', undoneAt: new Date() } }),
+      tx.importBatch.update({
+        where: { id: batchId },
+        data: { status: 'UNDONE', undoneAt: new Date() },
+      }),
     );
   }
 

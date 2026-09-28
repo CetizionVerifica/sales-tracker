@@ -127,7 +127,11 @@ export async function startWorker(options: { sweep?: boolean } = {}) {
   imports.on('failed', (job, error) => {
     console.error(`import job ${job?.name} attempt ${job?.attemptsMade} failed: ${error.message}`);
   });
-  await Promise.all([system.waitUntilReady(), documents.waitUntilReady(), imports.waitUntilReady()]);
+  await Promise.all([
+    system.waitUntilReady(),
+    documents.waitUntilReady(),
+    imports.waitUntilReady(),
+  ]);
 
   let timer: NodeJS.Timeout | undefined;
   if (options.sweep !== false) {

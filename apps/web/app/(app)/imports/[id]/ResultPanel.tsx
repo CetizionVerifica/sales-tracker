@@ -42,8 +42,11 @@ export function ResultPanel({
       <div className="flex flex-col gap-4">
         {status === 'COMMITTED' && (
           <p>
-            {counts?.created ?? created.length} enquir{(counts?.created ?? created.length) === 1 ? 'y' : 'ies'} created.
-            {counts?.skippedDuplicates ? ` ${counts.skippedDuplicates} duplicate row(s) were skipped.` : ''}
+            {counts?.created ?? created.length} enquir
+            {(counts?.created ?? created.length) === 1 ? 'y' : 'ies'} created.
+            {counts?.skippedDuplicates
+              ? ` ${counts.skippedDuplicates} duplicate row(s) were skipped.`
+              : ''}
           </p>
         )}
         {status === 'UNDONE' && <p>This import was undone. Nothing it created remains.</p>}
@@ -53,12 +56,18 @@ export function ResultPanel({
           <ul className="flex flex-col gap-1 text-sm">
             {created.map((row) => (
               <li key={row.id}>
-                <Link className="text-primary hover:underline" href={`/enquiries/${row.resultRecordIds!.enquiryId}`}>
+                <Link
+                  className="text-primary hover:underline"
+                  href={`/enquiries/${row.resultRecordIds!.enquiryId}`}
+                >
                   {(row.transformed?.client as string) || `Row ${row.rowNumber}`}
                 </Link>
                 <span className="text-muted-foreground">
                   {' '}
-                  — received <span suppressHydrationWarning>{(row.transformed?.receivedDate as string) ?? ''}</span>
+                  — received{' '}
+                  <span suppressHydrationWarning>
+                    {(row.transformed?.receivedDate as string) ?? ''}
+                  </span>
                 </span>
               </li>
             ))}

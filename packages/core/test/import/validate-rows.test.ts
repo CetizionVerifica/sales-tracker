@@ -59,11 +59,19 @@ describe('validateRow', () => {
   it('errors when a required field is blank', () => {
     const result = validateRow(row({ Client: '' }), columns, new Map(), refs, sales);
     expect(result.status).toBe('ERROR');
-    expect(result.messages).toEqual([{ field: 'client', code: 'required', message: 'Client is required' }]);
+    expect(result.messages).toEqual([
+      { field: 'client', code: 'required', message: 'Client is required' },
+    ]);
   });
 
   it('errors when a reference value has no match', () => {
-    const result = validateRow(row({ Sector: 'Nonexistent Sector' }), columns, new Map(), refs, sales);
+    const result = validateRow(
+      row({ Sector: 'Nonexistent Sector' }),
+      columns,
+      new Map(),
+      refs,
+      sales,
+    );
     expect(result.status).toBe('ERROR');
     expect(result.messages[0]).toMatchObject({ field: 'sector', code: 'unmatched' });
   });

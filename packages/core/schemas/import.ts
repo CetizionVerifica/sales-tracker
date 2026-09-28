@@ -47,7 +47,13 @@ export type ImportFieldValue = (typeof IMPORT_FIELDS)[number];
 export const importFieldSchema = z.enum(IMPORT_FIELDS);
 
 /** Every non-reference field the importer requires for an Enquiry row to be creatable. */
-export const REQUIRED_IMPORT_FIELDS = ['client', 'sector', 'services', 'receivedDate', 'source'] as const;
+export const REQUIRED_IMPORT_FIELDS = [
+  'client',
+  'sector',
+  'services',
+  'receivedDate',
+  'source',
+] as const;
 
 /**
  * Fields resolved through the Values step against a bounded set of app targets, rather than
@@ -101,10 +107,13 @@ export const columnMappingEntrySchema = z
     message: 'Choose a separator for this multi-value column',
     path: ['separator'],
   })
-  .refine((entry) => !entry.dateFormat || (DATE_FIELDS as readonly string[]).includes(entry.field ?? ''), {
-    message: 'Only date fields take a date format',
-    path: ['dateFormat'],
-  });
+  .refine(
+    (entry) => !entry.dateFormat || (DATE_FIELDS as readonly string[]).includes(entry.field ?? ''),
+    {
+      message: 'Only date fields take a date format',
+      path: ['dateFormat'],
+    },
+  );
 export type ColumnMappingEntry = z.output<typeof columnMappingEntrySchema>;
 
 export const updateColumnMappingSchema = z.strictObject({
@@ -140,7 +149,11 @@ export const valueMappingEntrySchema = z
       });
     }
     if (entry.field === 'source' && entry.action !== 'map') {
-      ctx.addIssue({ code: 'custom', path: ['action'], message: 'Choose which source this maps to' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['action'],
+        message: 'Choose which source this maps to',
+      });
     }
     if (entry.action === 'map') {
       if (entry.field === 'source' && !entry.targetEnumValue) {

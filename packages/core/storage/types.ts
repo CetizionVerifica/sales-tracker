@@ -25,7 +25,10 @@ export interface FileStore {
    * A short-lived link to the file, or null when the store has no URLs of its own (then
    * the web app streams the bytes after its own permission check).
    */
-  signedUrl(file: StoredFile & { mimeType: string; extension?: string }, ttlSeconds: number): string | null;
+  signedUrl(
+    file: StoredFile & { mimeType: string; extension?: string },
+    ttlSeconds: number,
+  ): string | null;
 }
 
 /** File extension Cloudinary uses for a MIME type. */

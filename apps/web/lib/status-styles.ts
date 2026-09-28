@@ -3,13 +3,7 @@
 export type StatusTone =
   'neutral' | 'primary' | 'success' | 'warning' | 'destructive' | 'attention';
 export type StatusEntity =
-  | 'enquiry'
-  | 'quotation'
-  | 'project'
-  | 'po'
-  | 'invoice'
-  | 'importBatch'
-  | 'importRow';
+  'enquiry' | 'quotation' | 'project' | 'po' | 'invoice' | 'importBatch' | 'importRow';
 
 const STYLES: Record<StatusEntity, Record<string, { tone: StatusTone; label: string }>> = {
   enquiry: {

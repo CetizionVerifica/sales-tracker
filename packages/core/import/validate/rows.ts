@@ -67,7 +67,10 @@ function findColumn(columns: readonly ColumnMappingEntry[], field: ImportFieldVa
   return columns.find((c) => c.field === field);
 }
 
-function rawFor(original: Record<string, unknown>, column: ColumnMappingEntry | undefined): unknown {
+function rawFor(
+  original: Record<string, unknown>,
+  column: ColumnMappingEntry | undefined,
+): unknown {
   return column ? original[column.header] : undefined;
 }
 
@@ -95,7 +98,9 @@ export function collectDistinctValues(
       for (const row of rows) {
         const raw = rawFor(row, column);
         const values =
-          field === 'services' ? splitMultiValue(raw, column.separator ?? ',') : [normalizeText(raw)];
+          field === 'services'
+            ? splitMultiValue(raw, column.separator ?? ',')
+            : [normalizeText(raw)];
         for (const value of values) {
           if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
         }
@@ -175,7 +180,8 @@ export function validateRow(
   actor: ImportActor,
 ): RowValidationResult {
   const messages: ImportRowMessage[] = [];
-  const push = (field: string, code: string, message: string) => messages.push({ field, code, message });
+  const push = (field: string, code: string, message: string) =>
+    messages.push({ field, code, message });
   const transformed: Record<string, unknown> = {};
   const resolved: ResolvedEnquiryRow = {};
 
@@ -206,7 +212,10 @@ export function validateRow(
 
   // ─── services ───
   const servicesColumn = findColumn(columns, 'services');
-  const servicesRaw = splitMultiValue(rawFor(original, servicesColumn), servicesColumn?.separator ?? ',');
+  const servicesRaw = splitMultiValue(
+    rawFor(original, servicesColumn),
+    servicesColumn?.separator ?? ',',
+  );
   transformed.services = servicesRaw;
   if (servicesRaw.length === 0) {
     push('services', 'required', 'Choose at least one service');
@@ -288,12 +297,14 @@ export function validateRow(
   // ─── sourceDetail / description (free text, length-checked like the form) ───
   const sourceDetail = normalizeText(rawFor(original, findColumn(columns, 'sourceDetail')));
   transformed.sourceDetail = sourceDetail;
-  if (sourceDetail.length > 200) push('sourceDetail', 'tooLong', 'Keep source detail under 200 characters');
+  if (sourceDetail.length > 200)
+    push('sourceDetail', 'tooLong', 'Keep source detail under 200 characters');
   else resolved.sourceDetail = sourceDetail || null;
 
   const description = normalizeText(rawFor(original, findColumn(columns, 'description')));
   transformed.description = description;
-  if (description.length > 2000) push('description', 'tooLong', 'Keep the description under 2000 characters');
+  if (description.length > 2000)
+    push('description', 'tooLong', 'Keep the description under 2000 characters');
   else resolved.description = description || null;
 
   // ─── cross-field rules (the same ones createEnquirySchema enforces) ───
@@ -322,7 +333,8 @@ export function validateRow(
     } else {
       const match = resolveReference('owner', ownerRaw, lookup, refs);
       if (match.kind === 'id') resolved.ownerId = match.id;
-      else if (match.kind !== 'blank') push('owner', 'unmatched', `No active user matches "${ownerRaw}"`);
+      else if (match.kind !== 'blank')
+        push('owner', 'unmatched', `No active user matches "${ownerRaw}"`);
     }
   }
 
@@ -336,7 +348,9 @@ function isoToUtcDate(iso: string): Date {
 
 /** Client + received date: Enquiry has no `externalRef` in phase 1, so this is the natural key. */
 function naturalKey(resolved: ResolvedEnquiryRow): string | null {
-  const clientKey = resolved.clientId ?? (resolved.newClientName ? `new:${resolved.newClientName.toLowerCase()}` : null);
+  const clientKey =
+    resolved.clientId ??
+    (resolved.newClientName ? `new:${resolved.newClientName.toLowerCase()}` : null);
   if (!clientKey || !resolved.receivedDate) return null;
   return `${clientKey}|${resolved.receivedDate}`;
 }
@@ -373,7 +387,11 @@ export function applyDuplicateChecks(
         status: 'DUPLICATE',
         messages: [
           ...result.messages,
-          { field: 'client', code: 'duplicate', message: 'Same client and received date as another row in this file' },
+          {
+            field: 'client',
+            code: 'duplicate',
+            message: 'Same client and received date as another row in this file',
+          },
         ],
       };
     }
@@ -386,7 +404,11 @@ export function applyDuplicateChecks(
         status: 'WARNING',
         messages: [
           ...result.messages,
-          { field: 'client', code: 'duplicate', message: 'An enquiry for this client on this date already exists' },
+          {
+            field: 'client',
+            code: 'duplicate',
+            message: 'An enquiry for this client on this date already exists',
+          },
         ],
       };
     }

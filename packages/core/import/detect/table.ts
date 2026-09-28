@@ -25,7 +25,10 @@ function isBlankRow(row: readonly unknown[]): boolean {
  * Higher for rows that look like a header: several non-empty cells, mostly unique, mostly
  * text — boosted when the following row looks like data, not another title/blank row.
  */
-function scoreHeaderCandidate(row: readonly unknown[], nextRow: readonly unknown[] | undefined): number {
+function scoreHeaderCandidate(
+  row: readonly unknown[],
+  nextRow: readonly unknown[] | undefined,
+): number {
   const nonEmpty = row.filter((cell) => cellText(cell) !== '');
   if (nonEmpty.length < 2) return 0;
   const texts = nonEmpty.map(cellText);

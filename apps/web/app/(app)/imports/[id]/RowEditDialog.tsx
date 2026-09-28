@@ -65,7 +65,9 @@ export function RowEditDialog({
               <Input
                 id={`row-${rowId}-${column.header}`}
                 value={values[column.header] ?? ''}
-                onChange={(e) => setValues((prev) => ({ ...prev, [column.header]: e.target.value }))}
+                onChange={(e) =>
+                  setValues((prev) => ({ ...prev, [column.header]: e.target.value }))
+                }
               />
             </div>
           ))}

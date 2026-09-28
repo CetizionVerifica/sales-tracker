@@ -1,13 +1,30 @@
 import type { DateFormatValue } from '../../schemas/import.ts';
 
-const MONTH_NAMES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const MONTH_NAMES = [
+  'jan',
+  'feb',
+  'mar',
+  'apr',
+  'may',
+  'jun',
+  'jul',
+  'aug',
+  'sep',
+  'oct',
+  'nov',
+  'dec',
+];
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
 /** `null` when the parts don't form a real calendar date (e.g. 31 February). */
 function isoFromParts(year: number, month: number, day: number): string | null {
   const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
     return null;
   }
   return `${year}-${pad2(month)}-${pad2(day)}`;

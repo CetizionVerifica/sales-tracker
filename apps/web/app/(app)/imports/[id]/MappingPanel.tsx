@@ -1,6 +1,10 @@
 'use client';
 
-import type { ColumnMappingEntry, DateFormatValue, ImportFieldValue } from '@sales-tracker/core/schemas';
+import type {
+  ColumnMappingEntry,
+  DateFormatValue,
+  ImportFieldValue,
+} from '@sales-tracker/core/schemas';
 import { DATE_FORMATS, IMPORT_FIELDS, REQUIRED_IMPORT_FIELDS } from '@sales-tracker/core/schemas';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -144,7 +148,11 @@ export function MappingPanel({
                         setField(index, value === NOT_IMPORTED ? null : (value as ImportFieldValue))
                       }
                     >
-                      <SelectTrigger size="sm" className="w-48" aria-label={`Field for ${entry.header}`}>
+                      <SelectTrigger
+                        size="sm"
+                        className="w-48"
+                        aria-label={`Field for ${entry.header}`}
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -166,7 +174,11 @@ export function MappingPanel({
                           updateColumn(index, { dateFormat: value as DateFormatValue })
                         }
                       >
-                        <SelectTrigger size="sm" className="w-48" aria-label={`Date format for ${entry.header}`}>
+                        <SelectTrigger
+                          size="sm"
+                          className="w-48"
+                          aria-label={`Date format for ${entry.header}`}
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

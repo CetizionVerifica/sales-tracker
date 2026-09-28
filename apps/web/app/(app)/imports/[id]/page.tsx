@@ -10,7 +10,11 @@ import {
   listServiceOptions,
   NotFoundError,
 } from '@sales-tracker/core';
-import type { ColumnMappingEntry, SheetConfig, ValueMappingEntry } from '@sales-tracker/core/schemas';
+import type {
+  ColumnMappingEntry,
+  SheetConfig,
+  ValueMappingEntry,
+} from '@sales-tracker/core/schemas';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Panel } from '@/components/charts/Panel';
@@ -55,7 +59,10 @@ export default async function ImportBatchPage({ params }: { params: Promise<{ id
   ]);
 
   const rows = rowsPage?.items ?? [];
-  const mapping = batch.mapping as { columns: ColumnMappingEntry[]; values: ValueMappingEntry[] } | null;
+  const mapping = batch.mapping as {
+    columns: ColumnMappingEntry[];
+    values: ValueMappingEntry[];
+  } | null;
   const canUndo = ctx.user.role === 'ADMIN' || batch.createdBy.id === ctx.user.id;
   const canCreateClient = can(ctx.user, 'create', 'client');
 

@@ -59,7 +59,11 @@ describe('M10b bulk import (integration)', () => {
 
   /** Uploads + parses a file, returning the ready batch id. */
   async function uploadAndParse(ctx: Ctx, rows: unknown[][]) {
-    const batch = await createImportBatch(ctx, { fileName: 'enquiries.xlsx', fileSize: 1000, entity: 'ENQUIRY' }, xlsxFile(rows));
+    const batch = await createImportBatch(
+      ctx,
+      { fileName: 'enquiries.xlsx', fileSize: 1000, entity: 'ENQUIRY' },
+      xlsxFile(rows),
+    );
     await runImportParseJob(batch.id);
     return getImportBatch(ctx, batch.id);
   }
@@ -92,13 +96,20 @@ describe('M10b bulk import (integration)', () => {
   describe('RBAC', () => {
     it('a project manager cannot create an import batch', async () => {
       const error = await rejection(
-        createImportBatch(pm, { fileName: 'x.xlsx', fileSize: 10, entity: 'ENQUIRY' }, xlsxFile([HEADER])),
+        createImportBatch(
+          pm,
+          { fileName: 'x.xlsx', fileSize: 10, entity: 'ENQUIRY' },
+          xlsxFile([HEADER]),
+        ),
       );
       expect(error).toBeInstanceOf(ForbiddenError);
     });
 
     it('a Sales user cannot read another Sales user’s batch', async () => {
-      const batch = await uploadAndParse(sales, [HEADER, ['Sun Pharma', 'Pharmaceutical', 'ESG', '10/03/2026', 'Email']]);
+      const batch = await uploadAndParse(sales, [
+        HEADER,
+        ['Sun Pharma', 'Pharmaceutical', 'ESG', '10/03/2026', 'Email'],
+      ]);
       const error = await rejection(getImportBatch(sales2, batch.id));
       expect(error).toBeInstanceOf(ForbiddenError);
       // Admin can always read it.
@@ -244,7 +255,10 @@ describe('M10b bulk import (integration)', () => {
       const row = rows.items[0]!;
       expect(row.status).toBe('ERROR');
 
-      const fixed = await editImportRow(sales, { rowId: row.id, original: { Sector: 'Pharmaceutical' } });
+      const fixed = await editImportRow(sales, {
+        rowId: row.id,
+        original: { Sector: 'Pharmaceutical' },
+      });
       expect(fixed.status).toBe('READY');
       expect(fixed.resolved!.sectorId).toBe(pharma);
     });
@@ -336,7 +350,9 @@ describe('M10b bulk import (integration)', () => {
       const result = await undoImportBatch(sales, { id: batch.id });
       expect(result.undone).toBe(1);
 
-      const after = await getDb().enquiry.findFirst({ where: { id: enquiry!.id, deletedAt: undefined } });
+      const after = await getDb().enquiry.findFirst({
+        where: { id: enquiry!.id, deletedAt: undefined },
+      });
       expect(after!.deletedAt).toBeTruthy();
       const view = await getImportBatch(sales, batch.id);
       expect(view.status).toBe('UNDONE');
@@ -367,9 +383,15 @@ describe('M10b bulk import (integration)', () => {
 
   describe('expire-drafts', () => {
     it('moves a stale draft past its expiry to EXPIRED', async () => {
-      const batch = await uploadAndParse(sales, [HEADER, ['Sun Pharma', 'Pharmaceutical', 'ESG', '10/03/2026', 'Email']]);
+      const batch = await uploadAndParse(sales, [
+        HEADER,
+        ['Sun Pharma', 'Pharmaceutical', 'ESG', '10/03/2026', 'Email'],
+      ]);
       await withTx(sales, (tx) =>
-        tx.importBatch.update({ where: { id: batch.id }, data: { expiresAt: new Date(Date.now() - 1000) } }),
+        tx.importBatch.update({
+          where: { id: batch.id },
+          data: { expiresAt: new Date(Date.now() - 1000) },
+        }),
       );
 
       const result = await expireImportDrafts(await ensureSystemCtx());

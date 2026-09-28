@@ -60,7 +60,10 @@ describe('parseWorkbook', () => {
   it('rejects a corrupt file with a clear DomainError', () => {
     // A truncated xlsx: a real one, cut short, so the zip container itself fails to parse
     // (plain garbage bytes are valid single-cell CSV as far as SheetJS is concerned).
-    const wholeFile = bookFromRows([['a', 'b'], [1, 2]]);
+    const wholeFile = bookFromRows([
+      ['a', 'b'],
+      [1, 2],
+    ]);
     const truncated = wholeFile.slice(0, 50);
     expect(() => parseWorkbook(truncated, 'garbage.xlsx')).toThrow(DomainError);
   });

@@ -39,11 +39,11 @@ export function UploadForm() {
           htmlFor="import-file"
           className="border-input hover:bg-accent flex cursor-pointer flex-col items-center gap-2 rounded-[var(--radius)] border border-dashed px-6 py-10 text-center"
         >
-          <span className="font-medium">
-            {file ? file.name : 'Choose a file, or drag it here'}
-          </span>
+          <span className="font-medium">{file ? file.name : 'Choose a file, or drag it here'}</span>
           <span className="text-muted-foreground text-[13px]">
-            {file ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : 'Enquiry register, tracker sheet or similar'}
+            {file
+              ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+              : 'Enquiry register, tracker sheet or similar'}
           </span>
         </label>
         <input

@@ -162,12 +162,18 @@ export function ValuesPanel({
                           value={selectValueFor(field, value)}
                           onValueChange={(selected) => onSelect(field, value, selected)}
                         >
-                          <SelectTrigger size="sm" className="w-56" aria-label={`Match for ${value}`}>
+                          <SelectTrigger
+                            size="sm"
+                            className="w-56"
+                            aria-label={`Match for ${value}`}
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value={AUTO}>Match automatically</SelectItem>
-                            {field === 'owner' && <SelectItem value={BLANK}>Leave blank</SelectItem>}
+                            {field === 'owner' && (
+                              <SelectItem value={BLANK}>Leave blank</SelectItem>
+                            )}
                             {field === 'client' && canCreateClient && (
                               <SelectItem value={CREATE}>Create a new client</SelectItem>
                             )}
