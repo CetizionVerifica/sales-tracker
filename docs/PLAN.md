@@ -96,7 +96,7 @@ Build in this order: each module depends only on those above it. Each gets a spe
 | M11 | My Today                   | Per-user view: follow-ups due or missed, quotations awaiting reply, invoices due or overdue, stale enquiries                              | Shows correct items for seeded data                              |
 | M12 | Dashboards and reports     | Funnel, conversion by sector/service/owner, quoted vs won, receivables ageing, revenue by client, CSV export                              | Numbers match seeded fixtures                                    |
 | M13 | MCP server and bulk import | Token auth, read tools, write tools, CSV/Excel import with dry run                                                                        | Claude can query and import via MCP; writes are audited as `mcp` |
-| M14 | Hardening and deploy       | Rate limits, upload limits, backups, Sentry, production images, seed script                                                               | Production compose runs from a clean machine                     |
+| M14 | Hardening and deploy       | Rate limits, upload limits, backups, Sentry, production images, seed script, daily My Today email digest (M11 Decision 11)                | Production compose runs from a clean machine                     |
 
 Suggested MCP tools for M13: `search_enquiries`, `get_client_timeline`, `create_enquiry`, `log_follow_up`, `update_status`, `bulk_import` (dry run first), `pipeline_summary`, `overdue_invoices`, `revenue_breakdown`. They call the same `core` services as the web app, so RBAC and auditing apply automatically.
 
