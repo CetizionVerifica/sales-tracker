@@ -18,10 +18,12 @@ import {
   softDeleteInvoice,
   updateInvoice,
 } from '../services/invoice.service.ts';
+import { getEnquiry } from '../services/enquiry.service.ts';
 import { updateProject } from '../services/project.service.ts';
 import { softDeletePurchaseOrder } from '../services/purchase-order.service.ts';
 import { updateQuotation } from '../services/quotation.service.ts';
 import { updateSettings } from '../services/settings.service.ts';
+import { invoiceStatusCounts } from '../services/summary.service.ts';
 import {
   daysFromToday,
   invoiceInput,
@@ -533,6 +535,43 @@ describe('invoices (integration)', () => {
       expect(await ids(sales)).not.toContain(invoice.id);
     });
 
+    it('treats a PO another PM or rep cannot read as not found for the draft', async () => {
+      const { purchaseOrder } = await newPurchaseOrder(w);
+      for (const ctx of [sales2, pm2]) {
+        await expect(getInvoiceDraft(ctx, purchaseOrder.id)).rejects.toBeInstanceOf(NotFoundError);
+      }
+    });
+
+    it('treats a deleted invoice another PM or rep cannot read as not found for restore', async () => {
+      const { invoice } = await newInvoice(w);
+      await softDeleteInvoice(sales, invoice.id);
+      for (const ctx of [sales2, pm2]) {
+        await expect(restoreInvoice(ctx, invoice.id)).rejects.toBeInstanceOf(NotFoundError);
+      }
+      expect((await getInvoice(admin, invoice.id)).deletedAt).toBeInstanceOf(Date);
+    });
+
+    it('refuses an inactive user the list and the summary counts', async () => {
+      const inactive: Ctx = { ...sales, user: { ...sales.user, active: false } };
+      await expect(listInvoices(inactive, {})).rejects.toBeInstanceOf(ForbiddenError);
+      await expect(invoiceStatusCounts(inactive)).rejects.toBeInstanceOf(ForbiddenError);
+    });
+
+    it('counts only readable invoices in the enquiry’s pipeline strip (no id leaks)', async () => {
+      const { enquiry, quotation, invoice } = await newInvoice(w);
+      expect((await getEnquiry(sales, enquiry.id)).invoiceStage).toEqual({
+        count: 1,
+        invoiceId: invoice.id,
+      });
+      // The enquiry stays the rep's, but the quotation, and its invoices, move to sales2.
+      await updateQuotation(admin, quotation.id, { ownerId: sales2.user.id });
+      expect((await getEnquiry(sales, enquiry.id)).invoiceStage).toEqual({
+        count: 0,
+        invoiceId: null,
+      });
+      expect((await getEnquiry(admin, enquiry.id)).invoiceStage.count).toBe(1);
+    });
+
     it('scopes the PO, project and client helper lists', async () => {
       const { project, purchaseOrder, invoice } = await newInvoice(w);
       expect((await listInvoicesForPurchaseOrder(pm, purchaseOrder.id)).map((i) => i.id)).toEqual([
@@ -543,6 +582,8 @@ describe('invoices (integration)', () => {
       ]);
       expect((await listInvoicesForClient(admin, w.acme)).map((i) => i.id)).toContain(invoice.id);
       expect(await listInvoicesForPurchaseOrder(pm2, purchaseOrder.id)).toEqual([]);
+      expect(await listInvoicesForProject(pm2, project.id)).toEqual([]);
+      expect(await listInvoicesForProject(sales2, project.id)).toEqual([]);
       expect((await listInvoicesForClient(sales2, w.acme)).map((i) => i.id)).not.toContain(
         invoice.id,
       );

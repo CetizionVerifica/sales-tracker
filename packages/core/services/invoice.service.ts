@@ -29,11 +29,11 @@ import {
   daysOverdue,
   defaultDueDate,
   invoiceStatusForDueDate,
-  UNPAID_INVOICE_STATUSES,
   type InvoiceActor,
   type InvoiceMove,
 } from '../status/invoice.ts';
 import {
+  dueWindowWhere,
   INVOICE_DOCUMENT_WHERE,
   overInvoicedWarning,
   poBilling,
@@ -388,23 +388,8 @@ const SORT_COLUMNS = {
 const between = (from: Date | undefined, to: Date | undefined) =>
   from || to ? { ...(from && { gte: from }), ...(to && { lte: to }) } : undefined;
 
-const DAY_MS = 86_400_000;
-
-/** Unpaid invoices by due window: overdue, or due from today to +7 / +30 days. */
-export function dueWindowWhere(
-  window: 'overdue' | 'next7' | 'next30',
-  today = todayInIST(),
-): Prisma.InvoiceWhereInput {
-  if (window === 'overdue') return { status: 'OVERDUE' };
-  const days = window === 'next7' ? 7 : 30;
-  return {
-    status: { in: [...UNPAID_INVOICE_STATUSES] },
-    dueDate: { gte: today, lte: new Date(today.getTime() + days * DAY_MS) },
-  };
-}
-
-/** The list's where clause (the summary chips reuse it). */
-export function invoiceListWhere(ctx: Ctx, input: ListInvoicesInput): Prisma.InvoiceWhereInput {
+/** The list's where clause. */
+function invoiceListWhere(ctx: Ctx, input: ListInvoicesInput): Prisma.InvoiceWhereInput {
   const p = listInvoicesSchema.parse(input);
   if (p.ownerId && ctx.user.role !== 'ADMIN') {
     throw new DomainError('Only admins can filter by owner', { field: 'ownerId' });
@@ -865,6 +850,8 @@ export async function markOverdueInvoices(
   { today = todayInIST() }: { today?: Date } = {},
 ): Promise<OverdueRun> {
   if (ctx.source !== 'system') throw new ForbiddenError('run', 'overdue check');
+  // The system user is an admin; checked like any other actor (CLAUDE.md rule 2).
+  assertCan(ctx, 'update', 'invoice');
   const db = getDb();
   const run: OverdueRun = { markedOverdue: 0, posRecomputed: 0, failed: 0 };
 

@@ -27,7 +27,7 @@ export function RelativeDue({
       {active && (
         <span
           className={cn(
-            'rounded-[var(--radius-control)] px-1.5 text-[13px] leading-[18px]',
+            'rounded-[var(--radius-control)] px-1.5 text-[13px] leading-[18px] whitespace-nowrap',
             attention ? 'bg-attention-soft text-attention-foreground' : 'text-muted-foreground',
           )}
         >

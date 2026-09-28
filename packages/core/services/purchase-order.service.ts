@@ -385,7 +385,7 @@ export async function getPurchaseOrder(ctx: Ctx, id: string): Promise<PurchaseOr
   const [projectTotals, billing, stage] = await Promise.all([
     poTotals(db, purchaseOrder.project),
     poBilling(db, purchaseOrder),
-    invoiceStage(db, { purchaseOrderId: id }),
+    invoiceStage(db, ctx.user, { purchaseOrderId: id }),
   ]);
   return {
     ...purchaseOrder,

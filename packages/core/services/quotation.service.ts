@@ -270,7 +270,7 @@ export async function getQuotation(
   const [quotation, stage] = await Promise.all([
     loadQuotation(db, id),
     // The pipeline strip's Invoice stage (M10): invoices on the live project's POs.
-    invoiceStage(db, { purchaseOrder: { project: { quotationId: id } } }),
+    invoiceStage(db, ctx.user, { purchaseOrder: { project: { quotationId: id } } }),
   ]);
   return { ...quotation, invoiceStage: stage };
 }

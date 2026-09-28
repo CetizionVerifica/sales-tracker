@@ -370,7 +370,7 @@ export async function getProject(ctx: Ctx, id: string): Promise<ProjectView> {
       orderBy: [{ receivedDate: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     }),
     poTotals(db, project),
-    invoiceStage(db, { purchaseOrder: { projectId: id } }),
+    invoiceStage(db, ctx.user, { purchaseOrder: { projectId: id } }),
   ]);
   const billing = await billingFor(db, purchaseOrders);
   return {

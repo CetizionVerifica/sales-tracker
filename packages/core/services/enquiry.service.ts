@@ -216,7 +216,7 @@ export async function getEnquiry(
   const [enquiry, stage] = await Promise.all([
     loadEnquiry(db, id),
     // The pipeline strip's Invoice stage (M10): invoices under the enquiry's quotations.
-    invoiceStage(db, { purchaseOrder: { project: { quotation: { enquiryId: id } } } }),
+    invoiceStage(db, ctx.user, { purchaseOrder: { project: { quotation: { enquiryId: id } } } }),
   ]);
   return { ...enquiry, invoiceStage: stage };
 }

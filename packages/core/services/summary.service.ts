@@ -17,8 +17,7 @@ import {
 import { todayInIST } from '../schemas/common.ts';
 import { ACTIVE_PROJECT_STATUSES } from '../status/project.ts';
 import { ACTIVE_QUOTATION_STATUSES } from '../status/quotation.ts';
-import { INVOICE_DOCUMENT_WHERE } from './invoice-queries.ts';
-import { dueWindowWhere } from './invoice.service.ts';
+import { dueWindowWhere, INVOICE_DOCUMENT_WHERE } from './invoice-queries.ts';
 import { PO_DOCUMENT_WHERE } from './purchase-order-queries.ts';
 
 /*

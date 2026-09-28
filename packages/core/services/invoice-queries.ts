@@ -1,7 +1,11 @@
 import type { Prisma } from '@sales-tracker/db';
 import type { Db } from '../clients.ts';
+import { scopeInvoices } from '../rbac/scope.ts';
+import type { Actor } from '../rbac/types.ts';
 import type { DocumentState } from '../schemas/document-state.ts';
+import { todayInIST } from '../schemas/common.ts';
 import { formatMoney } from '../schemas/money.ts';
+import { UNPAID_INVOICE_STATUSES } from '../status/invoice.ts';
 
 /*
  * Queries shared by the invoice, PO, project and summary services (M10). Not exported from
@@ -108,8 +112,33 @@ export interface InvoiceStage {
   invoiceId: string | null;
 }
 
-export async function invoiceStage(db: Db, where: Prisma.InvoiceWhereInput): Promise<InvoiceStage> {
+/**
+ * Only invoices `user` may read are counted: a record's readers are not always its invoices'
+ * readers (an enquiry's owner after its quotation is reassigned, or one PM among several on
+ * an enquiry), and a count or id must not reveal records they cannot open (M4 Decision 7).
+ */
+export async function invoiceStage(
+  db: Db,
+  user: Actor,
+  scope: Prisma.InvoiceWhereInput,
+): Promise<InvoiceStage> {
+  const where: Prisma.InvoiceWhereInput = { AND: [scopeInvoices(user), scope] };
   const rows = await db.invoice.findMany({ where, select: { id: true }, take: 2 });
   const count = rows.length < 2 ? rows.length : await db.invoice.count({ where });
   return { count, invoiceId: rows.length === 1 ? rows[0]!.id : null };
+}
+
+const DAY_MS = 86_400_000;
+
+/** Unpaid invoices by due window: overdue, or due from today to +7 / +30 days. */
+export function dueWindowWhere(
+  window: 'overdue' | 'next7' | 'next30',
+  today = todayInIST(),
+): Prisma.InvoiceWhereInput {
+  if (window === 'overdue') return { status: 'OVERDUE' };
+  const days = window === 'next7' ? 7 : 30;
+  return {
+    status: { in: [...UNPAID_INVOICE_STATUSES] },
+    dueDate: { gte: today, lte: new Date(today.getTime() + days * DAY_MS) },
+  };
 }

@@ -188,7 +188,7 @@ export function MarkUnpaidDialog({ id, label }: { id: string; label: string }) {
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="destructive" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting}>
               Mark unpaid
             </Button>
           </DialogFooter>
