@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { MarkBadge, StatusBadge } from '@/components/pipeline/StatusBadge';
 import { restoreInvoiceAction } from './actions';
-import { MarkPaidDialog } from './PaymentDialogs';
+import { MarkPaidDialog } from '@/components/invoices/PaymentDialogs';
 
 export interface InvoiceRow {
   id: string;

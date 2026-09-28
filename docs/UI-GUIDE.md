@@ -273,7 +273,7 @@ Sections (each a Panel with a count):  Overdue (saffron) · Due today (saffron) 
 Each row: [type icon] Client — what to do         due date     [Log follow-up] [Open]
 ```
 
-- Row types: follow-up due, quotation awaiting reply, invoice due, invoice overdue, stale enquiry.
+- Row types: follow-up due, quotation awaiting reply, invoice due, invoice overdue, stale enquiry, project behind schedule, document to review (M11). One row per record; a record with several reasons shows the most urgent, with the others listed under it.
 - Completing an action (e.g. logging a follow-up) removes the row with a short collapse animation and a toast.
 
 ### 4.5 Document review (PO / invoice extraction)
@@ -410,6 +410,8 @@ Added when the guide was first applied (branch `ui-guide`), as the guide's intro
 - **Row and page menus.** A row's `⋯` is `<RowActions>`; a detail page's `⋯` is `<RecordMenu>`, where every item sits behind a confirmation that names the record. Destructive items come last, after a separator.
 - **Tabs live in the URL** (`?tab=timeline`), so a tab survives refresh and can be linked. Filters inside a tab (the client timeline) keep the tab.
 - **Loading and error at route level.** `app/(app)/loading.tsx` shows skeletons; `app/(app)/error.tsx` shows `<ErrorState>` with Retry.
+- **My today is home** (M11). `/` redirects to `/today`, sign-in lands there, and the sidebar's first item carries the overdue + due-today badge. Admins get a **Viewing** select to open another user's list read-only (`?user=`). Kind chips above the panels filter by `?kind=`.
+- **Rows collapse out after an action.** A My today row that no longer qualifies after Log follow-up or Mark paid collapses (150 ms, none with reduced motion); the action's own toast confirms it.
 - **Lists switch to cards with CSS** (`md:hidden` / `hidden md:block`), not JavaScript, so a phone never flashes the wide table.
 
 Deviations, and why:
@@ -418,4 +420,4 @@ Deviations, and why:
 - **Warning badges use foreground text.** `--warning` on `--warning-soft` is about 3.9:1, below the 4.5:1 rule, so the dot carries the colour.
 - **IBM Plex Sans is self-hosted** (`app/fonts`, SIL OFL): `next/font/google` fails under this Next version's Turbopack when more than one weight is requested.
 - **The Timeline component stays in `components/timeline/`**, next to its follow-up sheet and actions, rather than `pipeline/`.
-- **Not built yet, because the features don't exist:** the notification bell (reminders), Export (M12), the INR equivalent under non-INR money (M12 rates), and My today and Dashboard in the sidebar (M11, M12).
+- **Not built yet, because the features don't exist:** the notification bell (reminders), Export (M12), the INR equivalent under non-INR money (M12 rates), and Dashboard in the sidebar (M12).

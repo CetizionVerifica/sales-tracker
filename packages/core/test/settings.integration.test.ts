@@ -43,6 +43,7 @@ describe('AC14: company settings (integration)', () => {
         defaultInvoiceDueDays: 30,
         enabledCurrencies: ['INR'],
         baseCurrency: 'INR',
+        staleEnquiryDays: 30,
       });
     }
   });
@@ -76,9 +77,35 @@ describe('AC14: company settings (integration)', () => {
     ['duplicate codes', { ...valid, enabledCurrencies: ['INR', 'INR'] }],
     ['an empty company name', { ...valid, companyName: '  ' }],
     ['a base-currency change', { ...valid, baseCurrency: 'USD' }],
+    ['zero stale-enquiry days', { ...valid, staleEnquiryDays: 0 }],
+    ['stale-enquiry days over 365', { ...valid, staleEnquiryDays: 366 }],
+    ['fractional stale-enquiry days', { ...valid, staleEnquiryDays: 2.5 }],
   ])('rejects %s', async (_label, input) => {
     await expect(updateSettings(admin, input as typeof valid)).rejects.toThrow();
     expect((await getSettings(admin)).baseCurrency).toBe('INR');
+  });
+
+  it('M11 AC10: updates the stale-enquiry threshold, audited', async () => {
+    const updated = await updateSettings(admin, { ...valid, staleEnquiryDays: 45 });
+    expect(updated.staleEnquiryDays).toBe(45);
+    const rows = await getDb().auditLog.findMany({
+      where: { entityType: 'CompanySettings', action: 'UPDATE' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(rows[0]!.changedFields).toEqual(['staleEnquiryDays']);
+    await expect(updateSettings(sales, { ...valid, staleEnquiryDays: 10 })).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+  });
+
+  it('M11 AC10: the database refuses a stale threshold outside 1–365 (CHECK constraint)', async () => {
+    for (const days of [0, 366]) {
+      await expect(
+        getDb().$executeRawUnsafe(
+          `UPDATE company_settings SET "staleEnquiryDays" = ${days} WHERE id = 1`,
+        ),
+      ).rejects.toThrow(/company_settings_stale_enquiry_days_check/);
+    }
   });
 
   it('cannot hold a second row, even through raw SQL (CHECK constraint)', async () => {

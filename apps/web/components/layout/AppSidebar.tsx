@@ -6,7 +6,7 @@ import {
   ClipboardList,
   FileCheck,
   FileText,
-  House,
+  ListChecks,
   Inbox,
   Layers,
   Receipt,
@@ -26,6 +26,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
@@ -34,7 +35,7 @@ import { cn } from '@/lib/utils';
 import type { NavGroup, NavIcon } from './nav';
 
 const ICONS: Record<NavIcon, LucideIcon> = {
-  home: House,
+  today: ListChecks,
   enquiries: Inbox,
   quotations: FileText,
   projects: Briefcase,
@@ -70,7 +71,7 @@ export function AppSidebar({ groups }: { groups: NavGroup[] }) {
     <Sidebar collapsible="icon">
       <SidebarHeader className="h-14 justify-center border-b">
         <Link
-          href="/"
+          href="/today"
           className="flex items-center gap-2 px-2 font-semibold"
           onClick={() => setOpenMobile(false)}
         >
@@ -117,6 +118,14 @@ export function AppSidebar({ groups }: { groups: NavGroup[] }) {
                             <span>{item.label}</span>
                           </Link>
                         </SidebarMenuButton>
+                        {item.badge ? (
+                          <SidebarMenuBadge
+                            className="bg-attention-soft text-attention-foreground num rounded-[var(--radius-control)]"
+                            aria-label={`${item.badge} due`}
+                          >
+                            {item.badge}
+                          </SidebarMenuBadge>
+                        ) : null}
                       </SidebarMenuItem>
                     );
                   })}

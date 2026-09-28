@@ -4,16 +4,19 @@ import { AppShell } from '@/components/layout/AppShell';
 import type { PaletteAction } from '@/components/layout/CommandPalette';
 import type { NavGroup, NewMenuItem } from '@/components/layout/nav';
 import { requireUser } from '@/lib/auth';
+import { loadMyToday } from '@/lib/my-today';
 import { ROLE_LABELS } from '@/lib/roles';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const ctx = await requireUser();
-  const me = await getCurrentUser(ctx);
+  // The badge shares one My Today computation with /today (lib/my-today.ts).
+  const [me, mine] = await Promise.all([getCurrentUser(ctx), loadMyToday()]);
+  const due = mine.counts.badge;
   const user = ctx.user;
   const isAdmin = can(user, 'list', 'user');
 
-  // Only modules that exist, and only what the role can use (UI guide §3). My today,
-  // Dashboard and MCP access join as M11–M13 ship.
+  // Only modules that exist, and only what the role can use (UI guide §3). Dashboard and
+  // MCP access join as M12–M13 ship.
   const invoices = can(user, 'list', 'invoice')
     ? [{ href: '/invoices', label: 'Invoices', icon: 'invoices', stage: 'invoice' } as const]
     : [];
@@ -31,7 +34,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       ]
     : [];
   const groups: NavGroup[] = [
-    { items: [{ href: '/', label: 'Home', icon: 'home', exact: true }] },
+    // M11: My today is every role's first stop, with its overdue + due-today count.
+    { items: [{ href: '/today', label: 'My today', icon: 'today', badge: due }] },
     {
       label: 'Pipeline',
       items: [

@@ -228,6 +228,9 @@ model CompanySettings {
   baseCurrency              String   @default("INR")
   /// Admins can stop files being sent to the Claude API (M7 Decision 6).
   documentExtractionEnabled Boolean  @default(true)
+  /// An IN_PROGRESS enquiry untouched this long is stale in My Today (M11 Decision 5).
+  /// CHECK 1–365 in migration m11_my_today.
+  staleEnquiryDays          Int      @default(30)
   updatedAt                 DateTime @updatedAt
 
   @@map("company_settings")
