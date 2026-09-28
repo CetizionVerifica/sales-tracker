@@ -9,6 +9,7 @@ export * from './enquiry.ts';
 export * from './exchange-rate.ts';
 export * from './extraction.ts';
 export * from './follow-up.ts';
+export * from './import.ts';
 export * from './invoice.ts';
 export * from './list-params.ts';
 export * from './master.ts';

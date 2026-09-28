@@ -156,6 +156,7 @@ describe('AC8: seed (integration)', () => {
       `DELETE FROM "follow_up" WHERE "entityType" IN ('QUOTATION', 'PROJECT', 'PURCHASE_ORDER', 'INVOICE')`,
     );
     await db.$executeRawUnsafe('DELETE FROM "invoice"');
+    await db.$executeRawUnsafe('DELETE FROM "purchase_order_line"');
     await db.$executeRawUnsafe('DELETE FROM "purchase_order_service"');
     await db.$executeRawUnsafe('DELETE FROM "purchase_order"');
     await db.$executeRawUnsafe('DELETE FROM "project_service"');
@@ -254,6 +255,7 @@ describe('AC8: seed (integration)', () => {
       `DELETE FROM "follow_up" WHERE "entityType" IN ('PURCHASE_ORDER', 'INVOICE')`,
     );
     await db.$executeRawUnsafe('DELETE FROM "invoice"');
+    await db.$executeRawUnsafe('DELETE FROM "purchase_order_line"');
     await db.$executeRawUnsafe('DELETE FROM "purchase_order_service"');
     await db.$executeRawUnsafe('DELETE FROM "purchase_order"');
     await seed({ ...options, devUsers: true });

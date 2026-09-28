@@ -8,6 +8,8 @@ import { calendarDateSchema } from './common.ts';
  */
 
 export const REPORT_PRESETS = [
+  'thisWeek',
+  'lastWeek',
   'thisMonth',
   'lastMonth',
   'thisQuarter',
@@ -20,6 +22,8 @@ export const REPORT_PRESETS = [
 export type ReportPreset = (typeof REPORT_PRESETS)[number];
 
 export const REPORT_PRESET_LABELS: Record<ReportPreset, string> = {
+  thisWeek: 'This week',
+  lastWeek: 'Last week',
   thisMonth: 'This month',
   lastMonth: 'Last month',
   thisQuarter: 'This quarter',
@@ -62,7 +66,7 @@ export const reportPeriodSchema = z.object(reportPeriodShape).superRefine(refine
 
 export type ReportPeriodInput = z.input<typeof reportPeriodSchema>;
 
-type Unit = 'month' | 'quarter' | 'year' | 'custom';
+type Unit = 'week' | 'month' | 'quarter' | 'year' | 'custom';
 
 export interface ReportPeriod {
   preset: ReportPreset;
@@ -125,7 +129,7 @@ function rangeLabel(from: Date, to: Date): string {
 
 function unitPeriod(
   preset: ReportPreset,
-  unit: Exclude<Unit, 'custom'>,
+  unit: Exclude<Unit, 'custom' | 'week'>,
   start: Date,
 ): ReportPeriod {
   const months = unit === 'month' ? 1 : unit === 'quarter' ? 3 : 12;
@@ -141,6 +145,18 @@ function unitPeriod(
 /** The UTC instant an IST calendar day starts (for timestamps such as `statusChangedAt`). */
 export const istStartOf = (day: Date) => new Date(day.getTime() - 5.5 * 60 * 60 * 1000);
 
+/** The Monday of the ISO week `day` (an IST calendar day) falls in (M12b). */
+const weekStart = (day: Date) => {
+  const dow = day.getUTCDay(); // 0 Sun .. 6 Sat
+  const sinceMonday = (dow + 6) % 7;
+  return new Date(day.getTime() - sinceMonday * DAY_MS);
+};
+
+function weekPeriod(preset: ReportPreset, start: Date): ReportPeriod {
+  const to = new Date(start.getTime() + 6 * DAY_MS);
+  return { preset, from: start, to, label: rangeLabel(start, to), unit: 'week' };
+}
+
 /** A parsed period input → concrete dates, relative to `today` (an IST day). */
 export function resolvePeriod(
   input: { preset: ReportPreset; from?: Date | undefined; to?: Date | undefined },
@@ -148,6 +164,10 @@ export function resolvePeriod(
 ): ReportPeriod {
   const thisMonth = utc(today.getUTCFullYear(), today.getUTCMonth());
   switch (input.preset) {
+    case 'thisWeek':
+      return weekPeriod('thisWeek', weekStart(today));
+    case 'lastWeek':
+      return weekPeriod('lastWeek', new Date(weekStart(today).getTime() - 7 * DAY_MS));
     case 'thisMonth':
       return unitPeriod('thisMonth', 'month', thisMonth);
     case 'lastMonth':
@@ -180,6 +200,9 @@ export function previousPeriod(period: ReportPeriod): ReportPeriod {
     const from = new Date(to.getTime() - (days - 1) * DAY_MS);
     return { preset: 'custom', from, to, label: rangeLabel(from, to), unit: 'custom' };
   }
+  if (period.unit === 'week') {
+    return weekPeriod(period.preset, new Date(period.from.getTime() - 7 * DAY_MS));
+  }
   const months = period.unit === 'month' ? 1 : period.unit === 'quarter' ? 3 : 12;
   return unitPeriod(period.preset, period.unit, addMonths(period.from, -months));
 }
@@ -204,3 +227,28 @@ export function chartMonths(period: { from: Date; to: Date }): Date[] {
   const last = months.at(-1)!;
   return Array.from({ length: 6 }, (_, i) => addMonths(last, i - 5));
 }
+
+// ─── M12b: sales report filters ─────────────────────────────────────────────────────
+
+export const REPORT_GRANULARITIES = ['day', 'week', 'month'] as const;
+export type ReportGranularity = (typeof REPORT_GRANULARITIES)[number];
+
+/**
+ * The M12b Reports page filter: the shared period, an optional granularity override for R1
+ * (default is computed from the period's length, see `reports/filters.ts`), and the three
+ * dimension filters. `ownerId` narrows to one Sales user (admins only, checked in
+ * `reports/scope.ts`); `sectorId`/`serviceId` narrow every report that has that dimension.
+ */
+export const reportFilterSchema = z
+  .object({
+    ...reportPeriodShape,
+    granularity: z.enum(REPORT_GRANULARITIES).optional(),
+    ownerId: z.string().trim().min(1).optional(),
+    sectorId: z.string().trim().min(1).optional(),
+    serviceId: z.string().trim().min(1).optional(),
+  })
+  .strict()
+  .superRefine(refinePeriod);
+
+export type ReportFilterInput = z.input<typeof reportFilterSchema>;
+export type ReportFilter = z.output<typeof reportFilterSchema>;

@@ -17,21 +17,27 @@ export function createCloudinaryFileStore(): FileStore {
     secure: true,
   });
 
-  const downloadUrl = (storageKey: string, resourceType: string, mimeType: string, ttl: number) =>
-    cloudinary.utils.private_download_url(storageKey, formatOf(mimeType), {
+  const downloadUrl = (
+    storageKey: string,
+    resourceType: string,
+    mimeType: string,
+    extension: string | undefined,
+    ttl: number,
+  ) =>
+    cloudinary.utils.private_download_url(storageKey, extension ?? formatOf(mimeType), {
       resource_type: resourceType as 'image' | 'raw',
       type: 'authenticated',
       expires_at: Math.floor(Date.now() / 1000) + ttl,
     });
 
   return {
-    put({ bytes, folder }) {
+    put({ bytes, folder, resourceType = 'image' }) {
       return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           {
             folder,
             public_id: crypto.randomUUID(),
-            resource_type: 'image',
+            resource_type: resourceType,
             type: 'authenticated',
             overwrite: false,
           },
@@ -43,8 +49,8 @@ export function createCloudinaryFileStore(): FileStore {
         stream.end(Buffer.from(bytes));
       });
     },
-    async get({ storageKey, resourceType, mimeType }) {
-      const response = await fetch(downloadUrl(storageKey, resourceType, mimeType, 60));
+    async get({ storageKey, resourceType, mimeType, extension }) {
+      const response = await fetch(downloadUrl(storageKey, resourceType, mimeType, extension, 60));
       if (!response.ok) throw new Error(`Cloudinary download failed (${response.status})`);
       return new Uint8Array(await response.arrayBuffer());
     },
@@ -55,8 +61,8 @@ export function createCloudinaryFileStore(): FileStore {
         invalidate: true,
       });
     },
-    signedUrl({ storageKey, resourceType, mimeType }, ttlSeconds) {
-      return downloadUrl(storageKey, resourceType, mimeType, ttlSeconds);
+    signedUrl({ storageKey, resourceType, mimeType, extension }, ttlSeconds) {
+      return downloadUrl(storageKey, resourceType, mimeType, extension, ttlSeconds);
     },
   };
 }

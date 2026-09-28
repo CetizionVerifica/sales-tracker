@@ -34,6 +34,7 @@ import {
 import { lockProject } from './project-lock.ts';
 import { fxFields, fxOnChange } from './fx.ts';
 import { lockPurchaseOrder } from './purchase-order-lock.ts';
+import { resolveLines, writeLines } from './purchase-order-lines.ts';
 import { PO_DOCUMENT_WHERE, poTotals, type PoTotals } from './purchase-order-queries.ts';
 import {
   CONCURRENT_PURCHASE_ORDER_CHANGE,
@@ -80,6 +81,11 @@ const purchaseOrderInclude = {
   },
   services: {
     select: { service: { select: { id: true, name: true } } },
+    orderBy: { service: { name: 'asc' } },
+  },
+  // One row per service, always summing to the PO's amount (M12b schema change 1).
+  lines: {
+    select: { serviceId: true, amountMinor: true, allocationEstimated: true },
     orderBy: { service: { name: 'asc' } },
   },
   // The current document (M7 Decision 2); a replaced or deleted one is no longer linked.
@@ -497,8 +503,19 @@ export async function createPurchaseOrder(
   ctx: Ctx,
   input: CreatePurchaseOrderInput,
 ): Promise<{ purchaseOrder: PurchaseOrderDetail; coverage: PoCoverage }> {
-  const { projectId, serviceIds, ...fields } = createPurchaseOrderSchema.parse(input);
+  const {
+    projectId,
+    serviceIds,
+    lines: lineInput,
+    ...fields
+  } = createPurchaseOrderSchema.parse(input);
   assertCan(ctx, 'create', 'purchaseOrder');
+  const lines = resolveLines({
+    serviceIds,
+    amountMinor: fields.amountMinor,
+    currency: fields.currency,
+    lines: lineInput,
+  });
   return guardUnique('poNumber', numberTaken(fields.poNumber), () =>
     withTx(ctx, async (tx) => {
       await lockProject(tx, projectId);
@@ -514,11 +531,12 @@ export async function createPurchaseOrder(
       );
       if (fields.currency !== project.currency) await assertCurrencyEnabled(tx, fields.currency);
 
+      const fx = await fxFields(tx, fields.amountMinor, fields.currency, fields.receivedDate);
       const { id } = await tx.purchaseOrder.create({
         data: {
           ...fields,
           // M12: the INR equivalent at the received month's rate, in the same audited write.
-          ...(await fxFields(tx, fields.amountMinor, fields.currency, fields.receivedDate)),
+          ...fx,
           projectId,
           clientId: project.clientId,
           statusChangedAt: new Date(),
@@ -529,6 +547,8 @@ export async function createPurchaseOrder(
       for (const serviceId of serviceIds) {
         await tx.purchaseOrderService.create({ data: { purchaseOrderId: id, serviceId } });
       }
+      // M12b: one line per service, always summing to the PO amount (schema change 1).
+      await writeLines(tx, id, fields.currency, lines, fx);
       return {
         purchaseOrder: await loadPurchaseOrder(tx, id),
         coverage: coverageOf(await poTotals(tx, project), project.number),
@@ -547,7 +567,14 @@ export async function updatePurchaseOrder(
   id: string,
   input: UpdatePurchaseOrderInput,
 ): Promise<PurchaseOrderDetail & { warning: string | null }> {
-  const { serviceIds, ...fields } = updatePurchaseOrderSchema.parse(input);
+  const { serviceIds, lines: lineInput, ...fields } = updatePurchaseOrderSchema.parse(input);
+  // Whether the split could now be wrong and needs re-checking (M12b: amount, currency and
+  // services all change what a line means); an unrelated edit leaves the lines alone.
+  const linesInvolved =
+    fields.amountMinor !== undefined ||
+    fields.currency !== undefined ||
+    serviceIds !== undefined ||
+    lineInput !== undefined;
   return guardUnique('poNumber', numberTaken(fields.poNumber), () =>
     withTx(ctx, async (tx) => {
       await findAccessible(tx, ctx, id, 'update');
@@ -603,6 +630,19 @@ export async function updatePurchaseOrder(
         await recomputePurchaseOrderStatus(tx, id);
       }
       const purchaseOrder = await loadPurchaseOrder(tx, id);
+      if (linesInvolved) {
+        const finalServiceIds = purchaseOrder.services.map((s) => s.id);
+        const resolved = resolveLines({
+          serviceIds: finalServiceIds,
+          amountMinor: purchaseOrder.amountMinor,
+          currency: purchaseOrder.currency,
+          lines: lineInput,
+        });
+        await writeLines(tx, id, purchaseOrder.currency, resolved, {
+          amountInrMinor: purchaseOrder.amountInrMinor,
+          fxRate: purchaseOrder.fxRate,
+        });
+      }
       // Below the invoiced total is allowed, with a warning (M10 Decision 9).
       const warning =
         fields.amountMinor !== undefined && invoices > 0

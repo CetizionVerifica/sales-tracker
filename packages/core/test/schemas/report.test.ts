@@ -45,6 +45,19 @@ describe('resolvePeriod', () => {
     expect(resolve('thisMonth', '2026-09-28').label).toBe('September 2026');
   });
 
+  it.each([
+    // [today, thisWeek] — ISO weeks start Monday (M12b).
+    ['2026-09-28', ['2026-09-28', '2026-10-04']], // today is the Monday
+    ['2026-09-30', ['2026-09-28', '2026-10-04']], // mid-week
+    ['2026-10-04', ['2026-09-28', '2026-10-04']], // the Sunday
+  ])('this week on %s starts Monday', (today, expected) => {
+    expect(span(resolve('thisWeek', today))).toEqual(expected);
+  });
+
+  it('last week is the seven days before this week', () => {
+    expect(span(resolve('lastWeek', '2026-09-30'))).toEqual(['2026-09-21', '2026-09-27']);
+  });
+
   it('a custom range keeps its dates', () => {
     const period = resolve('custom', '2026-09-28', { from: '2026-08-17', to: '2026-09-30' });
     expect(span(period)).toEqual(['2026-08-17', '2026-09-30']);
@@ -86,6 +99,13 @@ describe('previousPeriod', () => {
   it('a custom range compares with the same number of days before it', () => {
     const custom = resolve('custom', '2026-09-28', { from: '2026-08-17', to: '2026-09-30' });
     expect(span(previousPeriod(custom))).toEqual(['2026-07-03', '2026-08-16']);
+  });
+
+  it('a week compares with the previous week', () => {
+    expect(span(previousPeriod(resolve('thisWeek', '2026-09-30')))).toEqual([
+      '2026-09-21',
+      '2026-09-27',
+    ]);
   });
 });
 

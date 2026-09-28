@@ -147,6 +147,35 @@ export function toInrMinor(amountMinor: bigint, currency: string, rateMicros: bi
   return divideRounded(amountMinor * rateMicros * 100n, scale * RATE_SCALE);
 }
 
+// ─── M12b: splitting a total across parts (purchase order lines) ───────────────────
+
+/**
+ * `total` split across `weights` in proportion, each part an integer minor unit summing back
+ * to exactly `total` (largest-remainder method: floor every share, then give the leftover
+ * units, one each, to the parts with the largest dropped fraction, ties broken by index for a
+ * deterministic result). An equal split is `allocateProportional(total, weights.map(() => 1n))`.
+ * All-zero weights fall back to an equal split, since there is nothing else to divide by.
+ */
+export function allocateProportional(total: bigint, weights: readonly bigint[]): bigint[] {
+  if (weights.length === 0) return [];
+  const sumWeights = weights.reduce((a, b) => a + b, 0n);
+  if (sumWeights === 0n) {
+    return allocateProportional(
+      total,
+      weights.map(() => 1n),
+    );
+  }
+  const negative = total < 0n;
+  const abs = negative ? -total : total;
+  const shares = weights.map((w) => (abs * w) / sumWeights);
+  const remainder = abs - shares.reduce((a, b) => a + b, 0n);
+  const order = weights
+    .map((w, i) => ({ i, frac: (abs * w) % sumWeights }))
+    .sort((a, b) => (b.frac > a.frac ? 1 : b.frac < a.frac ? -1 : a.i - b.i));
+  for (let k = 0; BigInt(k) < remainder; k++) shares[order[k]!.i]! += 1n;
+  return negative ? shares.map((v) => -v) : shares;
+}
+
 const SHORT_UNITS = [
   { paise: 1_000_000_000n, suffix: 'Cr' }, // ₹1,00,00,000
   { paise: 10_000_000n, suffix: 'L' }, // ₹1,00,000

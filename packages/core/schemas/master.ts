@@ -28,13 +28,32 @@ export type CreateMasterInput = z.input<typeof createMasterSchema>;
 export type UpdateMasterInput = z.input<typeof updateMasterSchema>;
 export type ListMastersInput = z.input<typeof listMastersSchema>;
 
-// Server-action transport shapes (sectors and services share one set of actions).
+/**
+ * Sectors add `isOther` (M12b): grouped into "Other sectors" on the sales reports regardless
+ * of rank. Services share every other master field but not this one, so sectors get their
+ * own create/update schema instead of widening the shared one.
+ */
+export const createSectorSchema = createMasterSchema.extend({
+  isOther: z.boolean().default(false),
+});
+
+export const updateSectorSchema = z
+  .object({ name: masterNameSchema, active: z.boolean(), isOther: z.boolean() })
+  .partial()
+  .refine((input) => Object.keys(input).length > 0, 'Nothing to update');
+
+export type CreateSectorInput = z.input<typeof createSectorSchema>;
+export type UpdateSectorInput = z.input<typeof updateSectorSchema>;
+
+// Server-action transport shapes (sectors and services share one set of actions). `data` uses
+// the sector schema, a strict superset of the service one (`isOther` optional): each entity's
+// own service re-parses with its own schema, so a service update simply drops the extra field.
 export const masterKindSchema = z.enum(['sector', 'service']);
 export const masterCreateActionSchema = z.object({
   kind: masterKindSchema,
-  data: createMasterSchema,
+  data: createSectorSchema,
 });
-export const masterUpdateActionSchema = withId(updateMasterSchema).extend({
+export const masterUpdateActionSchema = withId(updateSectorSchema).extend({
   kind: masterKindSchema,
 });
 export const masterIdActionSchema = idOnlySchema.extend({ kind: masterKindSchema });

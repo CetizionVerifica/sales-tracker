@@ -7,6 +7,7 @@ import { ensureSystemCtx } from '../../../packages/core/test/helpers.ts';
 import { invoiceWorld, newInvoice } from '../../../packages/core/test/invoice-fixtures.ts';
 import type { PoWorld } from '../../../packages/core/test/purchase-order-fixtures.ts';
 import {
+  IMPORT_EXPIRE_JOB,
   OVERDUE_JOB,
   OVERDUE_SCHEDULE,
   processSystemJob,
@@ -68,12 +69,14 @@ describe('overdue job (integration: real Redis)', () => {
     const second = await startWorker({ sweep: false });
     await second.close();
 
+    // Two schedulers on this queue since M10b added its own nightly check (import expiry).
     const schedulers = await queue.getJobSchedulers();
-    expect(schedulers).toHaveLength(1);
-    expect(schedulers[0]).toMatchObject({
+    expect(schedulers).toHaveLength(2);
+    expect(schedulers.find((s) => s.key === OVERDUE_JOB)).toMatchObject({
       key: OVERDUE_JOB,
       pattern: OVERDUE_SCHEDULE,
       tz: 'Asia/Kolkata',
     });
+    expect(schedulers.find((s) => s.key === IMPORT_EXPIRE_JOB)).toBeTruthy();
   });
 });

@@ -2,7 +2,8 @@
 
 export type StatusTone =
   'neutral' | 'primary' | 'success' | 'warning' | 'destructive' | 'attention';
-export type StatusEntity = 'enquiry' | 'quotation' | 'project' | 'po' | 'invoice';
+export type StatusEntity =
+  'enquiry' | 'quotation' | 'project' | 'po' | 'invoice' | 'importBatch' | 'importRow';
 
 const STYLES: Record<StatusEntity, Record<string, { tone: StatusTone; label: string }>> = {
   enquiry: {
@@ -33,6 +34,27 @@ const STYLES: Record<StatusEntity, Record<string, { tone: StatusTone; label: str
     PENDING: { tone: 'neutral', label: 'Pending' },
     PAID: { tone: 'success', label: 'Paid' },
     OVERDUE: { tone: 'attention', label: 'Overdue' },
+  },
+  // M10b: a bulk import batch, working through the wizard.
+  importBatch: {
+    UPLOADED: { tone: 'neutral', label: 'Uploaded' },
+    PARSING: { tone: 'neutral', label: 'Reading file' },
+    MAPPING: { tone: 'neutral', label: 'Mapping columns' },
+    VALIDATING: { tone: 'neutral', label: 'Validating' },
+    READY: { tone: 'primary', label: 'Ready to review' },
+    COMMITTING: { tone: 'neutral', label: 'Importing' },
+    COMMITTED: { tone: 'success', label: 'Imported' },
+    FAILED: { tone: 'destructive', label: 'Failed' },
+    UNDONE: { tone: 'neutral', label: 'Undone' },
+    EXPIRED: { tone: 'neutral', label: 'Expired' },
+  },
+  // M10b: one staged spreadsheet row.
+  importRow: {
+    READY: { tone: 'success', label: 'Ready' },
+    WARNING: { tone: 'warning', label: 'Warning' },
+    ERROR: { tone: 'destructive', label: 'Error' },
+    DUPLICATE: { tone: 'warning', label: 'Duplicate' },
+    EXCLUDED: { tone: 'neutral', label: 'Excluded' },
   },
 };
 

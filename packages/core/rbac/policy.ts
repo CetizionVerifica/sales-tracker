@@ -38,6 +38,13 @@ const DASHBOARD_SCOPE: Record<Role, InstanceOf<'dashboard'>['scope'] | null> = {
   PROJECT_MANAGER: 'project',
 };
 
+/** M12b: PMs have no scope, so `i.scope` (always 'company' or 'personal') never matches null. */
+const REPORT_SCOPE: Record<Role, InstanceOf<'report'>['scope'] | null> = {
+  ADMIN: null, // admins may view every scope
+  SALES: 'personal',
+  PROJECT_MANAGER: null,
+};
+
 export const policy: { [T in ResourceType]: Rule<T> } = {
   user: (user, action, i) => action === 'read' && i?.id === user.id,
 
@@ -108,4 +115,13 @@ export const policy: { [T in ResourceType]: Rule<T> } = {
 
   // M12: everyone reads rates (forms show the INR equivalent); only admins manage them.
   exchangeRate: (_user, action) => action === 'read' || action === 'list',
+
+  // M12b: read only, at the viewer's own scope (Sales forced to 'personal'; PMs denied).
+  report: (user, action, i) =>
+    action === 'read' && i !== undefined && i.scope === REPORT_SCOPE[user.role],
+
+  // M10b: own batches only, like an enquiry (Decision: phase 1 imports enquiries, a Sales
+  // record); PMs have no batches of their own to own.
+  importBatch: (user, action, i) =>
+    user.role === 'SALES' ? owned(action, i, CRUD, (row) => row.createdById === user.id) : false,
 };

@@ -40,6 +40,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         { href: '/today', label: 'My today', icon: 'today', badge: due },
         // M12: every role has a dashboard, at its own scope.
         { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+        // M12b: period reporting, company-wide for admins or a Sales user's own; PMs have no
+        // access (same reach as the `report` RBAC resource).
+        ...(user.role === 'PROJECT_MANAGER'
+          ? []
+          : [{ href: '/reports', label: 'Reports', icon: 'reports' } as const]),
+        // M10b: bulk import, same reach as the `importBatch` RBAC resource (PMs denied).
+        ...(can(user, 'list', 'importBatch')
+          ? [{ href: '/imports', label: 'Imports', icon: 'imports' } as const]
+          : []),
       ],
     },
     {

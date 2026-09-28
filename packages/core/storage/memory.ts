@@ -5,10 +5,10 @@ export function createMemoryFileStore(): FileStore & { files: Map<string, Uint8A
   const files = new Map<string, Uint8Array>();
   return {
     files,
-    async put({ bytes, folder }) {
+    async put({ bytes, folder, resourceType = 'image' }) {
       const storageKey = `${folder}/${crypto.randomUUID()}`;
       files.set(storageKey, new Uint8Array(bytes));
-      return { storageKey, resourceType: 'image' };
+      return { storageKey, resourceType };
     },
     async get({ storageKey }) {
       const bytes = files.get(storageKey);

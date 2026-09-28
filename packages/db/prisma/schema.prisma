@@ -18,21 +18,21 @@ enum Role {
 
 /// Users are deactivated (`active = false`), never deleted.
 model User {
-  id                String      @id
+  id                String        @id
   name              String
-  email             String      @unique
-  emailVerified     Boolean     @default(false)
+  email             String        @unique
+  emailVerified     Boolean       @default(false)
   image             String?
-  role              Role        @default(SALES)
-  active            Boolean     @default(true)
+  role              Role          @default(SALES)
+  active            Boolean       @default(true)
   /// The non-login actor for jobs and imports (see M1 spec, Decision 5).
-  isSystem          Boolean     @default(false)
+  isSystem          Boolean       @default(false)
   /// Required by the Better Auth admin plugin; unused — deactivation uses `active`.
-  banned            Boolean?    @default(false)
+  banned            Boolean?      @default(false)
   banReason         String?
   banExpires        DateTime?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
   sessions          Session[]
   accounts          Account[]
   auditLogs         AuditLog[]
@@ -40,8 +40,9 @@ model User {
   followUps         FollowUp[]
   quotations        Quotation[]
   managedProjects   Project[]
-  uploadedDocuments Document[]  @relation("DocumentUploader")
-  reviewedDocuments Document[]  @relation("DocumentReviewer")
+  uploadedDocuments Document[]    @relation("DocumentUploader")
+  reviewedDocuments Document[]    @relation("DocumentReviewer")
+  importBatches     ImportBatch[]
 
   @@map("user")
 }
@@ -148,6 +149,8 @@ model Sector {
   id         String      @id @default(uuid())
   name       String
   active     Boolean     @default(true)
+  /// Grouped into "Other sectors" on the M12b sales reports, regardless of its own rank.
+  isOther    Boolean     @default(false)
   clients    Client[]
   enquiries  Enquiry[]
   quotations Quotation[]
@@ -160,17 +163,18 @@ model Sector {
 
 /// A service the company sells (e.g. Inspection). Same lifecycle as Sector.
 model Service {
-  id             String                 @id @default(uuid())
-  name           String
-  active         Boolean                @default(true)
-  enquiries      EnquiryService[]
-  quotations     QuotationService[]
-  projects       ProjectService[]
-  purchaseOrders PurchaseOrderService[]
-  invoices       Invoice[]
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  deletedAt      DateTime?
+  id                 String                 @id @default(uuid())
+  name               String
+  active             Boolean                @default(true)
+  enquiries          EnquiryService[]
+  quotations         QuotationService[]
+  projects           ProjectService[]
+  purchaseOrders     PurchaseOrderService[]
+  purchaseOrderLines PurchaseOrderLine[]
+  invoices           Invoice[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  deletedAt          DateTime?
 
   @@map("service")
 }
@@ -192,11 +196,15 @@ model Client {
   purchaseOrders PurchaseOrder[]
   invoices       Invoice[]
   documents      Document[]
+  /// Set when M10b's importer created this client; undo soft-deletes it along with the
+  /// batch's other records. Never set for a client an import merely matched.
+  importBatchId  String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   deletedAt      DateTime?
 
   @@index([sectorId])
+  @@index([importBatchId])
   @@map("client")
 }
 
@@ -231,6 +239,8 @@ model CompanySettings {
   /// An IN_PROGRESS enquiry untouched this long is stale in My Today (M11 Decision 5).
   /// CHECK 1–365 in migration m11_my_today.
   staleEnquiryDays          Int      @default(30)
+  /// The date format assumed for an ambiguous import column (M10b), e.g. "DD/MM/YYYY".
+  importDateFormat          String   @default("DD/MM/YYYY")
   updatedAt                 DateTime @updatedAt
 
   @@map("company_settings")
@@ -281,15 +291,19 @@ model Enquiry {
   /// Required when LOST (M4 Decision 4).
   lostReason       String?
   statusChangedAt  DateTime?
+  /// Set when M10b's importer created this enquiry; undo soft-deletes it (M10b).
+  importBatchId    String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   deletedAt        DateTime?
 
   @@index([ownerId, status])
   @@index([clientId])
+  @@index([clientId, receivedDate])
   @@index([status, receivedDate])
   @@index([source])
   @@index([receivedDate])
+  @@index([importBatchId])
   @@map("enquiry")
 }
 
@@ -409,7 +423,7 @@ model Quotation {
   /// INR equivalent at the monthly rate for this record's own date (M12 Decision 1);
   /// null until a rate exists. CHECKs in m12_dashboard keep the pair consistent.
   amountInrMinor         BigInt?
-  fxRate                 Decimal?  @db.Decimal(14, 6)
+  fxRate                 Decimal?           @db.Decimal(14, 6)
   status                 QuotationStatus    @default(SENT)
   /// Required while SENT or UNDER_NEGOTIATION; synced from the latest follow-up.
   nextFollowUpDate       DateTime?          @db.Date
@@ -490,7 +504,7 @@ model Project {
   /// INR equivalent at the monthly rate for this record's own date (M12 Decision 1);
   /// null until a rate exists. CHECKs in m12_dashboard keep the pair consistent.
   amountInrMinor  BigInt?
-  fxRate          Decimal?  @db.Decimal(14, 6)
+  fxRate          Decimal?         @db.Decimal(14, 6)
   status          ProjectStatus    @default(NOT_STARTED)
   statusChangedAt DateTime?
   completionPct   Int              @default(0)
@@ -635,8 +649,9 @@ model PurchaseOrder {
   /// INR equivalent at the monthly rate for this record's own date (M12 Decision 1);
   /// null until a rate exists. CHECKs in m12_dashboard keep the pair consistent.
   amountInrMinor   BigInt?
-  fxRate           Decimal?  @db.Decimal(14, 6)
+  fxRate           Decimal?               @db.Decimal(14, 6)
   services         PurchaseOrderService[]
+  lines            PurchaseOrderLine[]
   /// As printed or briefly summarised (Decision 7).
   paymentTerms     String?
   /// Net days when the terms state them; M10 defaults invoice due dates from it.
@@ -655,6 +670,7 @@ model PurchaseOrder {
 
   @@index([projectId])
   @@index([clientId, receivedDate])
+  @@index([receivedDate])
   @@index([status])
   @@index([clientId, poNumber])
   @@map("purchase_order")
@@ -674,6 +690,34 @@ model PurchaseOrderService {
   @@unique([purchaseOrderId, serviceId])
   @@index([serviceId])
   @@map("purchase_order_service")
+}
+
+/**
+ * One service's slice of a PO's amount (M12b): a PO with one service gets one line for the
+ * full amount; several services split it (the sum must equal the PO amount, checked in
+ * `packages/core`, never by a DB constraint across rows). `amountInrMinor` is the line's
+ * share of the PO's own INR equivalent, converted at the PO's `fxRate` (never independently
+ * rated) and kept summing to it by `purchase-order-lines.ts`. `allocationEstimated` is set
+ * only by the M12b data migration, for a pre-existing multi-service PO nobody confirmed a
+ * split for; the form always produces a real split for new or edited lines.
+ */
+model PurchaseOrderLine {
+  id                  String        @id @default(uuid())
+  purchaseOrderId     String
+  purchaseOrder       PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  serviceId           String
+  service             Service       @relation(fields: [serviceId], references: [id])
+  amountMinor         BigInt
+  currency            String
+  amountInrMinor      BigInt?
+  fxRate              Decimal?      @db.Decimal(14, 6)
+  allocationEstimated Boolean       @default(false)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([purchaseOrderId])
+  @@index([serviceId])
+  @@map("purchase_order_line")
 }
 
 // ─── M10: invoices ──────────────────────────────────────────────────────────────
@@ -722,7 +766,7 @@ model Invoice {
   /// INR equivalent at the monthly rate for this record's own date (M12 Decision 1);
   /// null until a rate exists. CHECKs in m12_dashboard keep the pair consistent.
   amountInrMinor     BigInt?
-  fxRate             Decimal?  @db.Decimal(14, 6)
+  fxRate             Decimal?      @db.Decimal(14, 6)
   dueDate            DateTime      @db.Date
   dueDateBasis       DueDateBasis
   status             InvoiceStatus @default(PENDING)
@@ -770,4 +814,99 @@ model ExchangeRate {
 
   @@index([currency, month])
   @@map("exchange_rate")
+}
+
+// ─── M10b: bulk import ────────────────────────────────────────────────────────────
+//
+// Phase 1: one sheet, one entity (Enquiry), create-only — the schema below already carries
+// the fields later phases need (multi-entity `entity`, `mapping`'s value-alias shape), so
+// they extend this without a rewrite.
+
+/// The record type a batch imports. Phase 1 only ever sets ENQUIRY; more join this enum as
+/// later phases add them (M10b).
+enum ImportEntity {
+  ENQUIRY
+}
+
+/// Changed only by packages/core/import/service.ts, as the wizard moves through its steps.
+enum ImportBatchStatus {
+  UPLOADED
+  PARSING
+  MAPPING
+  VALIDATING
+  READY
+  COMMITTING
+  COMMITTED
+  FAILED
+  UNDONE
+  EXPIRED
+}
+
+/// One spreadsheet upload working through the M10b wizard. `parsed`/`sheetConfig`/`mapping`
+/// hold the wizard's state between steps so nothing is re-parsed on a page refresh; `counts`
+/// is the Review step's summary (ready/warning/error/duplicate/excluded row counts).
+model ImportBatch {
+  id             String            @id @default(uuid())
+  fileName       String
+  /// Cloudinary public_id, raw and private (M10b Security).
+  fileStorageKey String
+  fileSize       Int
+  entity         ImportEntity
+  /// `{ mode: 'createOnly' }` in phase 1; grows with an update mode, historical mode, etc.
+  options        Json
+  parsed         Json?
+  sheetConfig    Json?
+  mapping        Json?
+  status         ImportBatchStatus @default(UPLOADED)
+  counts         Json?
+  createdById    String
+  createdBy      User              @relation(fields: [createdById], references: [id])
+  rows           ImportRow[]
+  committedAt    DateTime?
+  undoneAt       DateTime?
+  /// Drafts expire 7 days after creation (M10b `import.expire-drafts`).
+  expiresAt      DateTime
+  errorMessage   String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([createdById, status])
+  @@index([expiresAt])
+  @@map("import_batch")
+}
+
+enum ImportRowStatus {
+  READY
+  WARNING
+  ERROR
+  DUPLICATE
+  EXCLUDED
+}
+
+/// One staged spreadsheet row (M10b). Working state, not a business record — excluded from
+/// the audit log (packages/core/audit/model-meta.ts): re-validating a row rewrites it on
+/// every edit, and nothing here is final until commit, when the created record is audited
+/// normally, same as any other write.
+model ImportRow {
+  id              String          @id @default(uuid())
+  batchId         String
+  batch           ImportBatch     @relation(fields: [batchId], references: [id])
+  sheetName       String
+  rowNumber       Int
+  /// The row's raw cell values, keyed by column header.
+  original        Json
+  /// After transform (dates/text normalised); null until the Columns step runs.
+  transformed     Json?
+  /// After resolve (client id, sector id, owner id, ...); null until validated.
+  resolved        Json?
+  status          ImportRowStatus @default(READY)
+  /// `{ field, code, message }[]`.
+  messages        Json            @default("[]")
+  /// `{ enquiryId, clientId }` once committed; read by undo.
+  resultRecordIds Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([batchId, status])
+  @@map("import_row")
 }

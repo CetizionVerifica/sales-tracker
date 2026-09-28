@@ -17,6 +17,8 @@ export interface MasterRowView {
   active: boolean;
   deleted: boolean;
   updatedAt: string;
+  /** Sectors only (M12b): grouped into "Other sectors" on the sales reports. */
+  isOther?: boolean;
 }
 
 const column = createColumnHelper<MasterRowView>();
@@ -95,6 +97,16 @@ export function MastersTable({
             <MarkBadge>Inactive</MarkBadge>
           ),
       }),
+      ...(kind === 'sector'
+        ? [
+            column.display({
+              id: 'isOther',
+              header: 'Other sectors',
+              cell: ({ row: { original } }) =>
+                original.isOther ? <MarkBadge>Grouped as “Other”</MarkBadge> : null,
+            }),
+          ]
+        : []),
       column.accessor('updatedAt', {
         header: 'Updated',
         cell: (c) => <DateDisplay value={c.getValue()} withTime />,
