@@ -2,6 +2,7 @@ import {
   can,
   getClient,
   getClientTimeline,
+  listInvoicesForProject,
   listProjectManagerOptions,
   purchaseOrderResource,
 } from '@sales-tracker/core';
@@ -50,11 +51,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     entityType: 'PROJECT' as const,
     entityId: project.id,
   };
-  const [timeline, client, audit, managers] = await Promise.all([
+  const [timeline, client, audit, managers, invoices] = await Promise.all([
     getClientTimeline(ctx, query),
     getClient(ctx, project.client.id),
     loadRecordAudit(ctx, 'Project', project.id),
     !deleted && permissions.canReassign ? listProjectManagerOptions(ctx) : null,
+    listInvoicesForProject(ctx, project.id),
   ]);
   const contacts = client.contacts.map((c) => ({ id: c.id, name: c.name }));
   const canLog = !deleted && client.deletedAt === null;
@@ -75,6 +77,19 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     project.currency !== project.quotation.currency;
   // M9: POs are recorded on live, non-cancelled projects by the pipeline owner, PM or admins.
   const { purchaseOrders } = project;
+  // The Documents tab: the current documents of the project's POs (M9) and invoices (M10).
+  const recordDocuments = [
+    ...purchaseOrders.map((po) => ({
+      document: po.document,
+      href: `/purchase-orders/${po.id}`,
+      label: `PO ${po.poNumber}`,
+    })),
+    ...invoices.map((invoice) => ({
+      document: invoice.document,
+      href: `/invoices/${invoice.id}`,
+      label: `Invoice ${invoice.invoiceNumber}`,
+    })),
+  ].filter((record) => record.document);
   const canAddPo =
     !deleted &&
     project.status !== 'CANCELLED' &&
@@ -197,6 +212,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           paymentTerms: po.paymentTerms,
           status: po.status,
           documentState: po.documentState,
+          invoicedMinor: po.billing.invoicedMinor.toString(),
+          paidMinor: po.billing.paidMinor.toString(),
         }))}
         totals={{
           byCurrency: project.poTotals.byCurrency.map((t) => ({
@@ -271,12 +288,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       />
       <PipelineStrip
         current="project"
-        reached={purchaseOrders.length > 0 ? 'po' : 'project'}
+        reached={
+          project.invoiceStage.count > 0 ? 'invoice' : purchaseOrders.length > 0 ? 'po' : 'project'
+        }
         links={{
           enquiry: `/enquiries/${project.quotation.enquiry.id}`,
           quotation: `/quotations/${project.quotation.id}`,
           // The PO when there is one, otherwise the section listing them (M9).
           po: onlyPo ? `/purchase-orders/${onlyPo.id}` : '?tab=overview#purchase-orders',
+          // The invoice when there is one, otherwise the project's invoices (M10).
+          invoice: project.invoiceStage.invoiceId
+            ? `/invoices/${project.invoiceStage.invoiceId}`
+            : `/invoices?projectId=${project.id}`,
         }}
       />
       <DetailLayout
@@ -305,11 +328,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                 label: 'Documents',
                 content: (
                   <Panel bodyClassName="p-0">
-                    {purchaseOrders.every((po) => !po.document) ? (
-                      <EmptyState message="No documents yet. Upload each client PO on its page." />
+                    {recordDocuments.length === 0 ? (
+                      <EmptyState message="No documents yet. Upload each client PO and invoice on its page." />
                     ) : (
                       <ul className="divide-y">
-                        {purchaseOrders.flatMap(({ document: d, ...po }) =>
+                        {recordDocuments.flatMap(({ document: d, ...record }) =>
                           d
                             ? [
                                 <li
@@ -326,9 +349,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                                   </a>
                                   <Link
                                     className="text-muted-foreground text-[13px] hover:underline"
-                                    href={`/purchase-orders/${po.id}`}
+                                    href={record.href}
                                   >
-                                    PO {po.poNumber}
+                                    {record.label}
                                   </Link>
                                   <span className="text-muted-foreground text-[13px]">
                                     {d.uploadedBy.name} · <DateDisplay value={d.createdAt} />

@@ -13,7 +13,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const isAdmin = can(user, 'list', 'user');
 
   // Only modules that exist, and only what the role can use (UI guide §3). My today,
-  // Dashboard, Invoices and MCP access join as M10–M13 ship.
+  // Dashboard and MCP access join as M11–M13 ship.
+  const invoices = can(user, 'list', 'invoice')
+    ? [{ href: '/invoices', label: 'Invoices', icon: 'invoices', stage: 'invoice' } as const]
+    : [];
   const projects = can(user, 'list', 'project')
     ? [{ href: '/projects', label: 'Projects', icon: 'projects', stage: 'project' } as const]
     : [];
@@ -33,7 +36,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       label: 'Pipeline',
       items: [
         // Projects lead for project managers, whose work starts there (M8).
-        ...(user.role === 'PROJECT_MANAGER' ? [...projects, ...purchaseOrders] : []),
+        ...(user.role === 'PROJECT_MANAGER' ? [...projects, ...purchaseOrders, ...invoices] : []),
         ...(can(user, 'list', 'enquiry')
           ? [
               {
@@ -54,7 +57,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               } as const,
             ]
           : []),
-        ...(user.role === 'PROJECT_MANAGER' ? [] : [...projects, ...purchaseOrders]),
+        ...(user.role === 'PROJECT_MANAGER' ? [] : [...projects, ...purchaseOrders, ...invoices]),
         ...(can(user, 'list', 'client')
           ? [{ href: '/clients', label: 'Clients', icon: 'clients' } as const]
           : []),
@@ -89,6 +92,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     ...(can(user, 'create', 'purchaseOrder')
       ? [{ href: '/purchase-orders/new', label: 'PO' }]
       : []),
+    // An invoice is raised on a PO; the page starts with a PO picker (M10).
+    ...(can(user, 'create', 'invoice') ? [{ href: '/invoices/new', label: 'Invoice' }] : []),
     ...(isAdmin ? [{ href: '/admin/clients/new', label: 'Client' }] : []),
   ];
 

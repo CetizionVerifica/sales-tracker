@@ -1,5 +1,6 @@
 import type {
   EnquiryStatus,
+  InvoiceStatus,
   ProjectStatus,
   PurchaseOrderStatus,
   QuotationStatus,
@@ -8,6 +9,7 @@ import { getDb } from '../clients.ts';
 import { assertCan, type Ctx } from '../context.ts';
 import {
   scopeEnquiries,
+  scopeInvoices,
   scopeProjects,
   scopePurchaseOrders,
   scopeQuotations,
@@ -15,6 +17,8 @@ import {
 import { todayInIST } from '../schemas/common.ts';
 import { ACTIVE_PROJECT_STATUSES } from '../status/project.ts';
 import { ACTIVE_QUOTATION_STATUSES } from '../status/quotation.ts';
+import { INVOICE_DOCUMENT_WHERE } from './invoice-queries.ts';
+import { dueWindowWhere } from './invoice.service.ts';
 import { PO_DOCUMENT_WHERE } from './purchase-order-queries.ts';
 
 /*
@@ -95,6 +99,26 @@ export async function purchaseOrderStatusCounts(
     db.purchaseOrder.count({ where: { AND: [scope, PO_DOCUMENT_WHERE.toReview] } }),
   ]);
   const counts = { PENDING: 0, PAID: 0, OVERDUE: 0, toReview };
+  for (const row of rows) counts[row.status] = row._count._all;
+  return counts;
+}
+
+/**
+ * M10: invoice status chips, unpaid invoices due in the next seven days, and current invoice
+ * documents waiting for review, each scoped like the list and matching its filter.
+ */
+export async function invoiceStatusCounts(
+  ctx: Ctx,
+): Promise<Record<InvoiceStatus, number> & { dueNext7: number; toReview: number }> {
+  assertCan(ctx, 'list', 'invoice');
+  const db = getDb();
+  const scope = scopeInvoices(ctx.user);
+  const [rows, dueNext7, toReview] = await Promise.all([
+    db.invoice.groupBy({ by: ['status'], where: { AND: [scope] }, _count: { _all: true } }),
+    db.invoice.count({ where: { AND: [scope, dueWindowWhere('next7')] } }),
+    db.invoice.count({ where: { AND: [scope, INVOICE_DOCUMENT_WHERE.toReview] } }),
+  ]);
+  const counts = { PENDING: 0, PAID: 0, OVERDUE: 0, dueNext7, toReview };
   for (const row of rows) counts[row.status] = row._count._all;
   return counts;
 }

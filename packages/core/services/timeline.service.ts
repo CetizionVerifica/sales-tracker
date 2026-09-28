@@ -37,6 +37,9 @@ export interface TimelineEvent {
     holdReason?: string;
     completedDate?: string;
     cancelReason?: string;
+    /** Invoice moves (M10): the day the payment arrived, or why an admin reversed it. */
+    paidAt?: string;
+    unpaidReason?: string;
   };
   /** DOCUMENT events: which file and what happened (never its values). */
   document?: {
@@ -411,6 +414,8 @@ export async function getClientTimeline(
         holdReason?: unknown;
         completedDate?: unknown;
         cancelReason?: unknown;
+        paidAt?: unknown;
+        unmarkedPaidReason?: unknown;
       };
       const to = String(after.status ?? '');
       // Whitelisted fields only; amounts and revenue never reach the timeline (M6, M8).
@@ -431,6 +436,12 @@ export async function getClientTimeline(
           : {}),
         ...(to === 'CANCELLED' && typeof after.cancelReason === 'string'
           ? { cancelReason: after.cancelReason }
+          : {}),
+        ...(to === 'PAID' && typeof after.paidAt === 'string'
+          ? { paidAt: after.paidAt.slice(0, 10) }
+          : {}),
+        ...(from === 'PAID' && typeof after.unmarkedPaidReason === 'string'
+          ? { unpaidReason: after.unmarkedPaidReason }
           : {}),
       };
       event.summary = `${from} → ${to}`;

@@ -38,5 +38,6 @@ export function recordHref(type: FollowUpEntityTypeValue, id: string): string | 
   if (type === 'QUOTATION') return `/quotations/${id}`;
   if (type === 'PROJECT') return `/projects/${id}`;
   if (type === 'PURCHASE_ORDER') return `/purchase-orders/${id}`;
+  if (type === 'INVOICE') return `/invoices/${id}`;
   return null;
 }

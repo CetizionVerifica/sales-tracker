@@ -24,7 +24,15 @@ import {
   type UpdatePurchaseOrderInput,
 } from '../schemas/purchase-order.ts';
 import { documentStateOf } from '../status/document.ts';
+import {
+  invoiceStage,
+  overInvoicedWarning,
+  poBilling,
+  type InvoiceStage,
+  type PoBilling,
+} from './invoice-queries.ts';
 import { lockProject } from './project-lock.ts';
+import { lockPurchaseOrder } from './purchase-order-lock.ts';
 import { PO_DOCUMENT_WHERE, poTotals, type PoTotals } from './purchase-order-queries.ts';
 import {
   CONCURRENT_PURCHASE_ORDER_CHANGE,
@@ -102,9 +110,15 @@ export interface PurchaseOrderPermissions {
   deleteBlockedReason: string | null;
 }
 
+export const PURCHASE_ORDER_HAS_INVOICES = 'Has invoices';
+
 export type PurchaseOrderView = PurchaseOrderDetail & {
   /** The live POs on its project, against the project's revenue. */
   projectTotals: PoTotals;
+  /** Its live invoices against its amount (M10). */
+  billing: PoBilling;
+  /** The pipeline strip's Invoice stage (M10). */
+  invoiceStage: InvoiceStage;
   permissions: PurchaseOrderPermissions;
 };
 
@@ -349,12 +363,17 @@ export async function listPurchaseOrders(
   return { items: rows.map(toDetail), total, page: p.page, pageSize: p.pageSize };
 }
 
-function permissionsFor(ctx: Ctx, row: Parameters<typeof purchaseOrderResource>[0]) {
+function permissionsFor(
+  ctx: Ctx,
+  row: Parameters<typeof purchaseOrderResource>[0],
+  liveInvoices: number,
+): PurchaseOrderPermissions {
   const resource = purchaseOrderResource(row);
+  const mayDelete = can(ctx.user, 'delete', resource);
   return {
     canUpdate: can(ctx.user, 'update', resource),
-    canDelete: can(ctx.user, 'delete', resource),
-    deleteBlockedReason: null,
+    canDelete: mayDelete && liveInvoices === 0,
+    deleteBlockedReason: mayDelete && liveInvoices > 0 ? PURCHASE_ORDER_HAS_INVOICES : null,
   };
 }
 
@@ -363,10 +382,17 @@ export async function getPurchaseOrder(ctx: Ctx, id: string): Promise<PurchaseOr
   const db = getDb();
   const access = await findAccessible(db, ctx, id, 'read', 'any');
   const purchaseOrder = await loadPurchaseOrder(db, id);
+  const [projectTotals, billing, stage] = await Promise.all([
+    poTotals(db, purchaseOrder.project),
+    poBilling(db, purchaseOrder),
+    invoiceStage(db, { purchaseOrderId: id }),
+  ]);
   return {
     ...purchaseOrder,
-    projectTotals: await poTotals(db, purchaseOrder.project),
-    permissions: permissionsFor(ctx, access),
+    projectTotals,
+    billing,
+    invoiceStage: stage,
+    permissions: permissionsFor(ctx, access, billing.invoiceCount),
   };
 }
 
@@ -507,11 +533,21 @@ export async function updatePurchaseOrder(
   ctx: Ctx,
   id: string,
   input: UpdatePurchaseOrderInput,
-): Promise<PurchaseOrderDetail> {
+): Promise<PurchaseOrderDetail & { warning: string | null }> {
   const { serviceIds, ...fields } = updatePurchaseOrderSchema.parse(input);
   return guardUnique('poNumber', numberTaken(fields.poNumber), () =>
     withTx(ctx, async (tx) => {
+      await findAccessible(tx, ctx, id, 'update');
+      // Invoices on this PO recompute its status under this lock (M10 Decision 12).
+      await lockPurchaseOrder(tx, id);
       const current = await findAccessible(tx, ctx, id, 'update');
+      const invoices = await tx.invoice.count({ where: { purchaseOrderId: id } });
+      // Invoices are in the PO's currency (M10 Decision 3), so it is fixed once they exist.
+      if (invoices > 0 && fields.currency !== undefined && fields.currency !== current.currency) {
+        throw new DomainError(`Invoices on this PO are in ${current.currency}`, {
+          field: 'currency',
+        });
+      }
 
       if (fields.poNumber !== undefined && fields.poNumber !== current.poNumber) {
         await assertNumberFree(tx, current.clientId, fields.poNumber, id);
@@ -547,18 +583,32 @@ export async function updatePurchaseOrder(
       if (fields.amountMinor !== undefined || fields.currency !== undefined) {
         await recomputePurchaseOrderStatus(tx, id);
       }
-      return loadPurchaseOrder(tx, id);
+      const purchaseOrder = await loadPurchaseOrder(tx, id);
+      // Below the invoiced total is allowed, with a warning (M10 Decision 9).
+      const warning =
+        fields.amountMinor !== undefined && invoices > 0
+          ? overInvoicedWarning(await poBilling(tx, purchaseOrder), purchaseOrder.poNumber)
+          : null;
+      return { ...purchaseOrder, warning };
     }),
   );
 }
 
 /**
- * The pipeline owner, the project's PM or an admin (Decision 10). The document stays
- * attached, so a restore brings it back. M10 adds "not while it has live invoices".
+ * The pipeline owner, the project's PM or an admin (Decision 10), and not while it has live
+ * invoices (M10). The project lock, then the PO lock (M9 lock order), stop an invoice being
+ * created meanwhile. The document stays attached, so a restore brings it back.
  */
 export async function softDeletePurchaseOrder(ctx: Ctx, id: string): Promise<PurchaseOrderDetail> {
   return withTx(ctx, async (tx) => {
+    const { projectId } = await findAccessible(tx, ctx, id, 'delete');
+    await lockProject(tx, projectId);
+    await lockPurchaseOrder(tx, id);
     const current = await findAccessible(tx, ctx, id, 'delete');
+    const invoices = await tx.invoice.count({ where: { purchaseOrderId: id } });
+    if (invoices > 0) {
+      throw new DomainError(`Delete this PO's invoices first (${invoices})`);
+    }
     await guardedUpdate(
       tx,
       id,

@@ -22,6 +22,7 @@ import {
   type UpdateEnquiryInput,
 } from '../schemas/enquiry.ts';
 import { assertEnquiryTransition } from '../status/enquiry.ts';
+import { invoiceStage, type InvoiceStage } from './invoice-queries.ts';
 import { nextNumber } from './number-sequence.ts';
 
 // Relations loaded with `include` are not soft-delete filtered, so a deleted client or a
@@ -206,9 +207,18 @@ export async function listEnquiries(
 }
 
 /** Includes a soft-deleted enquiry the user can see (restore view). */
-export async function getEnquiry(ctx: Ctx, id: string): Promise<EnquiryDetail> {
-  await findAccessible(getDb(), ctx, id, 'read', 'any');
-  return loadEnquiry(getDb(), id);
+export async function getEnquiry(
+  ctx: Ctx,
+  id: string,
+): Promise<EnquiryDetail & { invoiceStage: InvoiceStage }> {
+  const db = getDb();
+  await findAccessible(db, ctx, id, 'read', 'any');
+  const [enquiry, stage] = await Promise.all([
+    loadEnquiry(db, id),
+    // The pipeline strip's Invoice stage (M10): invoices under the enquiry's quotations.
+    invoiceStage(db, { purchaseOrder: { project: { quotation: { enquiryId: id } } } }),
+  ]);
+  return { ...enquiry, invoiceStage: stage };
 }
 
 /** Owner picker for admins: active Sales and Admin users. */

@@ -88,7 +88,7 @@ describe('AC8: seed (integration)', () => {
     const followUps = await db.followUp.findMany();
     expect(new Set(followUps.map((f) => f.channel)).size).toBe(6);
     expect(new Set(followUps.map((f) => f.entityType))).toEqual(
-      new Set(['CLIENT', 'ENQUIRY', 'QUOTATION', 'PROJECT', 'PURCHASE_ORDER']),
+      new Set(['CLIENT', 'ENQUIRY', 'QUOTATION', 'PROJECT', 'PURCHASE_ORDER', 'INVOICE']),
     );
 
     const today = todayInIST().getTime();
@@ -153,8 +153,9 @@ describe('AC8: seed (integration)', () => {
     // Test-only reset of the fixture: quotations are soft-delete only in app code. POs (M9)
     // and projects (M8) point at quotations, so they go first; the seed recreates them all.
     await db.$executeRawUnsafe(
-      `DELETE FROM "follow_up" WHERE "entityType" IN ('QUOTATION', 'PROJECT', 'PURCHASE_ORDER')`,
+      `DELETE FROM "follow_up" WHERE "entityType" IN ('QUOTATION', 'PROJECT', 'PURCHASE_ORDER', 'INVOICE')`,
     );
+    await db.$executeRawUnsafe('DELETE FROM "invoice"');
     await db.$executeRawUnsafe('DELETE FROM "purchase_order_service"');
     await db.$executeRawUnsafe('DELETE FROM "purchase_order"');
     await db.$executeRawUnsafe('DELETE FROM "project_service"');
@@ -207,9 +208,7 @@ describe('AC8: seed (integration)', () => {
     const db = getDb();
     const pos = await db.purchaseOrder.findMany({ include: { project: true } });
     expect(pos.length).toBeGreaterThanOrEqual(5);
-    expect(pos.every((po) => po.status === 'PENDING' && po.clientId === po.project.clientId)).toBe(
-      true,
-    );
+    expect(pos.every((po) => po.clientId === po.project.clientId)).toBe(true);
     expect(pos.some((po) => po.project.status === 'CANCELLED')).toBe(false);
 
     const byProject = new Map<string, typeof pos>();
@@ -251,12 +250,63 @@ describe('AC8: seed (integration)', () => {
     const projects = await db.project.count();
     const followUps = await db.followUp.count();
     // Test-only reset of the fixture: POs are soft-delete only in app code.
-    await db.$executeRawUnsafe(`DELETE FROM "follow_up" WHERE "entityType" = 'PURCHASE_ORDER'`);
+    await db.$executeRawUnsafe(
+      `DELETE FROM "follow_up" WHERE "entityType" IN ('PURCHASE_ORDER', 'INVOICE')`,
+    );
+    await db.$executeRawUnsafe('DELETE FROM "invoice"');
     await db.$executeRawUnsafe('DELETE FROM "purchase_order_service"');
     await db.$executeRawUnsafe('DELETE FROM "purchase_order"');
     await seed({ ...options, devUsers: true });
     expect(await db.purchaseOrder.count()).toBe(pos);
     expect(await db.project.count()).toBe(projects);
+    expect(await db.followUp.count()).toBe(followUps);
+  });
+
+  it('M10 (AC12): dev seed adds invoices once, with POs PAID, PENDING (part-paid) and OVERDUE', async () => {
+    const db = getDb();
+    const invoices = await db.invoice.findMany();
+    expect(invoices.length).toBeGreaterThanOrEqual(4);
+    expect(invoices.every((i) => i.currency === 'INR' || i.currency === 'USD')).toBe(true);
+
+    const pos = await db.purchaseOrder.findMany({
+      include: { invoices: { where: { deletedAt: null } } },
+    });
+    const byNumber = new Map(pos.map((po) => [po.poNumber, po]));
+    const paid = byNumber.get('EXP-PO-8812')!;
+    expect(paid.status).toBe('PAID');
+    const partPaid = byNumber.get('4500012345')!;
+    expect(partPaid.status).toBe('PENDING');
+    expect(partPaid.invoices).toMatchObject([{ status: 'PAID', dueDateBasis: 'PO_TERMS' }]);
+    const overdue = byNumber.get('WH-2026-114')!;
+    expect(overdue.status).toBe('OVERDUE');
+    expect(overdue.invoices).toMatchObject([{ status: 'OVERDUE' }]);
+    const dueSoon = byNumber.get('PO/SOP/2026/07')!.invoices[0]!;
+    expect(dueSoon).toMatchObject({ status: 'PENDING', dueDateBasis: 'COMPANY_DEFAULT' });
+    expect(dueSoon.dueDate.getTime() - todayInIST().getTime()).toBe(3 * 86_400_000);
+    expect(byNumber.get('WH-2026-131')!.invoices).toEqual([]);
+
+    const followUp = await db.followUp.findFirst({
+      where: { entityType: 'INVOICE', entityId: overdue.invoices[0]!.id },
+      include: { user: true },
+    });
+    expect(followUp?.user.email).toBe('pm@example.com');
+    const audit = await db.auditLog.findMany({ where: { entityType: 'Invoice' } });
+    expect(audit.length).toBeGreaterThan(0);
+    expect(audit.every((row) => row.source === 'system')).toBe(true);
+
+    await seed({ ...options, devUsers: true });
+    expect(await db.invoice.count()).toBe(invoices.length);
+  });
+
+  it('M10: a database seeded before M10 (POs, no invoices) gets the sample invoices', async () => {
+    const db = getDb();
+    const invoices = await db.invoice.count();
+    const followUps = await db.followUp.count();
+    // Test-only reset of the fixture: invoices are soft-delete only in app code.
+    await db.$executeRawUnsafe(`DELETE FROM "follow_up" WHERE "entityType" = 'INVOICE'`);
+    await db.$executeRawUnsafe('DELETE FROM "invoice"');
+    await seed({ ...options, devUsers: true });
+    expect(await db.invoice.count()).toBe(invoices);
     expect(await db.followUp.count()).toBe(followUps);
   });
 

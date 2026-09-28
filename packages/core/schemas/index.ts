@@ -7,6 +7,7 @@ export * from './document.ts';
 export * from './enquiry.ts';
 export * from './extraction.ts';
 export * from './follow-up.ts';
+export * from './invoice.ts';
 export * from './list-params.ts';
 export * from './master.ts';
 export * from './money.ts';

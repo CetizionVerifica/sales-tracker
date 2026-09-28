@@ -3,7 +3,7 @@ import { clearable, idOnlySchema, optionalText, withId } from './common.ts';
 import { listParamsSchema } from './list-params.ts';
 
 /** 2-digit state code, 10-character PAN, entity number, "Z", checksum character. */
-const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+export const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
 export const gstinSchema = clearable(
   z.string().trim().toUpperCase().regex(GSTIN_PATTERN, 'Enter a valid 15-character GSTIN'),

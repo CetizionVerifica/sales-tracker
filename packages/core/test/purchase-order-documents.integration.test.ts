@@ -187,12 +187,12 @@ describe('AC6: purchase order documents (integration)', () => {
     expect((await getDocument(w.sales, doc.id)).review?.clientMismatch).toBe('Globex Ltd');
   });
 
-  it('still rejects INVOICE uploads', async () => {
+  it('treats a PO id sent as an INVOICE upload as not found (M10 ships INVOICE)', async () => {
     const { purchaseOrder } = await newPurchaseOrder(w);
     const error = await rejection(
       uploadDocument(w.sales, { kind: 'INVOICE', entityId: purchaseOrder.id }, await pdf()),
     );
-    expect(fieldOf(error)).toBe('kind');
+    expect(error).toBeInstanceOf(NotFoundError);
   });
 
   it('another PM or Sales rep gets not found for the PO’s document', async () => {

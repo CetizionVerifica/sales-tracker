@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { updateInvoiceFormSchema } from './invoice.ts';
 import { listParamsSchema, multi, recordStatusSchema } from './list-params.ts';
 import { updatePurchaseOrderFormSchema } from './purchase-order.ts';
 import { updateQuotationFormSchema } from './quotation.ts';
@@ -98,8 +99,9 @@ export function reviewExtractionFormSchema(
 
 export type ReviewExtractionFormValues = z.infer<ReturnType<typeof reviewExtractionFormSchema>>;
 
-/** The record form schema that validates applied values, per kind (M10 adds invoices). */
+/** The record form schema that validates applied values, per kind. */
 const REVIEW_RECORD_SCHEMAS: Partial<Record<DocumentKindValue, z.ZodType>> = {
   QUOTATION: updateQuotationFormSchema,
   PURCHASE_ORDER: updatePurchaseOrderFormSchema,
+  INVOICE: updateInvoiceFormSchema,
 };

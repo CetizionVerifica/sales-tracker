@@ -4,7 +4,9 @@ import {
   getClientTimeline,
   getCurrentDocument,
   getEnv,
+  invoiceResource,
   listDocuments,
+  listInvoicesForPurchaseOrder,
 } from '@sales-tracker/core';
 import { AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -31,10 +33,12 @@ import { EXTRACTION_STATUS_TEXT, formatBytes } from '@/lib/document-labels';
 import { loadRecordAudit } from '@/lib/record-audit';
 import { deletePurchaseOrderAction, restorePurchaseOrderAction } from '../actions';
 import { loadPurchaseOrderOr404 } from '../load';
+import { PurchaseOrderInvoices } from './PurchaseOrderInvoices';
 
 /**
  * A purchase order (UI guide §4.2). No status actions: the status follows the PO's
- * invoices (M9 Decision 4). The Document card reads the client's PDF for review (M7).
+ * invoices (M9 Decision 4), listed in the Invoices section (M10). The Document card reads
+ * the client's PDF for review (M7).
  */
 export default async function PurchaseOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireUser();
@@ -50,12 +54,13 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
     entityType: 'PURCHASE_ORDER' as const,
     entityId: po.id,
   };
-  const [timeline, client, document, documents, audit] = await Promise.all([
+  const [timeline, client, document, documents, audit, invoices] = await Promise.all([
     getClientTimeline(ctx, query),
     getClient(ctx, po.client.id),
     deleted ? null : getCurrentDocument(ctx, 'PURCHASE_ORDER', po.id),
     deleted ? null : listDocuments(ctx, { kind: ['PURCHASE_ORDER'], entityId: po.id }),
     loadRecordAudit(ctx, 'PurchaseOrder', po.id),
+    deleted ? [] : listInvoicesForPurchaseOrder(ctx, po.id),
   ]);
   const contacts = client.contacts.map((c) => ({ id: c.id, name: c.name }));
   const canLog = !deleted && client.deletedAt === null;
@@ -86,6 +91,15 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
         'use server';
         return deletePurchaseOrderAction({ id: po.id });
       },
+    });
+  }
+  if (permissions.deleteBlockedReason && !deleted) {
+    menu.push({
+      label: 'Delete',
+      destructive: true,
+      blocked: true,
+      title: `${label} has invoices`,
+      description: `Delete its invoices first (${po.billing.invoiceCount}). A PO with invoices cannot be deleted.`,
     });
   }
   if (permissions.canDelete && deleted) {
@@ -177,9 +191,30 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
           maxMb={Math.floor(getEnv().DOCUMENT_MAX_BYTES / (1024 * 1024))}
         />
       )}
-      <Panel title="Invoices">
-        <EmptyState message="Invoices arrive in a later release." />
-      </Panel>
+      {!deleted && (
+        <PurchaseOrderInvoices
+          purchaseOrderId={po.id}
+          today={today}
+          canAdd={can(ctx.user, 'create', invoiceResource({ purchaseOrder: po }))}
+          invoices={invoices.map((invoice) => ({
+            id: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            invoiceDate: invoice.invoiceDate.toISOString(),
+            dueDate: invoice.dueDate.toISOString(),
+            amountMinor: invoice.amountMinor.toString(),
+            currency: invoice.currency,
+            status: invoice.status,
+            documentState: invoice.documentState,
+          }))}
+          billing={{
+            currency: po.billing.currency,
+            poAmountMinor: po.billing.poAmountMinor.toString(),
+            invoicedMinor: po.billing.invoicedMinor.toString(),
+            paidMinor: po.billing.paidMinor.toString(),
+            overInvoiced: po.billing.overInvoiced,
+          }}
+        />
+      )}
     </>
   );
 
@@ -264,10 +299,15 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
       />
       <PipelineStrip
         current="po"
+        reached={po.invoiceStage.count > 0 ? 'invoice' : 'po'}
         links={{
           enquiry: `/enquiries/${po.project.quotation.enquiry.id}`,
           quotation: `/quotations/${po.project.quotation.id}`,
           project: `/projects/${po.project.id}`,
+          // The invoice when there is one, otherwise this PO's Invoices section (M10).
+          invoice: po.invoiceStage.invoiceId
+            ? `/invoices/${po.invoiceStage.invoiceId}`
+            : '?tab=overview#invoices',
         }}
       />
       <DetailLayout

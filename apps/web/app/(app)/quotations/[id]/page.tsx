@@ -260,7 +260,15 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
       />
       <PipelineStrip
         current="quotation"
-        reached={project?.purchaseOrders.length ? 'po' : project ? 'project' : 'quotation'}
+        reached={
+          quotation.invoiceStage.count > 0
+            ? 'invoice'
+            : project?.purchaseOrders.length
+              ? 'po'
+              : project
+                ? 'project'
+                : 'quotation'
+        }
         links={{
           enquiry: `/enquiries/${quotation.enquiry.id}`,
           ...(project && { project: `/projects/${project.id}` }),
@@ -271,6 +279,13 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
                 ? `/purchase-orders/${project.purchaseOrders[0]!.id}`
                 : `/projects/${project.id}?tab=overview#purchase-orders`,
           }),
+          // M10: the invoice when there is one, otherwise the project's invoices.
+          ...(project &&
+            quotation.invoiceStage.count > 0 && {
+              invoice: quotation.invoiceStage.invoiceId
+                ? `/invoices/${quotation.invoiceStage.invoiceId}`
+                : `/invoices?projectId=${project.id}`,
+            }),
         }}
       />
       <DetailLayout

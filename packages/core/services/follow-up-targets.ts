@@ -4,6 +4,8 @@ import { can } from '../rbac/can.ts';
 import {
   enquiryManagersSelect,
   enquiryResource,
+  invoiceAccessSelect,
+  invoiceResource,
   projectAccessSelect,
   projectResource,
   purchaseOrderAccessSelect,
@@ -11,6 +13,7 @@ import {
   quotationManagersSelect,
   quotationResource,
   scopeEnquiries,
+  scopeInvoices,
   scopeProjects,
   scopePurchaseOrders,
   scopeQuotations,
@@ -346,12 +349,68 @@ const purchaseOrderTarget: FollowUpTarget = {
   },
 };
 
+/** How an invoice is named across the app: our number, prefixed (UI guide §5). */
+export function invoiceLabel(row: { invoiceNumber: string }): string {
+  return `Invoice ${row.invoiceNumber}`;
+}
+
+/** Mostly payment chasing (M10). Invoices keep no follow-up fields, so there is no sync hook. */
+const invoiceTarget: FollowUpTarget = {
+  auditModel: 'Invoice',
+  async load(db, id) {
+    const row = await db.invoice.findFirst({
+      where: { id, deletedAt: undefined },
+      select: {
+        invoiceNumber: true,
+        clientId: true,
+        deletedAt: true,
+        client: { select: { deletedAt: true } },
+        ...invoiceAccessSelect,
+      },
+    });
+    if (!row) return null;
+    return {
+      clientId: row.clientId,
+      label: invoiceLabel(row),
+      deleted: !!row.deletedAt || !!row.client.deletedAt,
+      resource: invoiceResource(row),
+    };
+  },
+  async visibleIds(db, user, clientId) {
+    const rows = await db.invoice.findMany({
+      where: {
+        deletedAt: undefined,
+        ...(clientId && { clientId }),
+        AND: [scopeInvoices(user)],
+      },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
+  },
+  async labels(db, ids) {
+    const rows = await db.invoice.findMany({
+      where: { id: { in: ids }, deletedAt: undefined },
+      select: { id: true, invoiceNumber: true, deletedAt: true },
+    });
+    return new Map(rows.map((r) => [r.id, { label: invoiceLabel(r), deleted: !!r.deletedAt }]));
+  },
+  async pickable(db, user, clientId) {
+    const rows = await db.invoice.findMany({
+      where: { clientId, AND: [scopeInvoices(user)] },
+      select: { id: true, invoiceNumber: true },
+      orderBy: [{ invoiceDate: 'desc' }, { invoiceNumber: 'asc' }],
+    });
+    return rows.map((r) => ({ id: r.id, label: invoiceLabel(r) }));
+  },
+};
+
 export const FOLLOW_UP_TARGETS: Partial<Record<FollowUpEntityTypeValue, FollowUpTarget>> = {
   CLIENT: clientTarget,
   ENQUIRY: enquiryTarget,
   QUOTATION: quotationTarget,
   PROJECT: projectTarget,
   PURCHASE_ORDER: purchaseOrderTarget,
+  INVOICE: invoiceTarget,
 };
 
 /** The registry entry, or a field error for a type whose module has not shipped. */

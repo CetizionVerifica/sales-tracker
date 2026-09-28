@@ -69,6 +69,8 @@ export interface ReviewRow {
   lockedReason: string | null;
   /** Ticked by default: differs from the record, not low confidence, not locked. */
   suggested: boolean;
+  /** The record's currency when a money row cannot change it (invoices, M10); else null. */
+  fixedCurrency: string | null;
 }
 
 export interface DocumentView {
@@ -104,6 +106,8 @@ export interface DocumentView {
     info: { name: string; label: string; extracted: ExtractedField | null }[];
     /** The client name printed on the document when it differs from the record's. */
     clientMismatch: string | null;
+    /** Other mismatches between document and record (e.g. the PO number on an invoice). */
+    warnings: string[];
   } | null;
 }
 
@@ -209,6 +213,18 @@ function differs(
   extracted: StoredExtraction,
   current: Record<string, string | null>,
 ) {
+  if (row.input === 'money' && row.fixedCurrency) {
+    // Only the amount applies, in the record's currency; a document in another currency is
+    // left unticked (M10: the invoice is the PO's currency, Decision 3).
+    const amount = extracted[row.from[0]!]?.value;
+    const printed = extracted[row.from[1]!]?.value;
+    const currency = current.currency;
+    if (!amount || !currency || !isIsoCurrency(currency)) return false;
+    if (printed && printed !== currency) return false;
+    const parsed = parseAmount(amount, currency);
+    const now = current.amount ? parseAmount(current.amount, currency) : null;
+    return parsed.ok && (!now?.ok || now.value !== parsed.value);
+  }
   if (row.input === 'money') {
     const amount = extracted[row.from[0]!]?.value;
     const currency = extracted[row.from[1]!]?.value;
@@ -223,6 +239,20 @@ function differs(
   return value !== null && value !== (current[row.applies[0]!] ?? null);
 }
 
+/**
+ * The client printed on the document when it is not the record's (M7; M10 adds GSTIN). When
+ * both the document and the client have a GSTIN, it decides: equal means the same company
+ * however the name is printed, different means another company even with the same name.
+ */
+function clientMismatchOf(parent: ParentRecord, extraction: StoredExtraction): string | null {
+  const printed = extraction.clientName?.value ?? null;
+  const printedGstin = extraction.clientGstin?.value ?? null;
+  if (printedGstin && parent.clientGstin) {
+    return printedGstin === parent.clientGstin ? null : (printed ?? printedGstin);
+  }
+  return printed && !sameCompany(printed, parent.clientName) ? printed : null;
+}
+
 function reviewOf(
   spec: DocumentKindSpec,
   parent: ParentRecord,
@@ -231,7 +261,11 @@ function reviewOf(
   const fields = spec.reviewFields.map((row): ReviewRow => {
     const extracted = Object.fromEntries(row.from.map((name) => [name, extraction[name] ?? null]));
     const current = Object.fromEntries(
-      row.applies.map((name) => [name, parent.values[name] ?? null]),
+      // A fixed-currency money row shows the amount in the record's currency.
+      [...row.applies, ...(row.fixedCurrency ? ['currency'] : [])].map((name) => [
+        name,
+        parent.values[name] ?? null,
+      ]),
     );
     const lockedReason = parent.locked[row.name] ?? null;
     const present = row.from.every((name) => extraction[name]?.value);
@@ -244,15 +278,19 @@ function reviewOf(
       current,
       applies: row.applies,
       lockedReason,
-      suggested: !lockedReason && present && confident && differs(row, extraction, current),
+      suggested:
+        !lockedReason &&
+        (row.fixedCurrency ? !!extraction[row.from[0]!]?.value : present) &&
+        confident &&
+        differs(row, extraction, current),
+      fixedCurrency: row.fixedCurrency ? (parent.values.currency ?? null) : null,
     };
   });
-  const printedClient = extraction.clientName?.value ?? null;
   return {
     fields,
     info: spec.infoFields.map((info) => ({ ...info, extracted: extraction[info.name] ?? null })),
-    clientMismatch:
-      printedClient && !sameCompany(printedClient, parent.clientName) ? printedClient : null,
+    clientMismatch: clientMismatchOf(parent, extraction),
+    warnings: spec.warnings?.(parent, extraction) ?? [],
   };
 }
 
@@ -695,6 +733,21 @@ export async function listDocumentsPendingReview(ctx: Ctx): Promise<DocumentRow[
           is: {
             project: {
               OR: [{ managerId: ctx.user.id }, { quotation: { ownerId: ctx.user.id } }],
+            },
+          },
+        },
+      });
+    }
+    // M10: likewise an invoice document, through its PO's project.
+    if (kind === 'INVOICE') {
+      mine.push({
+        kind,
+        invoice: {
+          is: {
+            purchaseOrder: {
+              project: {
+                OR: [{ managerId: ctx.user.id }, { quotation: { ownerId: ctx.user.id } }],
+              },
             },
           },
         },

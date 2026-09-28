@@ -50,6 +50,8 @@ export interface ReviewFormRow {
   current: Record<string, string | null>;
   lockedReason: string | null;
   suggested: boolean;
+  /** A money row whose currency is the record's and cannot change (invoices, M10). */
+  fixedCurrency: string | null;
 }
 
 type Change = { label: string; from: string; to: string };
@@ -69,7 +71,7 @@ function initialValues(rows: ReviewFormRow[]): Record<string, string> {
 function display(row: ReviewFormRow, values: Record<string, string | null>): string {
   if (row.input === 'money') {
     const amount = values.amount ?? '';
-    const currency = values.currency ?? '';
+    const currency = row.fixedCurrency ?? values.currency ?? '';
     if (!amount) return '—';
     if (!isIsoCurrency(currency)) return `${amount} ${currency}`.trim();
     const parsed = parseAmount(amount, currency);
@@ -105,6 +107,7 @@ export function ReviewForm({
   rows,
   info,
   clientMismatch,
+  warnings = [],
   currencies,
   editable,
   appliedFields,
@@ -116,6 +119,8 @@ export function ReviewForm({
   rows: ReviewFormRow[];
   info: { name: string; label: string; extracted: ExtractedField | null }[];
   clientMismatch: string | null;
+  /** Other mismatches between the document and the record (M10: PO number, currency). */
+  warnings?: string[];
   currencies: string[];
   editable: boolean;
   /** Set once reviewed: which fields were applied. */
@@ -189,12 +194,24 @@ export function ReviewForm({
         >
           <AlertTriangle className="text-warning mt-0.5 size-4 shrink-0" aria-hidden />
           <p>
-            The document is {kind === 'QUOTATION' ? 'addressed to' : 'from'}{' '}
+            The document is{' '}
+            {kind === 'QUOTATION' ? 'addressed to' : kind === 'INVOICE' ? 'billed to' : 'from'}{' '}
             <strong>{clientMismatch}</strong>, which does not match the client on {recordLabel}.
             Check it is the right document before applying values.
           </p>
         </div>
       )}
+
+      {warnings.map((warning) => (
+        <div
+          key={warning}
+          role="alert"
+          className="bg-warning-soft flex gap-2 rounded-[var(--radius-md)] border p-3 text-sm"
+        >
+          <AlertTriangle className="text-warning mt-0.5 size-4 shrink-0" aria-hidden />
+          <p>{warning}</p>
+        </div>
+      ))}
 
       {info.some((i) => i.extracted?.value) && (
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -250,26 +267,32 @@ export function ReviewForm({
                       className="text-right tabular-nums"
                       {...form.register('values.amount')}
                     />
-                    <Controller
-                      control={form.control}
-                      name="values.currency"
-                      render={({ field }) => (
-                        <Select value={field.value ?? ''} onValueChange={field.onChange}>
-                          <SelectTrigger aria-label="Currency" className="w-full">
-                            <SelectValue placeholder="Currency" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[...new Set([...currencies, field.value ?? ''])]
-                              .filter(Boolean)
-                              .map((code) => (
-                                <SelectItem key={code} value={code}>
-                                  {code}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
+                    {row.fixedCurrency ? (
+                      <span className="text-muted-foreground flex items-center text-sm">
+                        {row.fixedCurrency}
+                      </span>
+                    ) : (
+                      <Controller
+                        control={form.control}
+                        name="values.currency"
+                        render={({ field }) => (
+                          <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                            <SelectTrigger aria-label="Currency" className="w-full">
+                              <SelectValue placeholder="Currency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[...new Set([...currencies, field.value ?? ''])]
+                                .filter(Boolean)
+                                .map((code) => (
+                                  <SelectItem key={code} value={code}>
+                                    {code}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    )}
                   </div>
                 ) : row.input === 'textarea' ? (
                   <Textarea

@@ -39,7 +39,8 @@ export const updatePurchaseOrderAction = action(
   updatePurchaseOrderActionSchema,
   async (ctx, { id, data }) => {
     const purchaseOrder = await updatePurchaseOrder(ctx, id, data);
-    return done({ id }, purchaseOrder);
+    // Below the invoiced total saves, with a warning (M10 Decision 9).
+    return done({ id, warning: purchaseOrder.warning }, purchaseOrder);
   },
 );
 

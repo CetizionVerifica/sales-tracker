@@ -255,18 +255,28 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
       <PipelineStrip
         current="enquiry"
         reached={
-          purchaseOrders.length > 0
-            ? 'po'
-            : projects.length > 0
-              ? 'project'
-              : latestQuotation
-                ? 'quotation'
-                : 'enquiry'
+          enquiry.invoiceStage.count > 0
+            ? 'invoice'
+            : purchaseOrders.length > 0
+              ? 'po'
+              : projects.length > 0
+                ? 'project'
+                : latestQuotation
+                  ? 'quotation'
+                  : 'enquiry'
         }
         links={{
           ...(latestQuotation && { quotation: `/quotations/${latestQuotation.id}` }),
           ...(onlyProject && { project: `/projects/${onlyProject.id}` }),
           ...(purchaseOrders.length > 0 && poLink && { po: poLink }),
+          // M10: the invoice when there is one, otherwise the invoices for this client.
+          ...(enquiry.invoiceStage.count > 0 && {
+            invoice: enquiry.invoiceStage.invoiceId
+              ? `/invoices/${enquiry.invoiceStage.invoiceId}`
+              : onlyProject
+                ? `/invoices?projectId=${onlyProject.id}`
+                : `/invoices?clientId=${enquiry.client.id}`,
+          }),
         }}
       />
       <DetailLayout

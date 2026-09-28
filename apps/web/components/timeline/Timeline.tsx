@@ -5,6 +5,7 @@ import type {
   EnquiryStatusValue,
   FollowUpChannelValue,
   FollowUpEntityTypeValue,
+  InvoiceStatusValue,
   ProjectStatusValue,
   PurchaseOrderStatusValue,
   QuotationStatusValue,
@@ -33,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { applyResult } from '@/lib/apply-result';
 import { fieldLabel } from '@/lib/document-labels';
+import { INVOICE_STATUS_LABELS } from '@/lib/invoice-labels';
 import { STATUS_LABELS } from '@/lib/enquiry-labels';
 import { PROJECT_STATUS_LABELS } from '@/lib/project-labels';
 import { PURCHASE_ORDER_STATUS_LABELS } from '@/lib/purchase-order-labels';
@@ -99,6 +101,7 @@ function statusLabel(type: FollowUpEntityTypeValue, status: string): string {
   if (type === 'PURCHASE_ORDER') {
     return PURCHASE_ORDER_STATUS_LABELS[status as PurchaseOrderStatusValue] ?? status;
   }
+  if (type === 'INVOICE') return INVOICE_STATUS_LABELS[status as InvoiceStatusValue] ?? status;
   return status.toLowerCase();
 }
 
@@ -216,6 +219,14 @@ function EventItem({
         )}
         {event.change?.cancelReason && (
           <p className="text-muted-foreground text-[13px]">Reason: {event.change.cancelReason}</p>
+        )}
+        {event.change?.paidAt && (
+          <p className="text-muted-foreground text-[13px]">
+            Paid on {formatDate(event.change.paidAt)}
+          </p>
+        )}
+        {event.change?.unpaidReason && (
+          <p className="text-muted-foreground text-[13px]">Reason: {event.change.unpaidReason}</p>
         )}
         {followUp && (
           <>
