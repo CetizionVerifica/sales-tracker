@@ -212,3 +212,25 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/*
+ * Print (M12b: the Reports page's "Download PDF" uses the browser's print-to-PDF, no
+ * server-side PDF library). Hides the app shell; pages use `print:hidden` / `print:block`
+ * Tailwind variants for their own content, and `.break-inside-avoid` on report panels so a
+ * panel doesn't split across a page.
+ */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+  [data-slot='sidebar'],
+  [data-slot='sidebar-rail'],
+  [data-slot='sidebar-trigger'],
+  header {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+}

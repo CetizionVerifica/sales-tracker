@@ -227,3 +227,15 @@ export function scopeDocuments(
 export function documentResource(canReadParent: boolean, canUpdateParent: boolean) {
   return { type: 'document' as const, canReadParent, canUpdateParent };
 }
+
+/** Admins see every import batch; Sales see their own; PMs see none (M10b). */
+export function scopeImportBatches(user: Actor): Prisma.ImportBatchWhereInput {
+  if (user.role === 'ADMIN') return {};
+  if (user.role === 'SALES') return { createdById: user.id };
+  return { id: 'never' };
+}
+
+/** The can() instance for an import batch row. */
+export function importBatchResource(row: { createdById: string }) {
+  return { type: 'importBatch' as const, createdById: row.createdById };
+}

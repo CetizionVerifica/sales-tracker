@@ -2,6 +2,7 @@
 
 import {
   ArrowLeftRight,
+  BarChart3,
   Briefcase,
   Building2,
   ClipboardList,
@@ -14,6 +15,7 @@ import {
   Receipt,
   ScrollText,
   Settings,
+  Upload,
   Users,
   Wrench,
   type LucideIcon,
@@ -39,6 +41,8 @@ import type { NavGroup, NavIcon } from './nav';
 const ICONS: Record<NavIcon, LucideIcon> = {
   today: ListChecks,
   dashboard: LayoutDashboard,
+  reports: BarChart3,
+  imports: Upload,
   rates: ArrowLeftRight,
   enquiries: Inbox,
   quotations: FileText,

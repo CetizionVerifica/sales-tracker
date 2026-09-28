@@ -5,19 +5,27 @@ export interface StoredFile {
 }
 
 /**
- * Document file storage (M7). Services depend on this interface only: Cloudinary in
- * development and production, a shared temp folder for E2E, memory for Vitest.
+ * Document and import file storage (M7, M10b). Services depend on this interface only:
+ * Cloudinary in development and production, a shared temp folder for E2E, memory for
+ * Vitest. `resourceType` defaults to `image` (M7's documents); M10b spreadsheets pass
+ * `raw`. `extension` overrides the format `formatOf(mimeType)` would otherwise guess,
+ * for mime types (like spreadsheets) it doesn't know.
  */
 export interface FileStore {
-  put(input: { bytes: Uint8Array; mimeType: string; folder: string }): Promise<StoredFile>;
-  get(file: StoredFile & { mimeType: string }): Promise<Uint8Array>;
+  put(input: {
+    bytes: Uint8Array;
+    mimeType: string;
+    folder: string;
+    resourceType?: 'image' | 'raw';
+  }): Promise<StoredFile>;
+  get(file: StoredFile & { mimeType: string; extension?: string }): Promise<Uint8Array>;
   /** Best-effort cleanup of a file whose database row never committed. */
   remove(file: StoredFile): Promise<void>;
   /**
    * A short-lived link to the file, or null when the store has no URLs of its own (then
    * the web app streams the bytes after its own permission check).
    */
-  signedUrl(file: StoredFile & { mimeType: string }, ttlSeconds: number): string | null;
+  signedUrl(file: StoredFile & { mimeType: string; extension?: string }, ttlSeconds: number): string | null;
 }
 
 /** File extension Cloudinary uses for a MIME type. */

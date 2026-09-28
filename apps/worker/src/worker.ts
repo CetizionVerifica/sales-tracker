@@ -1,10 +1,17 @@
 import {
   closeDocumentsQueue,
+  closeImportsQueue,
   createRedisConnection,
   DOCUMENTS_QUEUE,
+  expireImportDrafts,
   getEnv,
+  IMPORT_COMMIT_JOB,
+  IMPORT_PARSE_JOB,
+  IMPORTS_QUEUE,
   markOverdueInvoices,
   runExtraction,
+  runImportCommitJob,
+  runImportParseJob,
   sweepStuckDocuments,
   systemCtx,
 } from '@sales-tracker/core';
@@ -36,6 +43,15 @@ export async function processDocumentJob(job: Job<{ documentId: string }>) {
   return runExtraction(ctx, documentId, { attempt: job.attemptsMade + 1, maxAttempts });
 }
 
+/** M10b: parse+detect+heuristic-map, or the all-or-nothing commit transaction. */
+export async function processImportJob(job: Job<{ batchId: string }>) {
+  const batchId = job.data?.batchId;
+  if (typeof batchId !== 'string') throw new UnrecoverableError('batchId is missing');
+  if (job.name === IMPORT_PARSE_JOB) return runImportParseJob(batchId);
+  if (job.name === IMPORT_COMMIT_JOB) return runImportCommitJob(batchId);
+  throw new UnrecoverableError(`unknown import job "${job.name}"`);
+}
+
 /** The overdue check as the system user (`source: 'system'`), with its counts logged. */
 async function checkOverdue() {
   const run = await markOverdueInvoices(await systemCtx());
@@ -45,9 +61,19 @@ async function checkOverdue() {
   return run;
 }
 
+/** Nightly: batches left untouched 7+ days past their `expiresAt` move to EXPIRED (M10b). */
+export const IMPORT_EXPIRE_JOB = 'imports:expire-drafts';
+export const IMPORT_EXPIRE_SCHEDULE = '10 0 * * *';
+async function checkImportExpiry() {
+  const run = await expireImportDrafts(await systemCtx());
+  console.log(`import expiry check: ${run.expired} draft(s) expired`);
+  return run;
+}
+
 /** Jobs on the `system` queue by name; any other name is the M0 no-op. */
 const SYSTEM_JOBS: Record<string, () => Promise<unknown>> = {
   [OVERDUE_JOB]: checkOverdue,
+  [IMPORT_EXPIRE_JOB]: checkImportExpiry,
 };
 
 export async function processSystemJob(job: Job) {
@@ -65,10 +91,11 @@ async function sweep() {
 }
 
 /**
- * Starts the BullMQ workers: the `system` queue (M0; M10's nightly overdue check) and the M7
- * `documents` queue, plus the stuck-document sweeper. The overdue schedule is an upsert, so
- * restarts do not add a second one, and the check also runs once on start, so a night the
- * worker was down is caught up (the check is idempotent).
+ * Starts the BullMQ workers: the `system` queue (M0; M10's nightly overdue check, M10b's
+ * nightly draft-expiry check), the M7 `documents` queue, and the M10b `imports` queue, plus
+ * the stuck-document sweeper. Both nightly schedules are upserts, so restarts do not add a
+ * second one, and each also runs once on start, so a night the worker was down is caught up
+ * (both checks are idempotent).
  */
 export async function startWorker(options: { sweep?: boolean } = {}) {
   const prefix = getEnv().QUEUE_PREFIX;
@@ -78,6 +105,11 @@ export async function startWorker(options: { sweep?: boolean } = {}) {
     OVERDUE_JOB,
     { pattern: OVERDUE_SCHEDULE, tz: 'Asia/Kolkata' },
     { name: OVERDUE_JOB, opts: OVERDUE_JOB_OPTIONS },
+  );
+  await systemQueue.upsertJobScheduler(
+    IMPORT_EXPIRE_JOB,
+    { pattern: IMPORT_EXPIRE_SCHEDULE, tz: 'Asia/Kolkata' },
+    { name: IMPORT_EXPIRE_JOB, opts: OVERDUE_JOB_OPTIONS },
   );
   const system = new Worker(SYSTEM_QUEUE, processSystemJob, { connection, prefix });
   system.on('failed', (job, error) => {
@@ -91,7 +123,11 @@ export async function startWorker(options: { sweep?: boolean } = {}) {
   documents.on('failed', (job, error) => {
     console.error(`document job ${job?.id} attempt ${job?.attemptsMade} failed: ${error.message}`);
   });
-  await Promise.all([system.waitUntilReady(), documents.waitUntilReady()]);
+  const imports = new Worker(IMPORTS_QUEUE, processImportJob, { connection, prefix });
+  imports.on('failed', (job, error) => {
+    console.error(`import job ${job?.name} attempt ${job?.attemptsMade} failed: ${error.message}`);
+  });
+  await Promise.all([system.waitUntilReady(), documents.waitUntilReady(), imports.waitUntilReady()]);
 
   let timer: NodeJS.Timeout | undefined;
   if (options.sweep !== false) {
@@ -105,13 +141,19 @@ export async function startWorker(options: { sweep?: boolean } = {}) {
     // The schedule still runs tonight; a failed catch-up must not stop the worker starting.
     console.error('overdue catch-up failed', error);
   }
+  try {
+    await checkImportExpiry();
+  } catch (error) {
+    console.error('import expiry catch-up failed', error);
+  }
 
   return {
     async close() {
       if (timer) clearInterval(timer);
-      await Promise.all([system.close(), documents.close()]);
+      await Promise.all([system.close(), documents.close(), imports.close()]);
       await systemQueue.close();
       await closeDocumentsQueue();
+      await closeImportsQueue();
       await connection.quit();
     },
   };

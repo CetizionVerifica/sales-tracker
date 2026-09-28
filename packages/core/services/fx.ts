@@ -1,5 +1,6 @@
 import type { Db } from '../clients.ts';
 import { rateFromDecimal, rateToDecimalString, toInrMinor } from '../schemas/money.ts';
+import { syncLineFx } from './purchase-order-lines.ts';
 
 /*
  * INR equivalents (M12 Decision 1). Quotations, projects, POs and invoices store
@@ -149,6 +150,16 @@ async function rowsIn(db: Db, currency: string, month: Date, extra: object) {
   return out;
 }
 
+/**
+ * PO lines never carry their own rate (they split the PO's own INR value, M12b), so a fill
+ * or recalculate that touches a PO must re-split its lines in the same pass.
+ */
+async function resyncTouchedLines(db: Db, rows: { model: ModelName; row: Row }[]) {
+  for (const { model, row } of rows) {
+    if (model === 'purchaseOrder') await syncLineFx(db, row.id);
+  }
+}
+
 /** Records in the currency and month that have no INR value yet, set at `rate`. */
 export async function fillMissingFx(db: Db, currency: string, month: Date, rate: bigint) {
   const rows = await rowsIn(db, currency, month, { fxRate: null });
@@ -158,6 +169,7 @@ export async function fillMissingFx(db: Db, currency: string, month: Date, rate:
       data: fieldsAt(amountOf(model, row), currency, rate),
     });
   }
+  await resyncTouchedLines(db, rows);
   return rows.length;
 }
 
@@ -172,6 +184,7 @@ export async function recalculateFx(db: Db, currency: string, month: Date, rate:
       data: fieldsAt(amountOf(model, row), currency, rate),
     });
   }
+  await resyncTouchedLines(db, rows);
   return rows.length;
 }
 

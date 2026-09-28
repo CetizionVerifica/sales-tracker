@@ -1,4 +1,4 @@
-import { listSectors, listServices, type Ctx } from '@sales-tracker/core';
+import { listSectors, listServices, type Ctx, type SectorRow } from '@sales-tracker/core';
 import { listMastersSchema } from '@sales-tracker/core/schemas';
 import { FilterBar } from '@/components/data/FilterBar';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -60,6 +60,7 @@ export async function MastersPage({
           active: row.active,
           deleted: row.deletedAt !== null,
           updatedAt: row.updatedAt.toISOString(),
+          isOther: kind === 'sector' ? (row as SectorRow).isOther : undefined,
         }))}
         total={result.total}
         page={result.page}

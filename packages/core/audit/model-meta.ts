@@ -9,6 +9,9 @@ export const AUDIT_EXCLUDED = {
   Session:
     'Auth plumbing rewritten on every sign-in and session refresh; carries no business data.',
   Verification: 'Short-lived auth tokens; carries no business data.',
+  ImportRow:
+    'M10b staging state, rewritten on every re-validation while a batch is worked on; not a ' +
+    'business record. The record it produces at commit (e.g. Enquiry) is audited normally.',
 } as const satisfies Partial<Record<Prisma.ModelName, string>>;
 
 export interface ModelFields {

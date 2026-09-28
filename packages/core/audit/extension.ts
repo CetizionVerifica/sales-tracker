@@ -1,5 +1,6 @@
 import { Prisma } from '@sales-tracker/db';
 import { AuditContextError } from '../errors.ts';
+import { notifyModelWrite } from '../reports/cache.ts';
 import { isAudited, modelFields } from './model-meta.ts';
 import { assertNoNestedWrites, changedFields, classifyAction, toAuditJson } from './snapshot.ts';
 import { applySoftDelete, withDeleted } from './soft-delete.ts';
@@ -106,6 +107,8 @@ async function writeAudit(store: AuditStore & { tx: TxClient }, model: string, e
       requestId: store.requestId,
     })),
   });
+  // M12b: every audited write on a watched model invalidates the sales reports cache.
+  notifyModelWrite(model);
 }
 
 /** Rows affected by a bulk write, matched by id so the before/after pair up. */

@@ -2,17 +2,19 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
+  allocateProportional,
   createPurchaseOrderFormSchema,
   formatMoney,
   isIsoCurrency,
   parseAmount,
+  toAmountString,
   updatePurchaseOrderFormSchema,
 } from '@sales-tracker/core/schemas';
 import { AlertTriangle, FileText, Upload, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
-import { Controller, useForm, useWatch, type Resolver } from 'react-hook-form';
+import { Controller, useFieldArray, useForm, useWatch, type Resolver } from 'react-hook-form';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -47,6 +49,9 @@ export interface PurchaseOrderFormValues {
   amount: string;
   currency: string;
   serviceIds: string[];
+  /** How the amount splits across `serviceIds` (M12b schema change 1): one row per selected
+   * service, kept in sync with it. Ignored server-side when there is one service. */
+  lines: { serviceId: string; amount: string }[];
   paymentTerms: string;
   paymentTermsDays: string;
   description: string;
@@ -59,6 +64,7 @@ const EDITABLE: readonly EditableField[] = [
   'amount',
   'currency',
   'serviceIds',
+  'lines',
   'paymentTerms',
   'paymentTermsDays',
   'description',
@@ -135,12 +141,40 @@ export function PurchaseOrderForm({
   });
   const { errors, isSubmitting, dirtyFields } = form.formState;
   const [amount, currency] = useWatch({ control: form.control, name: ['amount', 'currency'] });
+  const {
+    fields: lineFields,
+    append: appendLine,
+    remove: removeLine,
+    update: updateLine,
+  } = useFieldArray({ control: form.control, name: 'lines' });
+  const watchedLines = useWatch({ control: form.control, name: 'lines' });
 
   const value = parsed(amount, currency);
   const inProjectCurrency = currency === project.currency && value !== null;
   const total = inProjectCurrency ? BigInt(project.otherPosMinor) + value : null;
   const revenue = BigInt(project.revenueMinor);
   const over = total !== null && total > revenue;
+
+  const lineTotal = watchedLines.reduce((sum, line) => {
+    const v = parsed(line.amount, currency);
+    return v === null ? sum : sum + v;
+  }, 0n);
+  const remaining = value !== null && lineFields.length > 1 ? value - lineTotal : null;
+
+  /** Resets every currently split service's amount to an equal share of `amount` (M12b: the
+   * form's pre-filled split); the user can still edit each row afterward. */
+  function splitEvenly(serviceIds: string[]) {
+    if (value === null || serviceIds.length === 0) return;
+    const shares = allocateProportional(
+      value,
+      serviceIds.map(() => 1n),
+    );
+    serviceIds.forEach((serviceId, i) => {
+      const index = lineFields.findIndex((line) => line.serviceId === serviceId);
+      if (index >= 0)
+        updateLine(index, { serviceId, amount: toAmountString(shares[i]!, currency) });
+    });
+  }
 
   function choose(next: File | undefined) {
     setFileError(null);
@@ -174,10 +208,16 @@ export function PurchaseOrderForm({
     }
 
     // Only what changed; an amount and its currency travel together.
+    // A multi-service PO's split can go stale when the amount or currency changes without
+    // touching the split itself; `lines` is sent (with whatever it currently shows) so the
+    // service's sum check catches it, rather than the server silently guessing a new split.
+    const linesStale = (dirtyFields.amount || dirtyFields.currency) && values.serviceIds.length > 1;
     const changed = EDITABLE.filter((field) =>
       field === 'amount' || field === 'currency'
         ? dirtyFields.amount || dirtyFields.currency
-        : Boolean(dirtyFields[field]),
+        : field === 'lines'
+          ? Boolean(dirtyFields.lines) || linesStale
+          : Boolean(dirtyFields[field]),
     );
     if (changed.length === 0) {
       router.push(`/purchase-orders/${purchaseOrder.id}`);
@@ -302,13 +342,24 @@ export function PurchaseOrderForm({
                       <label key={service.id} className="flex items-center gap-2 text-sm">
                         <Checkbox
                           checked={field.value.includes(service.id)}
-                          onCheckedChange={(next) =>
-                            field.onChange(
+                          onCheckedChange={(next) => {
+                            const wasMulti = field.value.length > 1;
+                            const nextIds =
                               next === true
                                 ? [...field.value, service.id]
-                                : field.value.filter((id) => id !== service.id),
-                            )
-                          }
+                                : field.value.filter((id) => id !== service.id);
+                            field.onChange(nextIds);
+                            if (next === true) {
+                              appendLine({ serviceId: service.id, amount: '' });
+                              // Going from one service to two: pre-fill an equal split (M12b).
+                              if (!wasMulti && nextIds.length === 2) splitEvenly(nextIds);
+                            } else {
+                              const index = lineFields.findIndex(
+                                (line) => line.serviceId === service.id,
+                              );
+                              if (index >= 0) removeLine(index);
+                            }
+                          }}
                         />
                         {service.name}
                       </label>
@@ -319,6 +370,48 @@ export function PurchaseOrderForm({
               <FieldDescription>The project’s services.</FieldDescription>
               <FieldError errors={[errors.serviceIds]} />
             </FieldSet>
+            {lineFields.length > 1 && (
+              <FieldSet data-invalid={Boolean(errors.lines)}>
+                <div className="flex items-center justify-between">
+                  <FieldLegend variant="label">Split the amount</FieldLegend>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => splitEvenly(lineFields.map((line) => line.serviceId))}
+                  >
+                    Split evenly
+                  </Button>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {lineFields.map((line, index) => {
+                    const service = project.services.find((s) => s.id === line.serviceId);
+                    return (
+                      <div key={line.id} className="flex items-center gap-3">
+                        <span className="min-w-0 flex-1 truncate text-sm">
+                          {service?.name ?? line.serviceId}
+                        </span>
+                        <Input
+                          className="w-36 text-right tabular-nums"
+                          inputMode="decimal"
+                          autoComplete="off"
+                          aria-label={`Amount for ${service?.name ?? 'this service'}`}
+                          {...form.register(`lines.${index}.amount`)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <FieldDescription>
+                  {remaining === null
+                    ? 'Split the PO amount across its services; the split must add up to the total.'
+                    : remaining === 0n
+                      ? 'The split covers the full amount.'
+                      : `Remaining to allocate: ${formatMoney(remaining, currency)}${remaining < 0n ? ' over the amount' : ''}.`}
+                </FieldDescription>
+                <FieldError errors={[errors.lines as { message?: string } | undefined]} />
+              </FieldSet>
+            )}
           </section>
 
           <section className="flex flex-col gap-4">

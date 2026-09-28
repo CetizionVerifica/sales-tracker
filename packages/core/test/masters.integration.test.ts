@@ -132,3 +132,22 @@ describe.each(kinds)('$entity (AC8, AC13)', (kind) => {
     }
   });
 });
+
+// M12b AC3 (unit-ish, integration): only sectors carry `isOther`, defaulting false.
+describe('Sector isOther', () => {
+  it('defaults to false, and can be set on create and update', async () => {
+    const defaulted = await sectors.createSector(admin, { name: 'Textiles' });
+    expect(defaulted.isOther).toBe(false);
+
+    const other = await sectors.createSector(admin, { name: 'Miscellaneous', isOther: true });
+    expect(other.isOther).toBe(true);
+
+    const flipped = await sectors.updateSector(admin, defaulted.id, { isOther: true });
+    expect(flipped.isOther).toBe(true);
+
+    expect((await sectors.getSector(admin, other.id)).isOther).toBe(true);
+    expect(
+      (await sectors.listSectors(admin, { page: 1, pageSize: 50 })).items.map((s) => s.id),
+    ).toContain(other.id);
+  });
+});

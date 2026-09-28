@@ -33,7 +33,12 @@ export type ResourceInstance =
   /** Whose My Today list is being read (M11). */
   | { type: 'myToday'; userId: string }
   /** Monthly exchange rates (M12): a master, like sectors and services. */
-  | { type: 'exchangeRate' };
+  | { type: 'exchangeRate' }
+  /** The M12b sales reports: company-wide (admins) or one Sales user's own (M12b). */
+  | { type: 'report'; scope: 'company' | 'personal' }
+  /** A bulk-import batch (M10b): owned by whoever uploaded it, like an enquiry. Phase 1 only
+   * imports enquiries, so a PROJECT_MANAGER never owns one. */
+  | { type: 'importBatch'; createdById: string };
 
 export type ResourceType = ResourceInstance['type'];
 

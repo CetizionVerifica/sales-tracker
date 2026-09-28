@@ -31,6 +31,7 @@ export function ConfirmDialog({
   variant = 'outline',
   open: controlledOpen,
   onOpenChange,
+  disabled = false,
 }: {
   label: string;
   title: string;
@@ -42,6 +43,8 @@ export function ConfirmDialog({
   /** Controlled from elsewhere (a row's ⋯ menu): no trigger button is rendered. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** The trigger button only; a controlled dialog ignores this. */
+  disabled?: boolean;
 }) {
   const router = useRouter();
   const [ownOpen, setOwnOpen] = useState(false);
@@ -54,7 +57,7 @@ export function ConfirmDialog({
     <AlertDialog open={open} onOpenChange={setOpen}>
       {!controlled && (
         <AlertDialogTrigger asChild>
-          <Button variant={variant} size="sm">
+          <Button variant={variant} size="sm" disabled={disabled}>
             {label}
           </Button>
         </AlertDialogTrigger>

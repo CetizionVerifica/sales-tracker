@@ -37,6 +37,22 @@ const serviceIdsSchema = z
   .max(10, 'Choose at most 10 services')
   .refine((ids) => new Set(ids).size === ids.length, 'Each service can be chosen once');
 
+/**
+ * How the PO amount splits across its services (M12b schema change 1): required with more
+ * than one service, ignored with one (the service always gets one line for the full amount).
+ * Amounts are parsed and checked to sum to the PO amount in `purchase-order-lines.ts`, where
+ * the currency is known.
+ */
+const linesSchema = z
+  .array(
+    z.strictObject({
+      serviceId: z.string().min(1),
+      amount: z.string().trim().min(1, 'Enter the amount'),
+    }),
+  )
+  .max(10)
+  .optional();
+
 const NET_DAYS_MESSAGE = 'Enter net days as a whole number from 0 to 365';
 
 /**
@@ -67,6 +83,7 @@ const purchaseOrderFields = {
   amount: z.string().trim().min(1, 'Enter the amount'),
   currency: currencySchema,
   serviceIds: serviceIdsSchema,
+  lines: linesSchema,
   paymentTerms: optionalText(PAYMENT_TERMS_MAX),
   paymentTermsDays: netDaysSchema.optional(),
   description: optionalText(2000),

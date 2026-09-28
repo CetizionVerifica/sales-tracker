@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createMasterSchema } from '@sales-tracker/core/schemas';
+import { createSectorSchema } from '@sales-tracker/core/schemas';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -44,8 +44,14 @@ export function MasterDialog({
   const noun = LABEL[kind];
   const Noun = noun.charAt(0).toUpperCase() + noun.slice(1);
   const form = useForm({
-    resolver: zodResolver(createMasterSchema),
-    defaultValues: { name: row?.name ?? '', active: row?.active ?? true },
+    // Both kinds validate against the sector schema (a strict superset): `isOther` is simply
+    // unused and discarded server-side for a service (its own schema re-parses without it).
+    resolver: zodResolver(createSectorSchema),
+    defaultValues: {
+      name: row?.name ?? '',
+      active: row?.active ?? true,
+      isOther: row?.isOther ?? false,
+    },
   });
   const { errors, isSubmitting } = form.formState;
 
@@ -95,6 +101,24 @@ export function MasterDialog({
                 Active (shown in pickers)
               </FieldLabel>
             </Field>
+            {kind === 'sector' && (
+              <Field orientation="horizontal">
+                <Controller
+                  control={form.control}
+                  name="isOther"
+                  render={({ field }) => (
+                    <Checkbox
+                      id={`sector-isOther-${row?.id ?? 'new'}`}
+                      checked={field.value}
+                      onCheckedChange={(checked) => field.onChange(checked === true)}
+                    />
+                  )}
+                />
+                <FieldLabel htmlFor={`sector-isOther-${row?.id ?? 'new'}`}>
+                  Group into “Other sectors” on reports
+                </FieldLabel>
+              </Field>
+            )}
           </FieldGroup>
           <DialogFooter className="mt-6">
             <Button type="submit" disabled={isSubmitting}>

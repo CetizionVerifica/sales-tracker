@@ -4,6 +4,8 @@ import type { StageId } from '@/components/pipeline/PipelineStrip';
 export type NavIcon =
   | 'today'
   | 'dashboard'
+  | 'reports'
+  | 'imports'
   | 'rates'
   | 'enquiries'
   | 'quotations'

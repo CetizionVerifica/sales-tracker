@@ -7,6 +7,7 @@ import {
   NotFoundError,
 } from '@sales-tracker/core';
 import {
+  allocateProportional,
   formatMoney,
   toAmountString,
   toCalendarDateString,
@@ -22,6 +23,19 @@ import { PurchaseOrderForm } from '../PurchaseOrderForm';
 import { ProjectPicker } from './ProjectPicker';
 
 export const metadata = { title: 'New purchase order · Sales Tracker' };
+
+/** The draft's pre-filled equal split, when it has an amount and more than one service. */
+function initialLines(draft: PurchaseOrderDraft): { serviceId: string; amount: string }[] {
+  if (draft.amountMinor === null || draft.serviceIds.length <= 1) return [];
+  const shares = allocateProportional(
+    draft.amountMinor,
+    draft.serviceIds.map(() => 1n),
+  );
+  return draft.serviceIds.map((serviceId, i) => ({
+    serviceId,
+    amount: toAmountString(shares[i]!, draft.currency),
+  }));
+}
 
 /** Where the pre-filled amount came from, or why it is blank. */
 function amountHint(draft: PurchaseOrderDraft): string | null {
@@ -142,6 +156,7 @@ export default async function NewPurchaseOrderPage({
             draft.amountMinor === null ? '' : toAmountString(draft.amountMinor, draft.currency),
           currency: draft.currency,
           serviceIds: draft.serviceIds,
+          lines: initialLines(draft),
           paymentTerms: '',
           paymentTermsDays: '',
           description: '',

@@ -65,6 +65,10 @@ export default async function EditPurchaseOrderPage({
           amount: toAmountString(po.amountMinor, po.currency),
           currency: po.currency,
           serviceIds: po.services.map((s) => s.id),
+          lines: po.lines.map((l) => ({
+            serviceId: l.serviceId,
+            amount: toAmountString(l.amountMinor, po.currency),
+          })),
           paymentTerms: po.paymentTerms ?? '',
           paymentTermsDays: po.paymentTermsDays === null ? '' : String(po.paymentTermsDays),
           description: po.description ?? '',
